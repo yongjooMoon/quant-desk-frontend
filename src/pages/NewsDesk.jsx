@@ -217,7 +217,7 @@ export default function NewsDesk() {
                     >
                       <div>
                         <div className="flex justify-between items-center mb-3">
-                          <span className={`text-[11px] font-black px-2.5 py-1 rounded-md ${getRegionStyle(item.region)}`}>SAVE · {item.region}</span>
+                          <span className={`text-[11px] font-black px-2.5 py-1 rounded-md ${getRegionStyle(item.region)}`}>{item.region}</span>
                           <span className="text-[12px] text-slate-500 dark:text-slate-400 font-extrabold">{formatTime(item.created_at)}</span>
                         </div>
                         <h3 className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white leading-snug line-clamp-2 tracking-tight">{item.title}</h3>
