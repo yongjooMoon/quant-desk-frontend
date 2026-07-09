@@ -195,22 +195,24 @@ export default function NewsDesk() {
                   onMouseLeave={handleMouseLeaveOrUp}
                   onMouseUp={handleMouseLeaveOrUp}
                   onMouseMove={handleMouseMove}
-                  className={`flex overflow-x-auto gap-5 pb-4 hide-scrollbar snap-x snap-mandatory ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                  className={`flex overflow-x-auto gap-4 md:gap-5 pb-4 hide-scrollbar snap-x snap-mandatory ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
                 >
                   {todayMajorNews.map((item) => (
                     <div
                       key={item.id}
                       onClick={(e) => handleCardClick(e, item)}
-                      className="min-w-[85vw] md:min-w-[440px] snap-center shrink-0 p-5 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#111827] hover:border-blue-400 dark:hover:border-slate-500 transition-all flex flex-col justify-between min-h-[160px] shadow-sm hover:shadow-md"
+                      /* 🌟 가로 너비(w)를 대폭 줄여 아담하고 세련된 카드로 디자인 변경 */
+                      className="w-[85vw] sm:w-[320px] md:w-[340px] lg:w-[360px] snap-center shrink-0 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] hover:border-blue-400 dark:hover:border-slate-600 transition-all flex flex-col justify-between min-h-[160px] shadow-sm hover:shadow-lg"
                     >
                       <div>
-                        <div className="flex justify-between items-center mb-4">
-                          <span className={`text-[11.5px] font-black px-2.5 py-1 rounded-md ${getRegionStyle(item.region)}`}>SAVE · {item.region}</span>
-                          <span className="text-[13px] text-slate-500 dark:text-slate-400 font-extrabold">{formatTime(item.created_at)}</span>
+                        <div className="flex justify-between items-center mb-3">
+                          <span className={`text-[11px] font-black px-2.5 py-1 rounded-md ${getRegionStyle(item.region)}`}>SAVE · {item.region}</span>
+                          <span className="text-[12px] text-slate-500 dark:text-slate-400 font-extrabold">{formatTime(item.created_at)}</span>
                         </div>
-                        <h3 className="text-[20px] md:text-[22px] font-black text-slate-900 dark:text-white leading-snug line-clamp-2 tracking-tight">{item.title}</h3>
+                        {/* 🌟 좁아진 카드 너비에 맞춰 폰트 사이즈 살짝 조정 */}
+                        <h3 className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white leading-snug line-clamp-2 tracking-tight">{item.title}</h3>
                       </div>
-                      <div className="mt-5">
+                      <div className="mt-4">
                         <span className="text-[12px] font-extrabold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/50">#{item.sector_asset}</span>
                       </div>
                     </div>
