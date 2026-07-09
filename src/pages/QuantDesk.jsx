@@ -24,8 +24,8 @@ export default function QuantDesk() {
     setLoading(true);
 
     Promise.allSettled([
-      fetch("http://localhost:8000/api/quant-dashboard").then(res => res.ok ? res.json() : { status: 'error' }),
-      fetch("http://localhost:8000/api/search/KS11").then(res => res.ok ? res.json() : { status: 'error' })
+      fetch("https://moon-bbh0.onrender.com/api/quant-dashboard").then(res => res.ok ? res.json() : { status: 'error' }),
+      fetch("https://moon-bbh0.onrender.com/api/search/KS11").then(res => res.ok ? res.json() : { status: 'error' })
     ])
     .then((results) => {
       const quantResult = results[0].status === 'fulfilled' ? results[0].value : null;
@@ -70,7 +70,7 @@ export default function QuantDesk() {
     setReportLoading(true);
     setSelectedStock({ ...basicData, isLoading: true });
 
-    fetch(`http://localhost:8000/api/search/${symbol}`)
+    fetch(`https://moon-bbh0.onrender.com/api/search/${symbol}`)
       .then(res => res.json())
       .then(result => {
         if (result.status === "success") {
