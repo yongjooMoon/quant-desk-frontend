@@ -93,6 +93,17 @@ export default function NewsDesk() {
     return sectorAsset.includes('-') ? sectorAsset.split('-')[0].trim() : sectorAsset.trim();
   };
 
+  // 🌟 길고 복잡한 원본 태그(Index-Nikkei 등)를 짧은 한글 태그로 매핑해주는 함수
+  const getShortCategoryName = (sectorAsset) => {
+    const group = getSectorGroup(sectorAsset);
+    if (CATEGORY_MAPPING["📊 거시경제/지수"].includes(group)) return "지수";
+    if (CATEGORY_MAPPING["🏢 주식/산업"].includes(group)) return "산업";
+    if (CATEGORY_MAPPING["🛢️ 원자재/에너지"].includes(group)) return "에너지";
+    if (CATEGORY_MAPPING["💱 외환/금리"].includes(group)) return "금리";
+    if (CATEGORY_MAPPING["🏘️ 대체/기타 자산"].includes(group)) return "대체";
+    return "기타";
+  };
+
   const getSentimentInfo = (score) => {
     if (score <= 2) return { text: "Bearish (부정적)", classes: "bg-red-100 text-red-700 dark:bg-[#3F1A1A] dark:text-[#F87171] border border-red-900/50" };
     if (score === 3) return { text: "Neutral (중립)", classes: "bg-yellow-100 text-yellow-700 dark:bg-[#3F311A] dark:text-[#FBBF24] border border-yellow-900/50" };
@@ -212,10 +223,10 @@ export default function NewsDesk() {
                         <h3 className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white leading-snug line-clamp-2 tracking-tight">{item.title}</h3>
                       </div>
                       
-                      {/* 🌟 슬라이더 카드: 조건에 따라 섹터 태그 숨김 */}
+                      {/* 🌟 슬라이더 카드: 길고 복잡한 원본 대신 변환된 짧은 한글 태그 노출 */}
                       {showSectorOnCard && (
                         <div className="mt-4">
-                          <span className="text-[12px] font-extrabold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/50">#{item.sector_asset}</span>
+                          <span className="text-[12px] font-extrabold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/50">#{getShortCategoryName(item.sector_asset)}</span>
                         </div>
                       )}
                     </div>
@@ -230,7 +241,6 @@ export default function NewsDesk() {
           )}
 
           <div>
-            {/* 🌟 모바일 자동번역 강제 오역 방지용 translate="no" 적용 */}
             <h2 translate="no" className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">📌 {searchQuery ? '검색 결과' : '섹터별 최신 뉴스'}</h2>
 
             {!searchQuery && (
@@ -272,9 +282,9 @@ export default function NewsDesk() {
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <span className={`text-[11.5px] font-black px-2 py-1 rounded shrink-0 ${getRegionStyle(item.region)}`}>{item.region}</span>
                     
-                    {/* 🌟 리스트 아이템: 조건에 따라 섹터 태그 숨김 */}
+                    {/* 🌟 리스트 아이템: 원본 대신 변환된 짧은 한글 태그 노출 */}
                     {showSectorOnCard && (
-                      <span className="text-[14.5px] font-extrabold text-slate-500 dark:text-slate-400 shrink-0">· {item.sector_asset}</span>
+                      <span className="text-[14.5px] font-extrabold text-slate-500 dark:text-slate-400 shrink-0">· {getShortCategoryName(item.sector_asset)}</span>
                     )}
                     
                     <h3 className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-slate-100 truncate ml-1 tracking-tight">{item.title}</h3>
@@ -296,7 +306,8 @@ export default function NewsDesk() {
               <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
                   <div className="flex gap-2 items-center">
                       <span className={`text-[11.5px] font-black px-2.5 py-1 rounded ${getRegionStyle(selectedNews.region)}`}>{selectedNews.region}</span>
-                      <span className="text-[14.5px] font-extrabold text-slate-500 dark:text-slate-400">· {selectedNews.sector_asset}</span>
+                      {/* 🌟 모달 상단 태그: 원본 대신 변환된 짧은 한글 태그 노출 */}
+                      <span className="text-[14.5px] font-extrabold text-slate-500 dark:text-slate-400">· {getShortCategoryName(selectedNews.sector_asset)}</span>
                   </div>
                   <div className="flex items-center gap-4">
                       <span className="text-[14px] font-extrabold text-slate-400 dark:text-slate-500 tracking-tight">{formatExactTime(selectedNews.created_at)}</span>
@@ -315,7 +326,6 @@ export default function NewsDesk() {
                       </p>
                   </div>
 
-                  {/* 🌟 모바일 반응형 완벽 대응: 점수 텍스트 잘림 현상 해결 */}
                   <div className="py-4 border-t border-slate-100 dark:border-slate-800/80 mt-6">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                           <span className="text-[15px] sm:text-[16px] md:text-[17px] font-black text-slate-500 dark:text-slate-400 tracking-tight">AI Sentiment Score</span>
