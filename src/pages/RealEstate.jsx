@@ -50,7 +50,7 @@ export default function RealEstate() {
     const initialLog = `🚀 부동산 데이터 대시보드 빌드 시작...\n🔗 자치구: ${guMap[guCode]} | 법정동: ${targetDong}\n📅 기간: ${startDate} ~ ${endDate}\n\n`;
     setLogs(initialLog);
 
-    const url = `http://localhost:8000/api/realestate/build-stream?gu_code=${guCode}&gu_name=${encodeURIComponent(guMap[guCode])}&dong=${encodeURIComponent(targetDong)}&start_date=${startDate}&end_date=${endDate}&filters=${encodeURIComponent(filters)}`;
+    const url = `https://moon-bbh0.onrender.com/api/realestate/build-stream?gu_code=${guCode}&gu_name=${encodeURIComponent(guMap[guCode])}&dong=${encodeURIComponent(targetDong)}&start_date=${startDate}&end_date=${endDate}&filters=${encodeURIComponent(filters)}`;
 
     const eventSource = new EventSource(url);
 
@@ -80,7 +80,7 @@ export default function RealEstate() {
   };
 
   const handleDownload = () => {
-    window.location.href = "http://localhost:8000/api/realestate/download";
+    window.location.href = "https://moon-bbh0.onrender.com/api/realestate/download";
   };
 
   return (
