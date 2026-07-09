@@ -36,7 +36,7 @@ export default function NewsDesk() {
 
   const fetchNews = () => {
     setLoading(true);
-    fetch("http://localhost:8000/api/news")
+    fetch("https://moon-bbh0.onrender.com/api/news")
       .then((res) => res.json())
       .then((result) => {
         if (result.status === "success") setNews(result.data);
