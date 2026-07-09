@@ -17,7 +17,7 @@ export default function StockSearch() {
   const optionsListRef = useRef(null);
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/krx-list")
+    fetch("https://moon-bbh0.onrender.com/api/krx-list")
       .then(res => res.json())
       .then(data => { if (data.status === "success") setOptions(data.data); })
       .catch(err => console.error(err));
@@ -68,7 +68,7 @@ export default function StockSearch() {
     setError("");
     setResult(null);
 
-    fetch(`http://localhost:8000/api/search/${symbol}`)
+    fetch(`https://moon-bbh0.onrender.com/api/search/${symbol}`)
       .then(res => res.json())
       .then(data => {
         if (data.status === "success") {
