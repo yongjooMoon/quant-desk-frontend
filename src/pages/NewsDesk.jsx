@@ -54,10 +54,9 @@ export default function NewsDesk() {
     const parts = isoString.match(/\d+/g);
     if (!parts || parts.length < 5) return new Date();
 
-    // new Date(year, monthIndex, day, hours, minutes, seconds)
     return new Date(
       parseInt(parts[0], 10),
-      parseInt(parts[1], 10) - 1, // 자바스크립트의 월은 0부터 시작
+      parseInt(parts[1], 10) - 1,
       parseInt(parts[2], 10),
       parseInt(parts[3], 10),
       parseInt(parts[4], 10),
@@ -79,7 +78,6 @@ export default function NewsDesk() {
     return `${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
 
-  // 모달 우측 상단용 정확한 시간 포맷 (YY.MM.DD HH:MM)
   const formatExactTime = (isoString) => {
     if (!isoString) return "";
     const date = parseDBTime(isoString);
@@ -170,6 +168,9 @@ export default function NewsDesk() {
     setHistoryDate(d.toISOString().split('T')[0]);
   };
 
+  // 🌟 현재 탭이 '전체' 또는 '주요뉴스' 이거나, 검색 중일 때만 섹터 태그를 표시합니다.
+  const showSectorOnCard = activeTab === "전체" || activeTab === "🔥 주요뉴스" || searchQuery !== "";
+
   return (
     <div className="w-full transition-colors duration-300 pb-20 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
       <div className="mb-10">
@@ -201,7 +202,6 @@ export default function NewsDesk() {
                     <div
                       key={item.id}
                       onClick={(e) => handleCardClick(e, item)}
-                      /* 🌟 가로 너비(w)를 대폭 줄여 아담하고 세련된 카드로 디자인 변경 */
                       className="w-[85vw] sm:w-[320px] md:w-[340px] lg:w-[360px] snap-center shrink-0 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] hover:border-blue-400 dark:hover:border-slate-600 transition-all flex flex-col justify-between min-h-[160px] shadow-sm hover:shadow-lg"
                     >
                       <div>
@@ -209,12 +209,15 @@ export default function NewsDesk() {
                           <span className={`text-[11px] font-black px-2.5 py-1 rounded-md ${getRegionStyle(item.region)}`}>SAVE · {item.region}</span>
                           <span className="text-[12px] text-slate-500 dark:text-slate-400 font-extrabold">{formatTime(item.created_at)}</span>
                         </div>
-                        {/* 🌟 좁아진 카드 너비에 맞춰 폰트 사이즈 살짝 조정 */}
                         <h3 className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white leading-snug line-clamp-2 tracking-tight">{item.title}</h3>
                       </div>
-                      <div className="mt-4">
-                        <span className="text-[12px] font-extrabold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/50">#{item.sector_asset}</span>
-                      </div>
+                      
+                      {/* 🌟 슬라이더 카드: 조건에 따라 섹터 태그 숨김 */}
+                      {showSectorOnCard && (
+                        <div className="mt-4">
+                          <span className="text-[12px] font-extrabold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/50">#{item.sector_asset}</span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -227,7 +230,8 @@ export default function NewsDesk() {
           )}
 
           <div>
-            <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">📌 {searchQuery ? '검색 결과' : '섹터별 최신 뉴스'}</h2>
+            {/* 🌟 모바일 자동번역 강제 오역 방지용 translate="no" 적용 */}
+            <h2 translate="no" className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">📌 {searchQuery ? '검색 결과' : '섹터별 최신 뉴스'}</h2>
 
             {!searchQuery && (
               <div
@@ -267,7 +271,12 @@ export default function NewsDesk() {
                 <div key={item.id} onClick={() => setSelectedNews(item)} className="p-4 md:p-5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <span className={`text-[11.5px] font-black px-2 py-1 rounded shrink-0 ${getRegionStyle(item.region)}`}>{item.region}</span>
-                    <span className="text-[14.5px] font-extrabold text-slate-500 dark:text-slate-400 shrink-0">· {item.sector_asset}</span>
+                    
+                    {/* 🌟 리스트 아이템: 조건에 따라 섹터 태그 숨김 */}
+                    {showSectorOnCard && (
+                      <span className="text-[14.5px] font-extrabold text-slate-500 dark:text-slate-400 shrink-0">· {item.sector_asset}</span>
+                    )}
+                    
                     <h3 className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-slate-100 truncate ml-1 tracking-tight">{item.title}</h3>
                   </div>
                   <span className="text-[13.5px] text-slate-500 dark:text-slate-400 font-extrabold shrink-0 text-right md:w-20">{formatTime(item.created_at)}</span>
@@ -282,7 +291,7 @@ export default function NewsDesk() {
         const sentiment = getSentimentInfo(selectedNews.sentiment_score);
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-            <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-4xl min-h-[60vh] md:min-h-[75vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[1200px] min-h-[60vh] md:min-h-[75vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
               <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
                   <div className="flex gap-2 items-center">
@@ -306,10 +315,11 @@ export default function NewsDesk() {
                       </p>
                   </div>
 
+                  {/* 🌟 모바일 반응형 완벽 대응: 점수 텍스트 잘림 현상 해결 */}
                   <div className="py-4 border-t border-slate-100 dark:border-slate-800/80 mt-6">
-                      <div className="flex items-center justify-between gap-4">
-                          <span className="text-[16px] md:text-[17px] font-black text-slate-500 dark:text-slate-400 tracking-tight">AI Sentiment Score</span>
-                          <span className={`font-black px-5 py-2.5 rounded-full text-[14px] md:text-[15px] shadow-sm ${sentiment.classes}`}>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                          <span className="text-[15px] sm:text-[16px] md:text-[17px] font-black text-slate-500 dark:text-slate-400 tracking-tight">AI Sentiment Score</span>
+                          <span className={`font-black px-4 sm:px-5 py-2.5 rounded-xl sm:rounded-full text-[13px] sm:text-[14px] md:text-[15px] shadow-sm text-center sm:text-left ${sentiment.classes}`}>
                               {selectedNews.sentiment_score} / 5 · {sentiment.text}
                           </span>
                       </div>
