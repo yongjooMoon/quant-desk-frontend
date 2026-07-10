@@ -17,10 +17,22 @@ export default function StockSearch() {
   const optionsListRef = useRef(null);
 
   useEffect(() => {
-    fetch("https://moon-bbh0.onrender.com/api/krx-list")
-      .then(res => res.json())
-      .then(data => { if (data.status === "success") setOptions(data.data); })
-      .catch(err => console.error(err));
+    // 💡 [클라이언트 캐싱] sessionStorage에 종목 마스터 리스트가 있으면 바로 사용합니다.
+    const cachedKrx = sessionStorage.getItem('krx_list_data');
+    if (cachedKrx) {
+        setOptions(JSON.parse(cachedKrx));
+    } else {
+        fetch("https://moon-bbh0.onrender.com/api/krx-list")
+          .then(res => res.json())
+          .then(data => { 
+              if (data.status === "success") {
+                  setOptions(data.data);
+                  // 💡 데이터를 받아오면 즉시 브라우저에 저장
+                  sessionStorage.setItem('krx_list_data', JSON.stringify(data.data));
+              } 
+          })
+          .catch(err => console.error(err));
+    }
   }, []);
 
   useEffect(() => {
