@@ -3,6 +3,34 @@ import { useState, useEffect, useRef } from 'react';
 import { Search, BarChart2, RefreshCcw } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip, XAxis, CartesianGrid } from 'recharts';
 
+// 🌟 [핵심] 만료 시간(TTL)을 관리하는 프론트엔드 캐시 헬퍼 함수
+const setCacheWithExpiry = (key, value, ttl_ms) => {
+  const item = {
+    data: value,
+    expiry: new Date().getTime() + ttl_ms,
+  };
+  sessionStorage.setItem(key, JSON.stringify(item));
+};
+
+const getCacheWithExpiry = (key) => {
+  const itemStr = sessionStorage.getItem(key);
+  if (!itemStr) return null;
+  const item = JSON.parse(itemStr);
+  
+  // 현재 시간이 만료 시간을 지났다면 캐시 삭제 후 null 반환
+  if (new Date().getTime() > item.expiry) {
+    sessionStorage.removeItem(key);
+    return null;
+  }
+  return item.data;
+};
+
+// 캐시 유지 시간 상수 (밀리초)
+const CACHE_TTL = {
+  KRX_LIST: 24 * 60 * 60 * 1000, // 종목 마스터 리스트: 24시간
+  STOCK_DETAIL: 10 * 60 * 1000,   // 종목 펀더멘털/차트 상세: 10분
+};
+
 export default function StockSearch() {
   const [options, setOptions] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -17,18 +45,18 @@ export default function StockSearch() {
   const optionsListRef = useRef(null);
 
   useEffect(() => {
-    // 💡 [클라이언트 캐싱] sessionStorage에 종목 마스터 리스트가 있으면 바로 사용합니다.
-    const cachedKrx = sessionStorage.getItem('krx_list_data');
+    // 💡 [클라이언트 캐싱 + TTL] 유효기간이 지나지 않은 캐시가 있으면 즉시 사용
+    const cachedKrx = getCacheWithExpiry('krx_list_data_ttl');
     if (cachedKrx) {
-        setOptions(JSON.parse(cachedKrx));
+        setOptions(cachedKrx);
     } else {
         fetch("https://moon-bbh0.onrender.com/api/krx-list")
           .then(res => res.json())
           .then(data => { 
               if (data.status === "success") {
                   setOptions(data.data);
-                  // 💡 데이터를 받아오면 즉시 브라우저에 저장
-                  sessionStorage.setItem('krx_list_data', JSON.stringify(data.data));
+                  // 💡 데이터를 받아오면 24시간 타이머를 달아서 저장
+                  setCacheWithExpiry('krx_list_data_ttl', data.data, CACHE_TTL.KRX_LIST);
               } 
           })
           .catch(err => console.error(err));
@@ -80,6 +108,16 @@ export default function StockSearch() {
     setError("");
     setResult(null);
 
+    // 💡 [개별 종목 캐싱 + TTL] 해당 종목의 펀더멘털/차트 데이터가 캐시에 남아있는지 확인
+    const cacheKey = `stock_detail_ttl_${symbol}`;
+    const cachedDetail = getCacheWithExpiry(cacheKey);
+
+    if (cachedDetail) {
+      setResult(cachedDetail);
+      setLoading(false);
+      return; // 캐시가 있으면 여기서 종료, 미국 서버까지 안 갑니다! 🚀
+    }
+
     fetch(`https://moon-bbh0.onrender.com/api/search/${symbol}`)
       .then(res => res.json())
       .then(data => {
@@ -89,6 +127,8 @@ export default function StockSearch() {
             if (matched) data.data.name = matched.Name;
           }
           setResult(data.data);
+          // 💡 처음 검색된 종목이라면 10분(600초) 만료 타이머를 달아서 저장
+          setCacheWithExpiry(cacheKey, data.data, CACHE_TTL.STOCK_DETAIL);
         } else setError(data.message || "종목 검색 실패");
         setLoading(false);
       }).catch(() => {
