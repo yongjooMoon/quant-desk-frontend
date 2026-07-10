@@ -20,11 +20,28 @@ export default function QuantDesk() {
 
   const [timeRange, setTimeRange] = useState("All");
 
-  const fetchQuantData = () => {
+  // 🌟 isRefresh 파라미터 추가
+  const fetchQuantData = (isRefresh = false) => {
     setLoading(true);
 
+    // 💡 [클라이언트 캐싱] 새로고침이 아닐 경우, 브라우저 세션 스토리지에서 먼저 데이터를 찾습니다.
+    if (!isRefresh) {
+      const cachedQuant = sessionStorage.getItem('quantDesk_data');
+      const cachedKospi = sessionStorage.getItem('quantDesk_kospi');
+      if (cachedQuant && cachedKospi) {
+        setData(JSON.parse(cachedQuant));
+        setKospiData(JSON.parse(cachedKospi));
+        setLoading(false);
+        return; // 캐시가 있으면 여기서 즉시 종료 (서버 통신 안 함!)
+      }
+    }
+
+    const url = isRefresh 
+      ? "https://moon-bbh0.onrender.com/api/quant-dashboard?refresh=true" 
+      : "https://moon-bbh0.onrender.com/api/quant-dashboard";
+
     Promise.allSettled([
-      fetch("https://moon-bbh0.onrender.com/api/quant-dashboard").then(res => res.ok ? res.json() : { status: 'error' }),
+      fetch(url).then(res => res.ok ? res.json() : { status: 'error' }),
       fetch("https://moon-bbh0.onrender.com/api/search/KS11").then(res => res.ok ? res.json() : { status: 'error' })
     ])
     .then((results) => {
@@ -33,6 +50,8 @@ export default function QuantDesk() {
 
       if (quantResult && quantResult.status === "success" && quantResult.data) {
         setData(quantResult.data);
+        // 💡 [클라이언트 캐싱] 서버에서 받은 퀀트 데이터를 브라우저에 저장
+        sessionStorage.setItem('quantDesk_data', JSON.stringify(quantResult.data));
       }
 
       if (kospiResult && kospiResult.status === "success" && kospiResult.data && Array.isArray(kospiResult.data.chart_data)) {
@@ -49,7 +68,9 @@ export default function QuantDesk() {
             });
         }
         setKospiData(processedKospi);
-      } else {
+        // 💡 [클라이언트 캐싱] 서버에서 받은 KOSPI 데이터를 브라우저에 저장
+        sessionStorage.setItem('quantDesk_kospi', JSON.stringify(processedKospi));
+      } else if (!isRefresh) {
         setKospiData([]);
       }
       setLoading(false);
@@ -61,7 +82,7 @@ export default function QuantDesk() {
   const handleRefresh = () => {
     setSyncing(true);
     setTimeout(() => {
-        fetchQuantData();
+        fetchQuantData(true); // 🌟 true를 전달하여 강제로 서버에서 최신 데이터를 가져옴
         setSyncing(false);
     }, 1500);
   };
@@ -300,39 +321,31 @@ export default function QuantDesk() {
                             const dummyRisk = Math.min(100, Math.max(0, 100 - (ret * 2 + 50)));
 
                             return (
-                            // Responsive Row: Flex-col on mobile, Flex-row on desktop
                             <div key={i} className="flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
                                 
-                                {/* Mobile: Top Row (Name & PnL) | Desktop: Name col */}
                                 <div className="flex justify-between items-center w-full md:w-[20%] pr-0 md:pr-4">
-                                    <div className="text-[16px] md:text-[16px] font-black text-slate-900 dark:text-white truncate">{h.name}</div>
-                                    <div className={`md:hidden text-[16px] font-black ${pnlColor}`}>{ret > 0 ? "+" : ""}{ret.toFixed(2)}%</div>
-                                </div>
-                                
-                                {/* Mobile: Middle Row (Prices) | Desktop: Entry/Current cols */}
-                                <div className="flex justify-between items-center w-full md:w-[30%]">
-                                    <div className="flex flex-col md:w-1/2 text-left md:text-right">
-                                        <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">진입가</span>
-                                        <span className="text-[14px] md:text-[15px] font-extrabold text-slate-700 dark:text-slate-300">₩{Math.round(h.entry_price || 0).toLocaleString()}</span>
+                                    <div className="flex flex-col flex-1 min-w-0 pr-4">
+                                        <span className="text-[16px] md:text-[16px] font-black text-slate-900 dark:text-white truncate" title={h.name}>{h.name}</span>
+                                        <span className="md:hidden text-[12px] font-bold text-slate-500 mt-0.5 truncate">진입가 ₩{Math.round(h.entry_price || 0).toLocaleString()}</span>
                                     </div>
-                                    <div className="flex flex-col md:w-1/2 text-right">
-                                        <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">현재가</span>
-                                        <span className="text-[14px] md:text-[15px] font-black text-slate-900 dark:text-white">₩{Math.round(h.current_price || 0).toLocaleString()}</span>
+                                    <div className="flex flex-col items-end shrink-0 md:hidden ml-2">
+                                        <span className="text-[16px] font-black text-slate-900 dark:text-white">₩{Math.round(h.current_price || 0).toLocaleString()}</span>
+                                        <span className={`text-[13px] font-black ${pnlColor}`}>{ret > 0 ? "+" : ""}{ret.toFixed(2)}%</span>
                                     </div>
                                 </div>
 
-                                {/* Desktop: PnL col (Hidden on mobile) */}
-                                <div className={`hidden md:block w-[15%] text-[16px] font-black text-right ${pnlColor}`}>{ret > 0 ? "+" : ""}{ret.toFixed(2)}%</div>
+                                <div className="hidden md:block w-[15%] text-[14px] font-extrabold text-slate-700 dark:text-slate-300 text-right">₩{Math.round(h.entry_price || 0).toLocaleString()}</div>
+                                <div className="hidden md:block w-[15%] text-[14px] font-black text-slate-900 dark:text-white text-right">₩{Math.round(h.current_price || 0).toLocaleString()}</div>
+                                <div className={`hidden md:block w-[15%] text-[15px] font-black text-right ${pnlColor}`}>{ret > 0 ? "+" : ""}{ret.toFixed(2)}%</div>
                                 
-                                {/* Mobile: Bottom Row (Risk & Actions) | Desktop: Risk/Action cols */}
-                                <div className="flex justify-between items-center w-full md:w-[35%] mt-1 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0">
-                                    <div className="flex items-center md:w-[40%] md:justify-center gap-2">
-                                        <span className="text-[11px] font-bold text-slate-400 md:hidden">Exit Risk</span>
+                                <div className="flex justify-between items-center w-full md:w-[35%] mt-1 pt-3 md:mt-0 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0">
+                                    <div className="flex items-center md:w-[40%] md:justify-center gap-2 shrink-0">
+                                        <span className="text-[12px] font-bold text-slate-400 md:hidden">Exit Risk</span>
                                         <span className="text-[14px] md:text-[15px] font-black text-orange-500">{(h.exit_risk || dummyRisk).toFixed(2)}%</span>
                                     </div>
-                                    <div className="flex justify-end md:w-[60%] md:justify-center gap-2">
-                                        <button onClick={() => setRiskStock({...h, exit_risk: (h.exit_risk || dummyRisk)})} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-orange-600 dark:hover:text-orange-400 hover:border-orange-400 dark:hover:border-orange-500 transition-all cursor-pointer shadow-sm hover:shadow-md">🚨 Risk</button>
-                                        <button onClick={() => handleReportClick(h.symbol, h)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
+                                    <div className="flex justify-end md:w-[60%] md:justify-center gap-2 w-full">
+                                        <button onClick={() => setRiskStock({...h, exit_risk: (h.exit_risk || dummyRisk)})} className="flex-1 md:flex-none px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-orange-600 dark:hover:text-orange-400 hover:border-orange-400 dark:hover:border-orange-500 hover:-translate-y-0.5 transition-all cursor-pointer shadow-sm hover:shadow-md">🚨 Risk</button>
+                                        <button onClick={() => handleReportClick(h.symbol, h)} className="flex-1 md:flex-none px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[13px] font-black rounded-lg border border-blue-200 dark:border-blue-800/50 hover:bg-blue-100 dark:hover:bg-blue-800/40 hover:border-blue-400 dark:hover:border-blue-500 hover:-translate-y-0.5 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
                                     </div>
                                 </div>
 
@@ -424,36 +437,25 @@ export default function QuantDesk() {
                         </div>
 
                         {filWatchlist.length === 0 ? <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-extrabold">종목이 없습니다.</div> : filWatchlist.map((c, idx) => (
-                            // Responsive Row
                             <div key={idx} className="flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
                                 
-                                {/* Mobile: Top Row (Name) | Desktop: Rank & Name cols */}
                                 <div className="flex justify-between items-center w-full md:w-[40%] pr-0 md:pr-4">
-                                    <div className="flex items-center gap-3 w-full">
-                                        <span className="text-[12px] font-extrabold text-white bg-blue-500 rounded-md px-2 py-0.5 md:bg-transparent md:text-slate-500 md:px-0 md:py-0 w-auto md:w-[25%] text-center">{idx+1}</span>
-                                        <span className="text-[16px] font-black text-slate-900 dark:text-white truncate md:w-[75%]">{c.name}</span>
+                                    <div className="flex items-center gap-3 flex-1 min-w-0 pr-2">
+                                        <span className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-[12px] font-black shrink-0 md:bg-transparent md:text-slate-500 md:w-auto md:h-auto">{idx+1}</span>
+                                        <div className="flex flex-col flex-1 min-w-0">
+                                            <span className="text-[16px] font-black text-slate-900 dark:text-white truncate" title={c.name}>{c.name}</span>
+                                            <span className="md:hidden text-[12px] font-bold text-slate-500 mt-0.5 truncate">통과 {c.total_pass}/6 · {c.factor_score?.toFixed(2)}점</span>
+                                        </div>
                                     </div>
-                                    <div className="md:hidden text-[15px] font-black text-slate-900 dark:text-white shrink-0">₩{Math.round(c.current_price || 0).toLocaleString()}</div>
+                                    <div className="md:hidden text-[16px] font-black text-slate-900 dark:text-white shrink-0">₩{Math.round(c.current_price || 0).toLocaleString()}</div>
                                 </div>
                                 
-                                {/* Desktop: Price col (Hidden on mobile) */}
                                 <div className="hidden md:block w-[20%] text-[15px] font-black text-slate-900 dark:text-white text-right">₩{Math.round(c.current_price || 0).toLocaleString()}</div>
+                                <div className="hidden md:block w-[15%] text-[15px] font-extrabold text-slate-600 dark:text-slate-400 text-center">{c.total_pass}/6</div>
+                                <div className="hidden md:block w-[15%] text-[15px] font-black text-slate-500 dark:text-slate-400 text-center">{(c.factor_score || 0).toFixed(2)}점</div>
                                 
-                                {/* Mobile: Middle Row (Pass & Score) | Desktop: Pass & Score cols */}
-                                <div className="flex justify-between items-center w-full md:w-[30%]">
-                                    <div className="flex flex-col md:flex-row md:w-1/2 md:justify-center text-left md:text-center">
-                                        <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">통과 관문</span>
-                                        <span className="text-[14px] md:text-[15px] font-extrabold text-slate-600 dark:text-slate-400">{c.total_pass}/6</span>
-                                    </div>
-                                    <div className="flex flex-col md:flex-row md:w-1/2 md:justify-center text-right md:text-center">
-                                        <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">랭킹 점수</span>
-                                        <span className="text-[15px] md:text-[16px] font-black text-slate-500 dark:text-slate-400">{(c.factor_score || 0).toFixed(2)}점</span>
-                                    </div>
-                                </div>
-                                
-                                {/* Mobile: Bottom Row (Actions) | Desktop: Action col */}
-                                <div className="w-full md:w-[10%] flex justify-end md:justify-center mt-2 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 px-2">
-                                    <button onClick={() => handleReportClick(c.symbol, c)} className="px-4 md:px-3 py-1.5 md:w-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
+                                <div className="w-full md:w-[10%] flex justify-end md:justify-center mt-1 pt-3 md:mt-0 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 px-0 md:px-2">
+                                    <button onClick={() => handleReportClick(c.symbol, c)} className="w-full md:w-auto px-4 py-2 md:px-3 md:py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[13px] md:text-[13px] font-black rounded-lg border border-blue-200 dark:border-blue-800/50 hover:bg-blue-100 dark:hover:bg-blue-800/40 hover:border-blue-400 dark:hover:border-blue-500 hover:-translate-y-0.5 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
                                 </div>
 
                             </div>
@@ -504,10 +506,8 @@ export default function QuantDesk() {
                           {sellTrades.length === 0 ? <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-extrabold w-full">매도 이력이 없습니다.</div> : sellTrades.map((t, idx) => {
                                 const entryPrice = t.trade_price / (1 + ((t.return_rate || 0) / 100));
                                 return (
-                                  // Responsive Row
                                   <div key={idx} className="flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
                                       
-                                      {/* Mobile: Top Row (Date & Name & PnL) | Desktop: Date & Name cols */}
                                       <div className="flex justify-between items-center w-full md:w-[35%] pr-0 md:pr-4">
                                           <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-4 w-full">
                                               <span className="text-[11px] font-extrabold text-slate-400 md:w-[42%] md:text-[14px] md:text-slate-500">{t.trade_date}</span>
@@ -516,7 +516,6 @@ export default function QuantDesk() {
                                           <div className={`md:hidden text-[16px] font-black shrink-0 ${(t.return_rate || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(t.return_rate || 0) > 0 ? "+" : ""}{(t.return_rate || 0).toFixed(2)}%</div>
                                       </div>
 
-                                      {/* Mobile: Middle Row (Prices) | Desktop: Prices cols */}
                                       <div className="flex justify-between items-center w-full md:w-[30%]">
                                           <div className="flex flex-col md:w-1/2 text-left md:text-right">
                                               <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">진입가</span>
@@ -528,12 +527,10 @@ export default function QuantDesk() {
                                           </div>
                                       </div>
 
-                                      {/* Desktop: PnL col (Hidden on mobile) */}
                                       <div className={`hidden md:block w-[15%] text-[15px] md:text-[16px] font-black text-right ${(t.return_rate || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(t.return_rate || 0) > 0 ? "+" : ""}{(t.return_rate || 0).toFixed(2)}%</div>
 
-                                      {/* Mobile: Bottom Row (Reason) | Desktop: Reason col */}
-                                      <div className="w-full md:w-[20%] text-[13px] font-extrabold text-slate-500 dark:text-slate-400 text-left md:text-right mt-1 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 leading-snug break-keep md:pl-4">
-                                          <span className="text-[11px] font-bold text-slate-400 md:hidden mr-2">사유:</span>
+                                      <div className="w-full md:w-[20%] text-[12px] md:text-[13px] font-extrabold text-slate-500 dark:text-slate-400 text-left md:text-right mt-1 md:mt-0 pt-2 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 leading-snug truncate" title={t.reason}>
+                                          <span className="font-bold text-slate-400 md:hidden mr-1">사유:</span>
                                           {t.reason}
                                       </div>
 
@@ -685,7 +682,7 @@ export default function QuantDesk() {
             <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-3xl shadow-2xl p-6 md:p-8 relative animate-in fade-in zoom-in-95">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-2xl font-black text-slate-900 dark:text-white">🚨 {riskStock.name} Risk 분석</h3>
-                    <button onClick={() => setRiskStock(null)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"><X size={20}/></button>
+                    <button onClick={() => setRiskStock(null)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors cursor-pointer"><X size={20}/></button>
                 </div>
 
                 <p className="text-[14px] md:text-[15px] font-extrabold text-slate-600 dark:text-slate-400 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
@@ -725,7 +722,7 @@ export default function QuantDesk() {
                         <span className="text-[14px] md:text-[14.5px] font-black text-slate-500 dark:text-slate-400">{selectedStock.symbol} · {selectedStock.market || "KOSPI"}</span>
                         {selectedStock.sector && <span className="text-[12px] md:text-[13.5px] font-extrabold px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{selectedStock.sector}</span>}
                     </div>
-                    <button onClick={() => setSelectedStock(null)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors"><X size={20}/></button>
+                    <button onClick={() => setSelectedStock(null)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors cursor-pointer"><X size={20}/></button>
                 </div>
 
                 <div className="p-6 md:p-10 overflow-y-auto flex-1">
