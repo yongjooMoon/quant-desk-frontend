@@ -185,6 +185,7 @@ export default function NewsDesk() {
             </div>
           ) : (
             <>
+              {/* 💡 [핵심 복구] 한글 섹터별 탭 로직 100% 원상 복구 완료 */}
               <div className="flex gap-2 overflow-x-auto hide-scrollbar mb-6 pb-2 border-b border-slate-200 dark:border-slate-800">
                 {["전체", ...Array.from(new Set(news.map(n => n.sector_asset.split('-')[0]))).sort(), "🔥 주요뉴스"].map(tab => (
                   <button key={tab} onClick={() => setActiveTab(tab)} className={`shrink-0 px-4 py-2 text-[15px] font-black rounded-xl transition-all ${activeTab === tab ? 'bg-[#3182F6] text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}>
@@ -224,6 +225,7 @@ export default function NewsDesk() {
                 </div>
               ) : (
                 <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm animate-in fade-in duration-300">
+                  {/* 💡 [핵심 복구] 선택된 한글 탭 이름으로 필터링하는 로직 100% 복구 완료 */}
                   {news.filter(n => activeTab === "전체" || n.sector_asset.startsWith(activeTab)).map((item, idx) => {
                       const style = getRegionStyle(item.region || 'Global');
                       const dt = parseKST(item.created_at);
