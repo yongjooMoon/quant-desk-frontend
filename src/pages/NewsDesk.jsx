@@ -2,6 +2,25 @@
 import { useEffect, useState, useRef } from 'react';
 import { Search, ChevronLeft, ChevronRight, RefreshCcw, X, Calendar } from 'lucide-react';
 
+// 🌟 [프론트엔드 캐시] TTL 관리 헬퍼 함수
+const setCacheWithExpiry = (key, value, ttl_ms) => {
+  const item = { data: value, expiry: new Date().getTime() + ttl_ms };
+  sessionStorage.setItem(key, JSON.stringify(item));
+};
+
+const getCacheWithExpiry = (key) => {
+  const itemStr = sessionStorage.getItem(key);
+  if (!itemStr) return null;
+  const item = JSON.parse(itemStr);
+  if (new Date().getTime() > item.expiry) {
+    sessionStorage.removeItem(key);
+    return null;
+  }
+  return item.data;
+};
+
+const CACHE_TTL_NEWS = 10 * 60 * 1000; // 10분
+
 export default function NewsDesk() {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,34 +54,34 @@ export default function NewsDesk() {
   const tabsNames = ["전체", "🔥 주요뉴스", ...Object.keys(CATEGORY_MAPPING), "기타"];
 
   const fetchNews = (isRefresh = false) => {
-  setLoading(true);
+    setLoading(true);
 
-  // 💡 [클라이언트 캐싱] 브라우저 세션 스토리지에서 뉴스를 바로 꺼내옵니다.
-  if (!isRefresh) {
-    const cachedNews = sessionStorage.getItem('newsDesk_data');
-    if (cachedNews) {
-      setNews(JSON.parse(cachedNews));
-      setLoading(false);
-      return; // 캐시가 있으면 여기서 종료, 미국 서버(Render)까지 안 갑니다!
-    }
-  }
-
-  const url = isRefresh 
-    ? "https://moon-bbh0.onrender.com/api/news?refresh=true" 
-    : "https://moon-bbh0.onrender.com/api/news";
-
-  fetch(url)
-    .then((res) => res.json())
-    .then((result) => {
-      if (result.status === "success") {
-         setNews(result.data);
-         // 💡 데이터를 받아오면 즉시 브라우저에 저장
-         sessionStorage.setItem('newsDesk_data', JSON.stringify(result.data));
+    // 💡 [클라이언트 캐싱] 브라우저 세션 스토리지에서 뉴스를 바로 꺼내옵니다. (10분 TTL 적용)
+    if (!isRefresh) {
+      const cachedNews = getCacheWithExpiry('newsDesk_data_ttl');
+      if (cachedNews) {
+        setNews(cachedNews);
+        setLoading(false);
+        return; // 캐시가 있으면 여기서 종료, 미국 서버(Render)까지 안 갑니다!
       }
-      setLoading(false);
-    })
-    .catch(() => setLoading(false));
-};
+    }
+
+    const url = isRefresh 
+      ? "https://moon-bbh0.onrender.com/api/news?refresh=true" 
+      : "https://moon-bbh0.onrender.com/api/news";
+
+    fetch(url)
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.status === "success") {
+           setNews(result.data);
+           // 💡 데이터를 받아오면 즉시 브라우저에 저장 (10분 TTL 적용)
+           setCacheWithExpiry('newsDesk_data_ttl', result.data, CACHE_TTL_NEWS);
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  };
 
   useEffect(() => { fetchNews(); }, []);
 
