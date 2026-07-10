@@ -1,11 +1,25 @@
-// src/pages/QuantDesk.jsx
 import { useEffect, useState, useMemo } from 'react';
-import {
-  RefreshCcw, X,
-  TrendingUp, ShieldCheck, Droplets, Activity, Rocket, Zap,
-  Crosshair, TrendingDown, Flag, BookOpen, ShieldAlert, Target
-} from 'lucide-react';
+import { RefreshCcw, X, BarChart2, BookOpen, Rocket, ShieldAlert } from 'lucide-react';
 import { AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ComposedChart, LineChart } from 'recharts';
+
+// 🌟 [프론트엔드 캐시] TTL 관리 헬퍼 함수
+const setCacheWithExpiry = (key, value, ttl_ms) => {
+  const item = { data: value, expiry: new Date().getTime() + ttl_ms };
+  sessionStorage.setItem(key, JSON.stringify(item));
+};
+
+const getCacheWithExpiry = (key) => {
+  const itemStr = sessionStorage.getItem(key);
+  if (!itemStr) return null;
+  const item = JSON.parse(itemStr);
+  if (new Date().getTime() > item.expiry) {
+    sessionStorage.removeItem(key);
+    return null;
+  }
+  return item.data;
+};
+
+const CACHE_TTL_QUANT = 10 * 60 * 1000; // 10분
 
 export default function QuantDesk() {
   const [activeTab, setActiveTab] = useState("Portfolio");
@@ -20,19 +34,18 @@ export default function QuantDesk() {
 
   const [timeRange, setTimeRange] = useState("All");
 
-  // 🌟 isRefresh 파라미터 추가
   const fetchQuantData = (isRefresh = false) => {
     setLoading(true);
 
-    // 💡 [클라이언트 캐싱] 새로고침이 아닐 경우, 브라우저 세션 스토리지에서 먼저 데이터를 찾습니다.
+    // 💡 [클라이언트 캐싱]
     if (!isRefresh) {
-      const cachedQuant = sessionStorage.getItem('quantDesk_data');
-      const cachedKospi = sessionStorage.getItem('quantDesk_kospi');
+      const cachedQuant = getCacheWithExpiry('quantDesk_data_ttl');
+      const cachedKospi = getCacheWithExpiry('quantDesk_kospi_ttl');
       if (cachedQuant && cachedKospi) {
-        setData(JSON.parse(cachedQuant));
-        setKospiData(JSON.parse(cachedKospi));
+        setData(cachedQuant);
+        setKospiData(cachedKospi);
         setLoading(false);
-        return; // 캐시가 있으면 여기서 즉시 종료 (서버 통신 안 함!)
+        return; 
       }
     }
 
@@ -50,8 +63,7 @@ export default function QuantDesk() {
 
       if (quantResult && quantResult.status === "success" && quantResult.data) {
         setData(quantResult.data);
-        // 💡 [클라이언트 캐싱] 서버에서 받은 퀀트 데이터를 브라우저에 저장
-        sessionStorage.setItem('quantDesk_data', JSON.stringify(quantResult.data));
+        setCacheWithExpiry('quantDesk_data_ttl', quantResult.data, CACHE_TTL_QUANT);
       }
 
       if (kospiResult && kospiResult.status === "success" && kospiResult.data && Array.isArray(kospiResult.data.chart_data)) {
@@ -62,14 +74,10 @@ export default function QuantDesk() {
             if (i > 0 && rawChart[i-1].price) {
                 pct = ((rawChart[i].price - rawChart[i-1].price) / rawChart[i-1].price) * 100;
             }
-            processedKospi.push({
-                date: rawChart[i].date,
-                pct_change: pct
-            });
+            processedKospi.push({ date: rawChart[i].date, pct_change: pct });
         }
         setKospiData(processedKospi);
-        // 💡 [클라이언트 캐싱] 서버에서 받은 KOSPI 데이터를 브라우저에 저장
-        sessionStorage.setItem('quantDesk_kospi', JSON.stringify(processedKospi));
+        setCacheWithExpiry('quantDesk_kospi_ttl', processedKospi, CACHE_TTL_QUANT);
       } else if (!isRefresh) {
         setKospiData([]);
       }
@@ -82,7 +90,7 @@ export default function QuantDesk() {
   const handleRefresh = () => {
     setSyncing(true);
     setTimeout(() => {
-        fetchQuantData(true); // 🌟 true를 전달하여 강제로 서버에서 최신 데이터를 가져옴
+        fetchQuantData(true);
         setSyncing(false);
     }, 1500);
   };
@@ -249,7 +257,6 @@ export default function QuantDesk() {
   return (
     <div className="w-full transition-colors duration-300 pb-20 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
 
-      {/* Syncing Overlay */}
       {syncing && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md">
            <div className="relative w-40 h-32 mb-6">
@@ -267,7 +274,6 @@ export default function QuantDesk() {
         </div>
       )}
 
-      {/* Header */}
       <div className="mb-10 flex flex-col md:flex-row justify-between md:items-center gap-4">
         <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white flex items-center mb-2 tracking-tight gap-3">
           📡 퀀트투자
@@ -295,15 +301,12 @@ export default function QuantDesk() {
         <div className="flex justify-center p-20 w-full"><RefreshCcw className="animate-spin text-blue-500" size={40} /></div>
       ) : (
         <div className="w-full">
-          
-          {/* ===================== PORTFOLIO TAB ===================== */}
           {activeTab === "Portfolio" && (
             <div className="animate-in fade-in duration-300 w-full">
                 <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">Holdings ({holdings.length})</h2>
                 
                 <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm mb-12">
                     <div className="w-full">
-                        {/* Desktop Header (Hidden on Mobile) */}
                         <div className="hidden md:flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent w-full">
                             <div className="w-[20%] text-[14px] font-extrabold text-slate-500">종목명</div>
                             <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-right">진입가</div>
@@ -348,7 +351,6 @@ export default function QuantDesk() {
                                         <button onClick={() => handleReportClick(h.symbol, h)} className="flex-1 md:flex-none px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[13px] font-black rounded-lg border border-blue-200 dark:border-blue-800/50 hover:bg-blue-100 dark:hover:bg-blue-800/40 hover:border-blue-400 dark:hover:border-blue-500 hover:-translate-y-0.5 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
                                     </div>
                                 </div>
-
                             </div>
                             );
                         })}
@@ -419,14 +421,12 @@ export default function QuantDesk() {
             </div>
           )}
 
-          {/* ===================== WATCHLIST TAB ===================== */}
           {activeTab === "Watchlist" && (
               <div className="animate-in fade-in duration-300 w-full">
                 <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">👀 예비 관심 종목 (4/6 조건 이상)</h2>
                 
                 <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm w-full mb-12">
                     <div className="w-full">
-                        {/* Desktop Header */}
                         <div className="hidden md:flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
                             <div className="w-[10%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-center">순위</div>
                             <div className="w-[30%] text-[13px] md:text-[14px] font-extrabold text-slate-500">종목명</div>
@@ -465,7 +465,6 @@ export default function QuantDesk() {
               </div>
           )}
 
-          {/* ===================== HISTORY TAB ===================== */}
           {activeTab === "History" && (
               <div className="animate-in fade-in duration-300 w-full">
                   <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">📉 자동 매도 (Exit) 완료 히스토리 & 성과 지표</h2>
@@ -493,7 +492,6 @@ export default function QuantDesk() {
                   
                   <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm w-full mb-12">
                       <div className="w-full">
-                          {/* Desktop Header */}
                           <div className="hidden md:flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
                               <div className="w-[15%] text-[14px] font-extrabold text-slate-500">매도 일자</div>
                               <div className="w-[20%] text-[14px] font-extrabold text-slate-500">종목명</div>
@@ -542,7 +540,6 @@ export default function QuantDesk() {
               </div>
           )}
 
-          {/* ===================== WHITEPAPER TAB ===================== */}
           {activeTab === "Whitepaper" && (
               <div className="animate-in fade-in duration-500 w-full pb-10">
                   <div className="mb-10">
@@ -676,7 +673,6 @@ export default function QuantDesk() {
         </div>
       )}
 
-      {/* RISK MODAL */}
       {riskStock && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
             <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-3xl shadow-2xl p-6 md:p-8 relative animate-in fade-in zoom-in-95">
@@ -712,7 +708,6 @@ export default function QuantDesk() {
         </div>
       )}
 
-      {/* REPORT MODAL */}
       {selectedStock && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
             <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[1200px] min-h-[60vh] md:min-h-[75vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -748,21 +743,23 @@ export default function QuantDesk() {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-                                <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">⚡ Quant Scores</h3>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">실시간 랭킹 스코어</p><p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">{(selectedStock.score || 0).toFixed(2)}점</p></div>
-                                        <div>
-                                            <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">현재시점 생존 필터</p>
-                                            <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
-                                                {selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0} / 6
-                                            </p>
+                                <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                                    <div>
+                                        <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-4 tracking-tight">⚡ Quant Scores</h3>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">실시간 랭킹 스코어</p><p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">{(selectedStock.score || 0).toFixed(2)}점</p></div>
+                                            <div>
+                                                <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">현재시점 생존 필터</p>
+                                                <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
+                                                    {selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0} / 6
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
-                                    <p className="text-[11px] md:text-[12px] font-extrabold text-slate-500 mt-6 p-3 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/50">💡 과거 배치(Cron) 시점엔 6/6 통과였어도, 현재 실시간 주가 변동에 따라 다를 수 있습니다.</p>
+                                    <p className="text-[11px] md:text-[12px] font-extrabold text-slate-500 mt-6 p-3 md:p-4 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/50 leading-relaxed">💡 과거 배치(Cron) 시점엔 6/6 통과였어도, 현재 실시간 주가 변동에 따라 다를 수 있습니다.</p>
                                 </div>
 
-                                <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-center items-center relative">
+                                <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-center items-center relative min-h-[200px]">
                                     <div className="relative w-48 md:w-56 h-28 md:h-32 mb-2 flex justify-center items-end">
                                         <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0">
                                             <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="18" strokeLinecap="round" />
@@ -779,7 +776,7 @@ export default function QuantDesk() {
                             </div>
 
                             <div className="mb-10">
-                                <h5 className="text-xl font-black text-slate-900 dark:text-white mb-4 md:mb-6">Entry Gates (6 conditions)</h5>
+                                <h5 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-4 md:mb-6 tracking-tight">Entry Gates (6 conditions)</h5>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
                                     {['A', 'B', 'C', 'D', 'E', 'F'].map((label, idx) => {
                                         const gateKeys = selectedStock.gates ? Object.keys(selectedStock.gates) : [];
@@ -787,35 +784,37 @@ export default function QuantDesk() {
                                         const passed = gate.pass;
 
                                         return (
-                                        <div key={label} className={`p-4 rounded-2xl border ${passed ? 'bg-[#00B464]/10 border-[#00B464]/50 shadow-sm' : 'bg-slate-50 dark:bg-[#1E2329] border-slate-200 dark:border-slate-800'} flex flex-col justify-between h-24 md:h-28`}>
+                                        <div key={label} className={`p-4 md:p-5 rounded-3xl border ${passed ? 'bg-[#00B464]/10 border-[#00B464]/50 shadow-sm' : 'bg-slate-50 dark:bg-[#1E2329] border-slate-200 dark:border-slate-800'} flex flex-col justify-between h-28 transition-all`}>
                                             <div className="flex justify-between items-center mb-2">
-                                                <span className={`font-black text-[15px] md:text-[16px] ${passed ? 'text-[#00B464]' : 'text-slate-400'}`}>{label}</span>
-                                                <span className="text-[12px]">{passed ? '✔️' : '❌'}</span>
+                                                <span className={`font-black text-[16px] md:text-[18px] ${passed ? 'text-[#00B464]' : 'text-slate-400'}`}>{label}</span>
+                                                <span className="text-[14px]">{passed ? '✔️' : '❌'}</span>
                                             </div>
-                                            <div className={`h-1 md:h-1.5 rounded-full w-full mb-2 md:mb-3 ${passed ? 'bg-[#00B464]' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
-                                            <p className={`text-[11px] md:text-[12px] font-extrabold truncate ${passed ? 'text-[#00B464]' : 'text-slate-500'}`} title={gate.name}>{gate.name}</p>
+                                            <div className={`h-1.5 md:h-2 rounded-full w-full mb-2 md:mb-3 ${passed ? 'bg-[#00B464]' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                                            <p className={`text-[12px] md:text-[13px] font-extrabold truncate ${passed ? 'text-[#00B464]' : 'text-slate-500'}`} title={gate.name}>{gate.name}</p>
                                         </div>
                                     )})}
                                 </div>
                             </div>
 
-                            <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-10">
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📊 Financials & Valuation</h3>
+                            <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm mb-10">
+                                <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-6 tracking-tight">📊 Financials & Valuation</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 md:gap-y-8 gap-x-4 md:gap-x-6">
-                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">매출액</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.revenue_cur)}</p></div>
-                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">영업이익</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.op_profit_cur)}</p></div>
-                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">영업이익률</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.fundamental?.op_margin)}</p></div>
-                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">ROE</p><p className="text-[15px] md:text-[16px] font-black text-[#FF4B4B]">{formatPct(selectedStock.fundamental?.roe)}</p></div>
-                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">시가총액</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.marcap_억)}</p></div>
-                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">PER</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatNumber(selectedStock.fundamental?.per)} 배</p></div>
-                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">PBR</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatNumber(selectedStock.fundamental?.pbr)} 배</p></div>
-                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">부채비율</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.fundamental?.debt_ratio)}</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">매출액</p><p className="text-[15px] md:text-[18px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.revenue_cur)}</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">영업이익</p><p className="text-[15px] md:text-[18px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.op_profit_cur)}</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">영업이익률</p><p className="text-[15px] md:text-[18px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.fundamental?.op_margin)}</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">ROE</p><p className="text-[15px] md:text-[18px] font-black text-[#FF4B4B]">{formatPct(selectedStock.fundamental?.roe)}</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">시가총액</p><p className="text-[15px] md:text-[18px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.marcap_억)}</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">PER</p><p className="text-[15px] md:text-[18px] font-black text-slate-900 dark:text-white">{formatNumber(selectedStock.fundamental?.per)} 배</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">PBR</p><p className="text-[15px] md:text-[18px] font-black text-slate-900 dark:text-white">{formatNumber(selectedStock.fundamental?.pbr)} 배</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">부채비율</p><p className="text-[15px] md:text-[18px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.fundamental?.debt_ratio)}</p></div>
                                 </div>
                             </div>
 
-                            <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📈 가격 차트 (최근 120일)</h3>
-                                <div className="w-full h-[250px] md:h-[300px]">
+                            <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-6 tracking-tight flex items-center gap-2">
+                                  <BarChart2 className="text-[#FF4B4B]" size={24} /> 가격 차트 (최근 120일)
+                                </h3>
+                                <div className="w-full h-[250px] md:h-[350px]">
                                     {selectedStock.chart_data && selectedStock.chart_data.length > 0 ? (
                                         <ResponsiveContainer width="100%" height="100%">
                                             <LineChart data={selectedStock.chart_data} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
@@ -823,7 +822,7 @@ export default function QuantDesk() {
                                                 <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={30} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''}/>
                                                 <YAxis domain={['auto', 'auto']} tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(value) => value !== undefined && value !== null ? value.toLocaleString() : ''} />
                                                 <Tooltip contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900'}} itemStyle={{color: '#FF4B4B'}} labelStyle={{color: '#94A3B8', marginBottom: '4px'}} formatter={(value) => [value !== undefined && value !== null ? value.toLocaleString() : '', "종가"]} />
-                                                <Line type="monotone" dataKey="price" stroke="#FF4B4B" strokeWidth={2.5} dot={false} activeDot={{r: 5, fill: '#FF4B4B', strokeWidth: 0}} />
+                                                <Line type="monotone" dataKey="price" stroke="#FF4B4B" strokeWidth={2.5} dot={false} activeDot={{r: 6, fill: '#FF4B4B', strokeWidth: 0}} />
                                             </LineChart>
                                         </ResponsiveContainer>
                                     ) : (
