@@ -207,7 +207,6 @@ export default function NewsDesk() {
     setHistoryDate(d.toISOString().split('T')[0]);
   };
 
-  // 🌟 본인 섹터 탭을 눌렀을 때도 항상 region(카테고리명)이 보이도록 조건 해제
   const showCategoryBadge = true;
 
   return (
@@ -255,7 +254,6 @@ export default function NewsDesk() {
                         <h3 className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white leading-snug line-clamp-2 tracking-tight">{item.title}</h3>
                       </div>
                       
-                      {/* 🌟 슬라이더 카드 하단에 영문 Impacted Assets 표시 추가 */}
                       {item.sector_asset && item.sector_asset.trim() !== "" && (
                         <div className="mt-4">
                           <span className="text-[12px] font-extrabold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-700/50">
@@ -312,24 +310,36 @@ export default function NewsDesk() {
 
             <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
               {filteredList.length > 0 ? filteredList.slice(0, 50).map((item) => (
-                <div key={item.id} onClick={() => setSelectedNews(item)} className="p-4 md:p-5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    {showCategoryBadge && (
-                      <span className={`text-[11.5px] font-black px-2 py-1 rounded shrink-0 ${getCategoryStyle(getItemCategory(item))}`}>
-                        {getShortCategoryName(getItemCategory(item))}
-                      </span>
-                    )}
+                <div key={item.id} onClick={() => setSelectedNews(item)} className="p-4 md:p-5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors flex flex-col gap-2">
+                  
+                  {/* 🌟 레퍼런스 이미지(SAVE 앱) 스타일: 상단 메타데이터 영역 (뱃지 + 영문태그 + 시간) */}
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      {showCategoryBadge && (
+                        <span className={`text-[11px] font-black px-2 py-0.5 rounded shrink-0 ${getCategoryStyle(getItemCategory(item))}`}>
+                          {getShortCategoryName(getItemCategory(item))}
+                        </span>
+                      )}
+                      
+                      {item.sector_asset && item.sector_asset.trim() !== "" && (
+                        <span className="text-[13px] font-bold text-slate-500 dark:text-slate-400 truncate">
+                          · {item.sector_asset}
+                        </span>
+                      )}
+                    </div>
                     
-                    {/* 🌟 리스트 아이템: 우측에 영문 Impacted Assets 추가 표시 */}
-                    {item.sector_asset && item.sector_asset.trim() !== "" && (
-                      <span className="text-[14px] font-extrabold text-slate-400 dark:text-slate-500 shrink-0">
-                        · {item.sector_asset}
-                      </span>
-                    )}
-                    
-                    <h3 className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-slate-100 truncate ml-1 tracking-tight">{item.title}</h3>
+                    <span className="text-[12.5px] text-slate-400 dark:text-slate-500 font-extrabold shrink-0 whitespace-nowrap ml-2">
+                      {formatTime(item.created_at)}
+                    </span>
                   </div>
-                  <span className="text-[13.5px] text-slate-500 dark:text-slate-400 font-extrabold shrink-0 text-right md:w-20">{formatTime(item.created_at)}</span>
+
+                  {/* 🌟 하단 제목 영역: 위아래 레이아웃으로 변경됨 */}
+                  <div className="w-full">
+                    <h3 className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-slate-100 tracking-tight leading-snug break-words">
+                      {item.title}
+                    </h3>
+                  </div>
+                  
                 </div>
               )) : <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-extrabold">해당 조건의 뉴스가 없습니다.</div>}
             </div>
@@ -351,7 +361,6 @@ export default function NewsDesk() {
                         </span>
                       )}
                       
-                      {/* 🌟 팝업 상단: 영문 Impacted Assets 복구 표시 */}
                       {selectedNews.sector_asset && selectedNews.sector_asset.trim() !== "" && (
                         <span className="text-[14.5px] font-extrabold text-slate-500 dark:text-slate-400">
                           · {selectedNews.sector_asset}
