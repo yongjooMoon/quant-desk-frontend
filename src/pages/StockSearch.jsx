@@ -135,8 +135,8 @@ export default function StockSearch() {
     <div className="w-full px-4 md:px-8 py-8 md:py-10 transition-colors duration-300 relative font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif] pb-20">
 
       {/* 🌟 타이틀 섹션 */}
-      <div className="mb-10">
-        <h1 className="text-3xl md:text-[32px] font-black text-slate-900 dark:text-white flex items-center gap-3 tracking-tight mb-3">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-3xl md:text-[32px] font-black text-slate-900 dark:text-white flex items-center gap-3 tracking-tight mb-2">
           <Search className="text-[#3182F6]" size={32} />
           주식 가격 통합 검색
         </h1>
@@ -146,9 +146,9 @@ export default function StockSearch() {
       </div>
 
       {/* 🌟 메인 검색 컨테이너 (콤보박스) */}
-      <div className="mb-12 relative z-50 w-full" ref={wrapperRef}>
+      <div className="mb-8 md:mb-8 relative z-50 w-full" ref={wrapperRef}>
         <div className="relative">
-          <div className="flex items-center bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-5 focus-within:border-blue-400 dark:focus-within:border-[#3182F6] transition-all shadow-sm hover:shadow-md">
+          <div className="flex items-center bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 focus-within:border-blue-400 dark:focus-within:border-[#3182F6] transition-all shadow-sm hover:shadow-md">
             <Search className="text-slate-400 mr-4" size={24} />
             <input
               type="text"
@@ -191,28 +191,28 @@ export default function StockSearch() {
         </div>
 
         {loading && (
-          <div className="flex items-center gap-2 text-blue-500 mt-4 font-black text-[15px] animate-pulse pl-2">
+          <div className="flex items-center gap-2 text-blue-500 mt-3 font-black text-[15px] animate-pulse pl-2">
             <RefreshCcw size={18} className="animate-spin" /> 실시간 데이터 분석 중...
           </div>
         )}
         {error && (
-          <div className="text-[#F04452] font-black text-[15px] mt-4 pl-2">
+          <div className="text-[#F04452] font-black text-[15px] mt-3 pl-2">
             ❌ {error}
           </div>
         )}
       </div>
 
-      {/* 📊 분석 리포트 (퀀트 데스크 모달과 100% 동일한 레이아웃 적용) */}
+      {/* 📊 분석 리포트 */}
       {result && !loading && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full">
             
-            <div className="mb-8 md:mb-10 flex flex-col items-start gap-1 border-b border-slate-200 dark:border-slate-800/80 pb-8">
+            <div className="mb-6 md:mb-8 flex flex-col items-start gap-1 border-b border-slate-200 dark:border-slate-800/80 pb-4 md:pb-6">
                 <div className="flex items-center gap-2 mb-2">
                     <span className="text-[14px] md:text-[15px] font-black text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-md">{result.symbol}</span>
                     <span className="text-[14px] md:text-[15px] font-black text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-md">{result.market || "KOSPI"}</span>
                     {result.sector && <span className="text-[14px] md:text-[15px] font-black text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-md">{result.sector}</span>}
                 </div>
-                <h2 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-white mb-2 md:mb-4 leading-tight tracking-tight">
+                <h2 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-white mb-1 md:mb-2 leading-tight tracking-tight">
                     {result.name}
                 </h2>
                 <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight flex items-baseline">
@@ -223,11 +223,11 @@ export default function StockSearch() {
                 </h1>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
                 {/* Quant Scores Card */}
                 <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
                     <div>
-                        <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-6 tracking-tight">⚡ Quant Scores</h3>
+                        <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-4 tracking-tight">⚡ Quant Scores</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">실시간 랭킹 스코어</p>
@@ -247,7 +247,7 @@ export default function StockSearch() {
                 </div>
 
                 {/* SVG Half Circle Gauge Card */}
-                <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-center items-center relative min-h-[220px]">
+                <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-center items-center relative min-h-[200px]">
                     <div className="relative w-48 md:w-56 h-28 md:h-32 mb-2 flex justify-center items-end">
                         <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0">
                             <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="18" strokeLinecap="round" />
@@ -264,8 +264,8 @@ export default function StockSearch() {
             </div>
 
             {/* Entry Gates */}
-            <div className="mb-10">
-                <h5 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-4 md:mb-6 tracking-tight">Entry Gates (6 conditions)</h5>
+            <div className="mb-6 md:mb-8">
+                <h5 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-4 tracking-tight">Entry Gates (6 conditions)</h5>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
                     {['A', 'B', 'C', 'D', 'E', 'F'].map((label, idx) => {
                         const gateKeys = result.gates ? Object.keys(result.gates) : [];
@@ -273,7 +273,7 @@ export default function StockSearch() {
                         const passed = gate.pass;
 
                         return (
-                        <div key={label} className={`p-4 md:p-5 rounded-3xl border ${passed ? 'bg-[#00B464]/10 border-[#00B464]/50 shadow-sm' : 'bg-slate-50 dark:bg-[#1E2329] border-slate-200 dark:border-slate-800'} flex flex-col justify-between h-28 md:h-32 transition-all`}>
+                        <div key={label} className={`p-4 md:p-5 rounded-3xl border ${passed ? 'bg-[#00B464]/10 border-[#00B464]/50 shadow-sm' : 'bg-slate-50 dark:bg-[#1E2329] border-slate-200 dark:border-slate-800'} flex flex-col justify-between h-28 transition-all`}>
                             <div className="flex justify-between items-center mb-2">
                                 <span className={`font-black text-[16px] md:text-[18px] ${passed ? 'text-[#00B464]' : 'text-slate-400'}`}>{label}</span>
                                 <span className="text-[14px]">{passed ? '✔️' : '❌'}</span>
@@ -286,7 +286,7 @@ export default function StockSearch() {
             </div>
 
             {/* Financials & Valuation */}
-            <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm mb-10">
+            <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm mb-6 md:mb-8">
                 <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-6 tracking-tight">📊 Financials & Valuation</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 md:gap-y-8 gap-x-4 md:gap-x-6">
                     <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">매출액</p><p className="text-[15px] md:text-[18px] font-black text-slate-900 dark:text-white">{formatMarcap(result.fundamental?.revenue_cur)}</p></div>
@@ -301,7 +301,7 @@ export default function StockSearch() {
             </div>
 
             {/* Price History Chart */}
-            <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm mb-6 md:mb-8">
                 <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-6 tracking-tight flex items-center gap-2">
                   <BarChart2 className="text-[#FF4B4B]" size={24} /> 가격 차트 (최근 120일)
                 </h3>
