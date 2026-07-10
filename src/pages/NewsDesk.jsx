@@ -20,6 +20,17 @@ const getCacheWithExpiry = (key) => {
 
 const CACHE_TTL_NEWS = 10 * 60 * 1000; // 10분
 
+// 💡 [핵심 복구] 회원님이 만드셨던 카테고리 그룹핑 맵핑 100% 복구!
+const CATEGORY_MAPPING = {
+  "📊 거시경제/지수": ["Macro", "Index"],
+  "🏢 주식/산업": ["Stock", "Sector", "Tech", "Banking & Finance", "Corporate", "IPO"],
+  "🛢️ 원자재/에너지": ["Commodity", "Commodities", "Energy"],
+  "💱 외환/금리": ["FX", "Interest Rate"],
+  "🏘️ 대체/기타 자산": ["Real Estate", "Asset"]
+};
+
+const tabsNames = ["전체", "🔥 주요뉴스", ...Object.keys(CATEGORY_MAPPING), "기타"];
+
 export default function NewsDesk() {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -185,9 +196,9 @@ export default function NewsDesk() {
             </div>
           ) : (
             <>
-              {/* 💡 [핵심 복구] 한글 섹터별 탭 로직 100% 원상 복구 완료 */}
+              {/* 💡 [핵심 복구] 회원님이 만드셨던 tabsNames 배열로 탭 렌더링 100% 복구 */}
               <div className="flex gap-2 overflow-x-auto hide-scrollbar mb-6 pb-2 border-b border-slate-200 dark:border-slate-800">
-                {["전체", ...Array.from(new Set(news.map(n => n.sector_asset.split('-')[0]))).sort(), "🔥 주요뉴스"].map(tab => (
+                {tabsNames.map(tab => (
                   <button key={tab} onClick={() => setActiveTab(tab)} className={`shrink-0 px-4 py-2 text-[15px] font-black rounded-xl transition-all ${activeTab === tab ? 'bg-[#3182F6] text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}>
                     {tab}
                   </button>
@@ -225,8 +236,25 @@ export default function NewsDesk() {
                 </div>
               ) : (
                 <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm animate-in fade-in duration-300">
-                  {/* 💡 [핵심 복구] 선택된 한글 탭 이름으로 필터링하는 로직 100% 복구 완료 */}
-                  {news.filter(n => activeTab === "전체" || n.sector_asset.startsWith(activeTab)).map((item, idx) => {
+                  {/* 💡 [핵심 복구] CATEGORY_MAPPING을 통한 영어 섹터 매칭 필터링 완벽 복구! */}
+                  {news.filter(n => {
+                      if (activeTab === "전체") return true;
+                      
+                      const rawSector = n.sector_asset ? n.sector_asset.split('-')[0].trim() : "";
+                      
+                      // 1) 맵핑된 카테고리에 속하는지 확인
+                      if (CATEGORY_MAPPING[activeTab]) {
+                          return CATEGORY_MAPPING[activeTab].includes(rawSector);
+                      }
+                      
+                      // 2) '기타' 탭인 경우: 다른 맵핑에 속하지 않는 모든 섹터
+                      if (activeTab === "기타") {
+                          const allMappedSectors = Object.values(CATEGORY_MAPPING).flat();
+                          return !allMappedSectors.includes(rawSector);
+                      }
+                      
+                      return false;
+                  }).map((item, idx) => {
                       const style = getRegionStyle(item.region || 'Global');
                       const dt = parseKST(item.created_at);
                       return (
