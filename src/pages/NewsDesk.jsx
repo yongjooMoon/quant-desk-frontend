@@ -44,16 +44,16 @@ export default function NewsDesk() {
   const [scrollLeft, setScrollLeft] = useState(0);
   const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
 
-  // 🌟 AI 프롬프트에서 정의한 한글 카테고리 배열
+  // 🌟 요청하신 이모지를 포함한 탭 배열 (AI가 뱉어내는 텍스트와 매핑됨)
   const tabsNames = [
     "전체", 
     "🔥 주요뉴스", 
-    "거시경제/지수", 
-    "기업/산업", 
-    "원자재/에너지", 
-    "외환/채권", 
-    "지정학/글로벌", 
-    "대체/기타 자산"
+    "📊 거시경제/지수", 
+    "🏢 기업/산업", 
+    "🛢️ 원자재/에너지", 
+    "💱 외환/채권", 
+    "🌍 지정학/글로벌", 
+    "🏘️ 대체/기타 자산"
   ];
 
   const fetchNews = (isRefresh = false) => {
@@ -124,9 +124,19 @@ export default function NewsDesk() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
-  // 🌟 DB 스키마 업데이트 없이도 기존 region 자리에 들어온 카테고리를 읽어냅니다.
   const getItemCategory = (item) => {
     return (item.category || item.region || "").trim();
+  };
+
+  // 🌟 짧은 태그 이름 추출 함수: "/"로 나누고 더 짧은 텍스트를 반환
+  const getShortCategoryName = (category) => {
+    if (!category) return "기타";
+    const cleanCat = category.replace(/[^가-힣a-zA-Z0-9/ ]/g, '').trim();
+    if (!cleanCat.includes('/')) return cleanCat.substring(0, 3);
+    
+    const parts = cleanCat.split('/').map(p => p.trim());
+    // 길이가 더 짧거나 같으면 앞의 단어를 반환 (예: 거시경제(4)/지수(2) -> 지수 반환)
+    return parts[0].length <= parts[1].length ? parts[0] : parts[1];
   };
 
   const getSentimentInfo = (score) => {
@@ -135,15 +145,16 @@ export default function NewsDesk() {
     return { text: "Bullish (긍정적)", classes: "bg-emerald-100 text-emerald-700 dark:bg-[#1A3F2A] dark:text-[#34D399] border border-emerald-900/50" };
   };
 
-  // 🌟 새롭게 추가된 한글 섹터명 전용 색상 렌더링 함수
+  // 🌟 회색(Gray) 제거 및 모든 섹터에 산뜻한 색상 부여
   const getCategoryStyle = (category) => {
     const c = category || "";
-    if (c.includes("거시경제")) return "text-[#60A5FA] bg-[#60A5FA]/10 border border-[#60A5FA]/20";
-    if (c.includes("기업")) return "text-[#34D399] bg-[#34D399]/10 border border-[#34D399]/20";
-    if (c.includes("원자재")) return "text-[#FBBF24] bg-[#FBBF24]/10 border border-[#FBBF24]/20";
-    if (c.includes("외환")) return "text-[#818CF8] bg-[#818CF8]/10 border border-[#818CF8]/20";
-    if (c.includes("지정학")) return "text-[#F87171] bg-[#F87171]/10 border border-[#F87171]/20";
-    return "text-[#94A3B8] bg-[#94A3B8]/10 border border-[#94A3B8]/20";
+    if (c.includes("거시경제") || c.includes("지수")) return "text-[#60A5FA] bg-[#60A5FA]/10 border border-[#60A5FA]/20"; // Blue
+    if (c.includes("기업") || c.includes("산업")) return "text-[#34D399] bg-[#34D399]/10 border border-[#34D399]/20"; // Emerald
+    if (c.includes("원자재") || c.includes("에너지")) return "text-[#FBBF24] bg-[#FBBF24]/10 border border-[#FBBF24]/20"; // Amber
+    if (c.includes("외환") || c.includes("채권")) return "text-[#818CF8] bg-[#818CF8]/10 border border-[#818CF8]/20"; // Indigo
+    if (c.includes("지정학") || c.includes("글로벌")) return "text-[#F87171] bg-[#F87171]/10 border border-[#F87171]/20"; // Red
+    if (c.includes("대체") || c.includes("기타")) return "text-[#A78BFA] bg-[#A78BFA]/10 border border-[#A78BFA]/20"; // Purple
+    return "text-[#2DD4BF] bg-[#2DD4BF]/10 border border-[#2DD4BF]/20"; // Teal (나머지 예외 처리)
   };
 
   const handleMouseDown = (e, ref) => {
@@ -184,7 +195,8 @@ export default function NewsDesk() {
       return n.is_major && getDateStr(parseDBTime(n.created_at)) === historyDate;
     }
     const itemCat = getItemCategory(n);
-    return itemCat === activeTab;
+    // 🌟 탭 이름(이모지 포함) 안에 뉴스 카테고리(DB 값)가 포함되어 있는지 확인
+    return activeTab.includes(itemCat);
   });
 
   const currentViewList = activeTab === "🔥 주요뉴스" || (!searchQuery && activeTab === "전체") ? news : filteredList;
@@ -199,7 +211,6 @@ export default function NewsDesk() {
     setHistoryDate(d.toISOString().split('T')[0]);
   };
 
-  // 🌟 현재 탭이 '전체' 또는 '주요뉴스' 이거나, 검색 중일 때만 섹터 태그를 표시합니다.
   const showSectorOnCard = activeTab === "전체" || activeTab === "🔥 주요뉴스" || searchQuery !== "";
 
   return (
@@ -239,7 +250,7 @@ export default function NewsDesk() {
                         <div className="flex justify-between items-center mb-3">
                           {showSectorOnCard ? (
                             <span className={`text-[11px] font-black px-2.5 py-1 rounded-md ${getCategoryStyle(getItemCategory(item))}`}>
-                              {getItemCategory(item)}
+                              {getShortCategoryName(getItemCategory(item))}
                             </span>
                           ) : <div />}
                           <span className="text-[12px] text-slate-500 dark:text-slate-400 font-extrabold">{formatTime(item.created_at)}</span>
@@ -299,7 +310,7 @@ export default function NewsDesk() {
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     {showSectorOnCard && (
                       <span className={`text-[11.5px] font-black px-2 py-1 rounded shrink-0 ${getCategoryStyle(getItemCategory(item))}`}>
-                        {getItemCategory(item)}
+                        {getShortCategoryName(getItemCategory(item))}
                       </span>
                     )}
                     <h3 className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-slate-100 truncate ml-1 tracking-tight">{item.title}</h3>
@@ -322,7 +333,7 @@ export default function NewsDesk() {
                   <div className="flex gap-2 items-center">
                       {showSectorOnCard && (
                         <span className={`text-[11.5px] font-black px-2.5 py-1 rounded ${getCategoryStyle(getItemCategory(selectedNews))}`}>
-                          {getItemCategory(selectedNews)}
+                          {getShortCategoryName(getItemCategory(selectedNews))}
                         </span>
                       )}
                   </div>
