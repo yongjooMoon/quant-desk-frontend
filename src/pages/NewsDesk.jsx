@@ -350,7 +350,7 @@ export default function NewsDesk() {
                   <div className="bg-blue-50/50 dark:bg-[#151D2C] border border-blue-100 dark:border-slate-700/50 rounded-2xl p-6 md:p-8 mb-8 shadow-inner">
                       <h4 className="text-blue-600 dark:text-[#38BDF8] font-black mb-5 flex items-center gap-2 text-lg">✨ AI 핵심 요약</h4>
                       <p className="text-slate-800 dark:text-slate-200 leading-loose whitespace-pre-line text-[16px] md:text-[18px] font-bold">
-                          {selectedNews.summary.replace(/http[^\s]+/g, '').replace(/(\d\.)/g, '\n\n$1').trim()}
+                          {selectedNews.summary.replace(/http[^\s]+/g, '').replace(/<br><br>/g, '\n\n').trim()}
                       </p>
                   </div>
 
