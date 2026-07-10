@@ -44,25 +44,27 @@ export default function NewsDesk() {
   const [scrollLeft, setScrollLeft] = useState(0);
   const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
 
-  const CATEGORY_MAPPING = {
-    "📊 거시경제/지수": ["Macro", "Index"],
-    "🏢 주식/산업": ["Stock", "Sector", "Tech", "Banking & Finance"],
-    "🛢️ 원자재/에너지": ["Commodity", "Commodities", "Energy"],
-    "💱 외환/금리": ["FX"],
-    "🏘️ 대체/기타 자산": ["Real Estate", "Asset"]
-  };
-  const tabsNames = ["전체", "🔥 주요뉴스", ...Object.keys(CATEGORY_MAPPING), "기타"];
+  // 🌟 AI 프롬프트에서 정의한 한글 카테고리 배열
+  const tabsNames = [
+    "전체", 
+    "🔥 주요뉴스", 
+    "거시경제/지수", 
+    "기업/산업", 
+    "원자재/에너지", 
+    "외환/채권", 
+    "지정학/글로벌", 
+    "대체/기타 자산"
+  ];
 
   const fetchNews = (isRefresh = false) => {
     setLoading(true);
 
-    // 💡 [클라이언트 캐싱] 브라우저 세션 스토리지에서 뉴스를 바로 꺼내옵니다. (10분 TTL 적용)
     if (!isRefresh) {
       const cachedNews = getCacheWithExpiry('newsDesk_data_ttl');
       if (cachedNews) {
         setNews(cachedNews);
         setLoading(false);
-        return; // 캐시가 있으면 여기서 종료, 미국 서버(Render)까지 안 갑니다!
+        return; 
       }
     }
 
@@ -75,7 +77,6 @@ export default function NewsDesk() {
       .then((result) => {
         if (result.status === "success") {
            setNews(result.data);
-           // 💡 데이터를 받아오면 즉시 브라우저에 저장 (10분 TTL 적용)
            setCacheWithExpiry('newsDesk_data_ttl', result.data, CACHE_TTL_NEWS);
         }
         setLoading(false);
@@ -85,13 +86,10 @@ export default function NewsDesk() {
 
   useEffect(() => { fetchNews(); }, []);
 
-  // 🌟 NaN 오류 완벽 차단: 정규식으로 숫자만 뽑아내어 강제 세팅 (브라우저 간섭 100% 차단)
   const parseDBTime = (isoString) => {
     if (!isoString) return new Date();
-
     const parts = isoString.match(/\d+/g);
     if (!parts || parts.length < 5) return new Date();
-
     return new Date(
       parseInt(parts[0], 10),
       parseInt(parts[1], 10) - 1,
@@ -126,26 +124,26 @@ export default function NewsDesk() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
-  const getSectorGroup = (sectorAsset) => {
-    if (!sectorAsset) return "";
-    return sectorAsset.includes('-') ? sectorAsset.split('-')[0].trim() : sectorAsset.trim();
-  };
-
-  // 🌟 길고 복잡한 원본 태그(Index-Nikkei 등)를 짧은 한글 태그로 매핑해주는 함수
-  const getShortCategoryName = (sectorAsset) => {
-    const group = getSectorGroup(sectorAsset);
-    if (CATEGORY_MAPPING["📊 거시경제/지수"].includes(group)) return "지수";
-    if (CATEGORY_MAPPING["🏢 주식/산업"].includes(group)) return "산업";
-    if (CATEGORY_MAPPING["🛢️ 원자재/에너지"].includes(group)) return "에너지";
-    if (CATEGORY_MAPPING["💱 외환/금리"].includes(group)) return "금리";
-    if (CATEGORY_MAPPING["🏘️ 대체/기타 자산"].includes(group)) return "대체";
-    return "기타";
+  // 🌟 DB 스키마 업데이트 없이도 기존 region 자리에 들어온 카테고리를 읽어냅니다.
+  const getItemCategory = (item) => {
+    return (item.category || item.region || "").trim();
   };
 
   const getSentimentInfo = (score) => {
     if (score <= 2) return { text: "Bearish (부정적)", classes: "bg-red-100 text-red-700 dark:bg-[#3F1A1A] dark:text-[#F87171] border border-red-900/50" };
     if (score === 3) return { text: "Neutral (중립)", classes: "bg-yellow-100 text-yellow-700 dark:bg-[#3F311A] dark:text-[#FBBF24] border border-yellow-900/50" };
     return { text: "Bullish (긍정적)", classes: "bg-emerald-100 text-emerald-700 dark:bg-[#1A3F2A] dark:text-[#34D399] border border-emerald-900/50" };
+  };
+
+  // 🌟 새롭게 추가된 한글 섹터명 전용 색상 렌더링 함수
+  const getCategoryStyle = (category) => {
+    const c = category || "";
+    if (c.includes("거시경제")) return "text-[#60A5FA] bg-[#60A5FA]/10 border border-[#60A5FA]/20";
+    if (c.includes("기업")) return "text-[#34D399] bg-[#34D399]/10 border border-[#34D399]/20";
+    if (c.includes("원자재")) return "text-[#FBBF24] bg-[#FBBF24]/10 border border-[#FBBF24]/20";
+    if (c.includes("외환")) return "text-[#818CF8] bg-[#818CF8]/10 border border-[#818CF8]/20";
+    if (c.includes("지정학")) return "text-[#F87171] bg-[#F87171]/10 border border-[#F87171]/20";
+    return "text-[#94A3B8] bg-[#94A3B8]/10 border border-[#94A3B8]/20";
   };
 
   const handleMouseDown = (e, ref) => {
@@ -185,15 +183,8 @@ export default function NewsDesk() {
     if (activeTab === "🔥 주요뉴스") {
       return n.is_major && getDateStr(parseDBTime(n.created_at)) === historyDate;
     }
-    const nSectorGroup = getSectorGroup(n.sector_asset);
-    if (activeTab === "기타") {
-      const allMappedSectors = Object.values(CATEGORY_MAPPING).flat();
-      return !allMappedSectors.includes(nSectorGroup);
-    }
-    if (CATEGORY_MAPPING[activeTab]) {
-      return CATEGORY_MAPPING[activeTab].includes(nSectorGroup);
-    }
-    return true;
+    const itemCat = getItemCategory(n);
+    return itemCat === activeTab;
   });
 
   const currentViewList = activeTab === "🔥 주요뉴스" || (!searchQuery && activeTab === "전체") ? news : filteredList;
@@ -201,15 +192,6 @@ export default function NewsDesk() {
 
   const handlePrevNews = () => { if (selectedIdx > 0) setSelectedNews(currentViewList[selectedIdx - 1]); };
   const handleNextNews = () => { if (selectedIdx < currentViewList.length - 1) setSelectedNews(currentViewList[selectedIdx + 1]); };
-
-  const getRegionStyle = (region) => {
-    const r = (region || "").toUpperCase();
-    if (r.includes("US")) return "text-[#F87171] bg-[#F87171]/10 border border-[#F87171]/20";
-    if (r.includes("KR")) return "text-[#60A5FA] bg-[#60A5FA]/10 border border-[#60A5FA]/20";
-    if (r.includes("JP")) return "text-[#34D399] bg-[#34D399]/10 border border-[#34D399]/20";
-    if (r.includes("HK") || r.includes("CN")) return "text-[#FBBF24] bg-[#FBBF24]/10 border border-[#FBBF24]/20";
-    return "text-[#94A3B8] bg-[#94A3B8]/10 border border-[#94A3B8]/20";
-  };
 
   const shiftDate = (days) => {
     const d = new Date(historyDate);
@@ -255,18 +237,15 @@ export default function NewsDesk() {
                     >
                       <div>
                         <div className="flex justify-between items-center mb-3">
-                          <span className={`text-[11px] font-black px-2.5 py-1 rounded-md ${getRegionStyle(item.region)}`}>{item.region}</span>
+                          {showSectorOnCard ? (
+                            <span className={`text-[11px] font-black px-2.5 py-1 rounded-md ${getCategoryStyle(getItemCategory(item))}`}>
+                              {getItemCategory(item)}
+                            </span>
+                          ) : <div />}
                           <span className="text-[12px] text-slate-500 dark:text-slate-400 font-extrabold">{formatTime(item.created_at)}</span>
                         </div>
                         <h3 className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white leading-snug line-clamp-2 tracking-tight">{item.title}</h3>
                       </div>
-                      
-                      {/* 🌟 슬라이더 카드: 길고 복잡한 원본 대신 변환된 짧은 한글 태그 노출 */}
-                      {showSectorOnCard && (
-                        <div className="mt-4">
-                          <span className="text-[12px] font-extrabold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/50">#{getShortCategoryName(item.sector_asset)}</span>
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -318,13 +297,11 @@ export default function NewsDesk() {
               {filteredList.length > 0 ? filteredList.slice(0, 50).map((item) => (
                 <div key={item.id} onClick={() => setSelectedNews(item)} className="p-4 md:p-5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <span className={`text-[11.5px] font-black px-2 py-1 rounded shrink-0 ${getRegionStyle(item.region)}`}>{item.region}</span>
-                    
-                    {/* 🌟 리스트 아이템: 원본 대신 변환된 짧은 한글 태그 노출 */}
                     {showSectorOnCard && (
-                      <span className="text-[14.5px] font-extrabold text-slate-500 dark:text-slate-400 shrink-0">· {getShortCategoryName(item.sector_asset)}</span>
+                      <span className={`text-[11.5px] font-black px-2 py-1 rounded shrink-0 ${getCategoryStyle(getItemCategory(item))}`}>
+                        {getItemCategory(item)}
+                      </span>
                     )}
-                    
                     <h3 className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-slate-100 truncate ml-1 tracking-tight">{item.title}</h3>
                   </div>
                   <span className="text-[13.5px] text-slate-500 dark:text-slate-400 font-extrabold shrink-0 text-right md:w-20">{formatTime(item.created_at)}</span>
@@ -343,9 +320,11 @@ export default function NewsDesk() {
 
               <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
                   <div className="flex gap-2 items-center">
-                      <span className={`text-[11.5px] font-black px-2.5 py-1 rounded ${getRegionStyle(selectedNews.region)}`}>{selectedNews.region}</span>
-                      {/* 🌟 모달 상단 태그: 오리지널 영문 텍스트 노출 */}
-                      <span className="text-[14.5px] font-extrabold text-slate-500 dark:text-slate-400">· {selectedNews.sector_asset}</span>
+                      {showSectorOnCard && (
+                        <span className={`text-[11.5px] font-black px-2.5 py-1 rounded ${getCategoryStyle(getItemCategory(selectedNews))}`}>
+                          {getItemCategory(selectedNews)}
+                        </span>
+                      )}
                   </div>
                   <div className="flex items-center gap-4">
                       <span className="text-[14px] font-extrabold text-slate-400 dark:text-slate-500 tracking-tight">{formatExactTime(selectedNews.created_at)}</span>
@@ -395,3 +374,4 @@ export default function NewsDesk() {
     </div>
   );
 }
+```eof
