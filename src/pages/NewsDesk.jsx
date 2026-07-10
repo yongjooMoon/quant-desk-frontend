@@ -2,25 +2,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Search, ChevronLeft, ChevronRight, RefreshCcw, X, Calendar } from 'lucide-react';
 
-// 🌟 [프론트엔드 캐시] TTL 관리 헬퍼 함수
-const setCacheWithExpiry = (key, value, ttl_ms) => {
-  const item = { data: value, expiry: new Date().getTime() + ttl_ms };
-  sessionStorage.setItem(key, JSON.stringify(item));
-};
-
-const getCacheWithExpiry = (key) => {
-  const itemStr = sessionStorage.getItem(key);
-  if (!itemStr) return null;
-  const item = JSON.parse(itemStr);
-  if (new Date().getTime() > item.expiry) {
-    sessionStorage.removeItem(key);
-    return null;
-  }
-  return item.data;
-};
-
-const CACHE_TTL_NEWS = 10 * 60 * 1000; // 10분
-
 export default function NewsDesk() {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,17 +36,9 @@ export default function NewsDesk() {
     "🏘️ 대체/기타 자산"
   ];
 
+  // 🌟 세션 스토리지 캐싱 제거: 항상 API에서 새로 조회
   const fetchNews = (isRefresh = false) => {
     setLoading(true);
-
-    if (!isRefresh) {
-      const cachedNews = getCacheWithExpiry('newsDesk_data_ttl');
-      if (cachedNews) {
-        setNews(cachedNews);
-        setLoading(false);
-        return; 
-      }
-    }
 
     const url = isRefresh 
       ? "https://moon-bbh0.onrender.com/api/news?refresh=true" 
@@ -76,7 +49,6 @@ export default function NewsDesk() {
       .then((result) => {
         if (result.status === "success") {
            setNews(result.data);
-           setCacheWithExpiry('newsDesk_data_ttl', result.data, CACHE_TTL_NEWS);
         }
         setLoading(false);
       })
@@ -123,7 +95,6 @@ export default function NewsDesk() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
-  // 🌟 DB의 region 컬럼이 이제 한글 카테고리를 의미함
   const getItemCategory = (item) => {
     return (item.region || item.category || "").trim();
   };
@@ -312,7 +283,6 @@ export default function NewsDesk() {
               {filteredList.length > 0 ? filteredList.slice(0, 50).map((item) => (
                 <div key={item.id} onClick={() => setSelectedNews(item)} className="p-4 md:p-5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors flex flex-col gap-2">
                   
-                  {/* 🌟 레퍼런스 이미지(SAVE 앱) 스타일: 상단 메타데이터 영역 (뱃지 + 영문태그 + 시간) */}
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2 overflow-hidden">
                       {showCategoryBadge && (
@@ -333,7 +303,6 @@ export default function NewsDesk() {
                     </span>
                   </div>
 
-                  {/* 🌟 하단 제목 영역: 위아래 레이아웃으로 변경됨 */}
                   <div className="w-full">
                     <h3 className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-slate-100 tracking-tight leading-snug break-words">
                       {item.title}
