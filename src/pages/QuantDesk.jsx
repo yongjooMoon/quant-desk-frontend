@@ -251,7 +251,7 @@ export default function QuantDesk() {
         <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white flex items-center mb-2 tracking-tight gap-3">
           📡 퀀트투자
         </h2>
-        <button onClick={handleRefresh} className="px-4 py-2 border border-slate-300 dark:border-slate-700/80 rounded-xl flex items-center justify-center gap-2 text-sm font-extrabold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors bg-white dark:bg-transparent shadow-sm">
+        <button onClick={handleRefresh} className="px-4 py-2 border border-slate-300 dark:border-slate-700/80 rounded-xl flex items-center justify-center gap-2 text-sm font-extrabold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer active:scale-95 bg-white dark:bg-transparent shadow-sm hover:shadow-md">
             <RefreshCcw size={16} className={loading ? "animate-spin text-blue-500" : ""} /> 데이터 동기화
         </button>
       </div>
@@ -263,7 +263,7 @@ export default function QuantDesk() {
           {id: "Whitepaper", label: "Explain"}].map(t => (
             <button
                 key={t.id} onClick={() => setActiveTab(t.id)}
-                className={`pb-3 px-2 text-[14px] md:text-[15px] font-black tracking-tight transition-colors ${activeTab === t.id ? 'text-[#FF4B4B] border-b-[3px] border-[#FF4B4B]' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
+                className={`pb-3 px-2 text-[14px] md:text-[15px] font-black tracking-tight transition-all cursor-pointer hover:-translate-y-0.5 ${activeTab === t.id ? 'text-[#FF4B4B] border-b-[3px] border-[#FF4B4B]' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
             >
                 {t.label}
             </button>
@@ -326,13 +326,13 @@ export default function QuantDesk() {
                                 
                                 {/* Mobile: Bottom Row (Risk & Actions) | Desktop: Risk/Action cols */}
                                 <div className="flex justify-between items-center w-full md:w-[35%] mt-1 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0">
-                                    <div className="flex items-center md:w-[45%] md:justify-center gap-2">
+                                    <div className="flex items-center md:w-[40%] md:justify-center gap-2">
                                         <span className="text-[11px] font-bold text-slate-400 md:hidden">Exit Risk</span>
                                         <span className="text-[14px] md:text-[15px] font-black text-orange-500">{(h.exit_risk || dummyRisk).toFixed(2)}%</span>
                                     </div>
-                                    <div className="flex justify-end md:w-[55%] md:justify-center gap-2">
-                                        <button onClick={() => setRiskStock({...h, exit_risk: (h.exit_risk || dummyRisk)})} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:border-orange-400 transition-colors">🚨 Risk</button>
-                                        <button onClick={() => handleReportClick(h.symbol, h)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:border-blue-400 transition-colors">📊 리포트</button>
+                                    <div className="flex justify-end md:w-[60%] md:justify-center gap-2">
+                                        <button onClick={() => setRiskStock({...h, exit_risk: (h.exit_risk || dummyRisk)})} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-orange-600 dark:hover:text-orange-400 hover:border-orange-400 dark:hover:border-orange-500 transition-all cursor-pointer shadow-sm hover:shadow-md">🚨 Risk</button>
+                                        <button onClick={() => handleReportClick(h.symbol, h)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
                                     </div>
                                 </div>
 
@@ -363,10 +363,10 @@ export default function QuantDesk() {
                                     <button
                                         key={range}
                                         onClick={() => setTimeRange(range)}
-                                        className={`text-[12px] font-black px-3 py-1.5 rounded-lg transition-colors border shadow-sm ${
+                                        className={`text-[12px] font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer hover:-translate-y-0.5 border shadow-sm ${
                                             timeRange === range
                                             ? 'bg-[#FF4B4B] border-[#FF4B4B] text-white'
-                                            : 'bg-white dark:bg-[#0B1120] border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                            : 'bg-white dark:bg-[#0B1120] border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
                                         }`}
                                     >
                                         {range}
@@ -415,12 +415,12 @@ export default function QuantDesk() {
                     <div className="w-full">
                         {/* Desktop Header */}
                         <div className="hidden md:flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
-                            <div className="w-[10%] text-[14px] font-extrabold text-slate-500 text-center">순위</div>
-                            <div className="w-[30%] text-[14px] font-extrabold text-slate-500">종목명</div>
-                            <div className="w-[20%] text-[14px] font-extrabold text-slate-500 text-right">현재가</div>
-                            <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-center">통과</div>
-                            <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-right">랭킹점수</div>
-                            <div className="w-[10%] text-[14px] font-extrabold text-slate-500 text-center">액션</div>
+                            <div className="w-[10%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-center">순위</div>
+                            <div className="w-[30%] text-[13px] md:text-[14px] font-extrabold text-slate-500">종목명</div>
+                            <div className="w-[20%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-right">현재가</div>
+                            <div className="w-[15%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-center">통과</div>
+                            <div className="w-[15%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-center">랭킹점수</div>
+                            <div className="w-[10%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-center">액션</div>
                         </div>
 
                         {filWatchlist.length === 0 ? <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-extrabold">종목이 없습니다.</div> : filWatchlist.map((c, idx) => (
@@ -445,15 +445,15 @@ export default function QuantDesk() {
                                         <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">통과 관문</span>
                                         <span className="text-[14px] md:text-[15px] font-extrabold text-slate-600 dark:text-slate-400">{c.total_pass}/6</span>
                                     </div>
-                                    <div className="flex flex-col md:flex-row md:w-1/2 md:justify-end text-right">
+                                    <div className="flex flex-col md:flex-row md:w-1/2 md:justify-center text-right md:text-center">
                                         <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">랭킹 점수</span>
                                         <span className="text-[15px] md:text-[16px] font-black text-slate-500 dark:text-slate-400">{(c.factor_score || 0).toFixed(2)}점</span>
                                     </div>
                                 </div>
                                 
                                 {/* Mobile: Bottom Row (Actions) | Desktop: Action col */}
-                                <div className="w-full md:w-[10%] flex justify-end md:justify-center mt-2 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0">
-                                    <button onClick={() => handleReportClick(c.symbol, c)} className="px-4 md:px-3 py-1.5 md:w-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:border-blue-400 transition-colors shadow-sm">📊 리포트</button>
+                                <div className="w-full md:w-[10%] flex justify-end md:justify-center mt-2 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 px-2">
+                                    <button onClick={() => handleReportClick(c.symbol, c)} className="px-4 md:px-3 py-1.5 md:w-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
                                 </div>
 
                             </div>
