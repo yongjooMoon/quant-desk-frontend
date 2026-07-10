@@ -34,16 +34,35 @@ export default function NewsDesk() {
   };
   const tabsNames = ["전체", "🔥 주요뉴스", ...Object.keys(CATEGORY_MAPPING), "기타"];
 
-  const fetchNews = () => {
-    setLoading(true);
-    fetch("https://moon-bbh0.onrender.com/api/news")
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.status === "success") setNews(result.data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  };
+  const fetchNews = (isRefresh = false) => {
+  setLoading(true);
+
+  // 💡 [클라이언트 캐싱] 브라우저 세션 스토리지에서 뉴스를 바로 꺼내옵니다.
+  if (!isRefresh) {
+    const cachedNews = sessionStorage.getItem('newsDesk_data');
+    if (cachedNews) {
+      setNews(JSON.parse(cachedNews));
+      setLoading(false);
+      return; // 캐시가 있으면 여기서 종료, 미국 서버(Render)까지 안 갑니다!
+    }
+  }
+
+  const url = isRefresh 
+    ? "https://moon-bbh0.onrender.com/api/news?refresh=true" 
+    : "https://moon-bbh0.onrender.com/api/news";
+
+  fetch(url)
+    .then((res) => res.json())
+    .then((result) => {
+      if (result.status === "success") {
+         setNews(result.data);
+         // 💡 데이터를 받아오면 즉시 브라우저에 저장
+         sessionStorage.setItem('newsDesk_data', JSON.stringify(result.data));
+      }
+      setLoading(false);
+    })
+    .catch(() => setLoading(false));
+};
 
   useEffect(() => { fetchNews(); }, []);
 
