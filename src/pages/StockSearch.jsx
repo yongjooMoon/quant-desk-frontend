@@ -1,14 +1,10 @@
-// src/pages/StockSearch.jsx
 import { useState, useEffect, useRef } from 'react';
-import { Search, BarChart2, RefreshCcw } from 'lucide-react';
+import { Search, BarChart2, RefreshCcw, X } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip, XAxis, CartesianGrid } from 'recharts';
 
-// 🌟 [핵심] 만료 시간(TTL)을 관리하는 프론트엔드 캐시 헬퍼 함수
+// 🌟 [프론트엔드 캐시] TTL 관리 헬퍼 함수
 const setCacheWithExpiry = (key, value, ttl_ms) => {
-  const item = {
-    data: value,
-    expiry: new Date().getTime() + ttl_ms,
-  };
+  const item = { data: value, expiry: new Date().getTime() + ttl_ms };
   sessionStorage.setItem(key, JSON.stringify(item));
 };
 
@@ -16,8 +12,6 @@ const getCacheWithExpiry = (key) => {
   const itemStr = sessionStorage.getItem(key);
   if (!itemStr) return null;
   const item = JSON.parse(itemStr);
-  
-  // 현재 시간이 만료 시간을 지났다면 캐시 삭제 후 null 반환
   if (new Date().getTime() > item.expiry) {
     sessionStorage.removeItem(key);
     return null;
@@ -25,10 +19,10 @@ const getCacheWithExpiry = (key) => {
   return item.data;
 };
 
-// 캐시 유지 시간 상수 (밀리초)
 const CACHE_TTL = {
-  KRX_LIST: 24 * 60 * 60 * 1000, // 종목 마스터 리스트: 24시간
-  STOCK_DETAIL: 10 * 60 * 1000,   // 종목 펀더멘털/차트 상세: 10분
+  KRX_LIST: 24 * 60 * 60 * 1000,   // 종목 마스터 리스트: 24시간
+  STOCK_DETAIL: 10 * 60 * 1000,    // 종목 상세 리포트: 10분
+  FUNDAMENTAL_ALL: 60 * 60 * 1000  // 전체 펀더멘털 사전 로딩: 1시간
 };
 
 export default function StockSearch() {
@@ -39,13 +33,12 @@ export default function StockSearch() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // 🌟 키보드 네비게이션을 위한 상태 및 Ref 추가
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const wrapperRef = useRef(null);
   const optionsListRef = useRef(null);
 
   useEffect(() => {
-    // 💡 [클라이언트 캐싱 + TTL] 유효기간이 지나지 않은 캐시가 있으면 즉시 사용
+    // 💡 1. 종목 마스터 리스트 로딩 (24시간 캐시)
     const cachedKrx = getCacheWithExpiry('krx_list_data_ttl');
     if (cachedKrx) {
         setOptions(cachedKrx);
@@ -55,11 +48,24 @@ export default function StockSearch() {
           .then(data => { 
               if (data.status === "success") {
                   setOptions(data.data);
-                  // 💡 데이터를 받아오면 24시간 타이머를 달아서 저장
                   setCacheWithExpiry('krx_list_data_ttl', data.data, CACHE_TTL.KRX_LIST);
               } 
           })
           .catch(err => console.error(err));
+    }
+
+    // 💡 2. 🌟 핵심! 펀더멘털 선제적 로딩 (Pre-fetching) 🌟
+    // 이 API를 호출하면 백엔드 서버(Render) 메모리에 수천 개 종목 펀더멘털이 즉시 올라갑니다.
+    const cachedFundAll = getCacheWithExpiry('all_fundamentals_ttl');
+    if (!cachedFundAll) {
+        fetch("https://moon-bbh0.onrender.com/api/fundamentals")
+          .then(res => res.json())
+          .then(data => {
+              if (data.status === "success") {
+                  setCacheWithExpiry('all_fundamentals_ttl', true, CACHE_TTL.FUNDAMENTAL_ALL);
+                  console.log("✅ 백엔드 펀더멘털 일괄 캐싱 완료!");
+              }
+          });
     }
   }, []);
 
@@ -75,12 +81,8 @@ export default function StockSearch() {
 
   const filteredOptions = options.filter(opt => opt.SearchStr.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 50);
 
-  // 검색어가 바뀌면 포커스 초기화
-  useEffect(() => {
-    setFocusedIndex(-1);
-  }, [searchTerm]);
+  useEffect(() => { setFocusedIndex(-1); }, [searchTerm]);
 
-  // 포커스된 항목이 화면에 보이도록 스크롤 자동 이동
   useEffect(() => {
     if (isDropdownOpen && optionsListRef.current && focusedIndex >= 0) {
       const listNode = optionsListRef.current;
@@ -90,12 +92,8 @@ export default function StockSearch() {
         const nodeBottom = nodeTop + focusedNode.offsetHeight;
         const scrollTop = listNode.scrollTop;
         const scrollBottom = scrollTop + listNode.offsetHeight;
-
-        if (nodeTop < scrollTop) {
-          listNode.scrollTop = nodeTop;
-        } else if (nodeBottom > scrollBottom) {
-          listNode.scrollTop = nodeBottom - listNode.offsetHeight;
-        }
+        if (nodeTop < scrollTop) listNode.scrollTop = nodeTop;
+        else if (nodeBottom > scrollBottom) listNode.scrollTop = nodeBottom - listNode.offsetHeight;
       }
     }
   }, [focusedIndex, isDropdownOpen]);
@@ -108,14 +106,14 @@ export default function StockSearch() {
     setError("");
     setResult(null);
 
-    // 💡 [개별 종목 캐싱 + TTL] 해당 종목의 펀더멘털/차트 데이터가 캐시에 남아있는지 확인
+    // 💡 3. 개별 종목 검색 캐시 확인 (10분)
     const cacheKey = `stock_detail_ttl_${symbol}`;
     const cachedDetail = getCacheWithExpiry(cacheKey);
 
     if (cachedDetail) {
       setResult(cachedDetail);
       setLoading(false);
-      return; // 캐시가 있으면 여기서 종료, 미국 서버까지 안 갑니다! 🚀
+      return; 
     }
 
     fetch(`https://moon-bbh0.onrender.com/api/search/${symbol}`)
@@ -127,7 +125,6 @@ export default function StockSearch() {
             if (matched) data.data.name = matched.Name;
           }
           setResult(data.data);
-          // 💡 처음 검색된 종목이라면 10분(600초) 만료 타이머를 달아서 저장
           setCacheWithExpiry(cacheKey, data.data, CACHE_TTL.STOCK_DETAIL);
         } else setError(data.message || "종목 검색 실패");
         setLoading(false);
@@ -137,15 +134,11 @@ export default function StockSearch() {
       });
   };
 
-  // 🌟 키보드 입력 핸들러 (위/아래 방향키 및 엔터 지원)
   const handleKeyDown = (e) => {
     if (!isDropdownOpen) {
-      if (e.key === "Enter" && searchTerm) {
-        setIsDropdownOpen(true);
-      }
+      if (e.key === "Enter" && searchTerm) setIsDropdownOpen(true);
       return;
     }
-
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setFocusedIndex(prev => (prev < filteredOptions.length - 1 ? prev + 1 : prev));
@@ -158,7 +151,6 @@ export default function StockSearch() {
         const opt = filteredOptions[focusedIndex];
         handleSelect(opt.Symbol, opt.SearchStr);
       } else if (filteredOptions.length > 0) {
-        // 포커스가 없어도 엔터 치면 가장 첫 번째 항목 자동 선택
         const opt = filteredOptions[0];
         handleSelect(opt.Symbol, opt.SearchStr);
       }
@@ -167,7 +159,6 @@ export default function StockSearch() {
     }
   };
 
-  // 🌟 퀀트 데스크와 동일한 포맷팅 함수 적용
   const formatMarcap = (val) => {
     if (val === null || val === undefined || isNaN(val)) return "N/A";
     const num = Number(val);
@@ -197,7 +188,7 @@ export default function StockSearch() {
         </p>
       </div>
 
-      {/* 🌟 메인 검색 컨테이너 (콤보박스) */}
+      {/* 🌟 메인 검색 컨테이너 */}
       <div className="mb-8 md:mb-8 relative z-50 w-full" ref={wrapperRef}>
         <div className="relative">
           <div className="flex items-center bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 focus-within:border-blue-400 dark:focus-within:border-[#3182F6] transition-all shadow-sm hover:shadow-md">
