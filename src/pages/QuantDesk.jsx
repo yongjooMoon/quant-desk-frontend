@@ -428,7 +428,7 @@ export default function QuantDesk() {
           {/* ===================== WATCHLIST TAB ===================== */}
           {activeTab === "Watchlist" && (
               <div className="animate-in fade-in duration-300 w-full">
-                <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">👀 예비 관심 종목 (4/6 조건 이상)</h2>
+                <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">관심 종목 (4/6 조건 이상)</h2>
                 
                 <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm w-full mb-12">
                     <div className="w-full">
@@ -485,7 +485,7 @@ export default function QuantDesk() {
           {/* ===================== HISTORY TAB ===================== */}
           {activeTab === "History" && (
               <div className="animate-in fade-in duration-300 w-full">
-                  <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">📉 자동 매도 (Exit) 완료 히스토리 & 성과 지표</h2>
+                  <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">성과 지표</h2>
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10 w-full">
                       <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
