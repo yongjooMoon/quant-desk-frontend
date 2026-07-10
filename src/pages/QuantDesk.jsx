@@ -167,7 +167,6 @@ export default function QuantDesk() {
   const lastChartData = chartData.length > 0 ? chartData[chartData.length - 1] : { cum: 0, kospi_cum: 0, alpha: 0 };
   const lastDayRet = chartData.length > 0 ? chartData[chartData.length - 1].return : 0;
 
-  // 🌟 색상 통일: NewsDesk의 톤앤매너인 FF4B4B 사용
   const isPositive = lastChartData.cum >= 0;
   const mainColor = isPositive ? '#FF4B4B' : '#3B82F6';
 
@@ -247,7 +246,7 @@ export default function QuantDesk() {
         </div>
       )}
 
-      {}
+      {/* Header */}
       <div className="mb-10 flex flex-col md:flex-row justify-between md:items-center gap-4">
         <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white flex items-center mb-2 tracking-tight gap-3">
           📡 퀀트투자
@@ -275,19 +274,22 @@ export default function QuantDesk() {
         <div className="flex justify-center p-20 w-full"><RefreshCcw className="animate-spin text-blue-500" size={40} /></div>
       ) : (
         <div className="w-full">
-          {}
+          
+          {/* ===================== PORTFOLIO TAB ===================== */}
           {activeTab === "Portfolio" && (
             <div className="animate-in fade-in duration-300 w-full">
                 <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">Holdings ({holdings.length})</h2>
-                <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm mb-12">
-                    <div className="min-w-[900px] w-full">
-                        <div className="flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
-                            <div className="w-[20%] text-[13px] md:text-[14px] font-extrabold text-slate-500">종목명</div>
-                            <div className="w-[15%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-right">진입가</div>
-                            <div className="w-[15%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-right">현재가</div>
-                            <div className="w-[15%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-right">수익률(P&L)</div>
-                            <div className="w-[15%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-center">Exit Risk</div>
-                            <div className="w-[20%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-center">상세 액션</div>
+                
+                <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm mb-12">
+                    <div className="w-full">
+                        {/* Desktop Header (Hidden on Mobile) */}
+                        <div className="hidden md:flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent w-full">
+                            <div className="w-[20%] text-[14px] font-extrabold text-slate-500">종목명</div>
+                            <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-right">진입가</div>
+                            <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-right">현재가</div>
+                            <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-right">수익률(P&L)</div>
+                            <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-center">Exit Risk</div>
+                            <div className="w-[20%] text-[14px] font-extrabold text-slate-500 text-center">상세 액션</div>
                         </div>
 
                         {holdings.length === 0 ? (
@@ -298,16 +300,42 @@ export default function QuantDesk() {
                             const dummyRisk = Math.min(100, Math.max(0, 100 - (ret * 2 + 50)));
 
                             return (
-                            <div key={i} className="flex items-center px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full">
-                                <div className="w-[20%] text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white truncate pr-4">{h.name}</div>
-                                <div className="w-[15%] text-[14px] md:text-[15px] font-extrabold text-slate-700 dark:text-slate-300 text-right">₩{Math.round(h.entry_price || 0).toLocaleString()}</div>
-                                <div className="w-[15%] text-[14px] md:text-[15px] font-black text-slate-900 dark:text-white text-right">₩{Math.round(h.current_price || 0).toLocaleString()}</div>
-                                <div className={`w-[15%] text-[15px] md:text-[16px] font-black text-right ${pnlColor}`}>{ret > 0 ? "+" : ""}{ret.toFixed(2)}%</div>
-                                <div className="w-[15%] text-[14px] md:text-[15px] font-black text-center text-orange-500">{(h.exit_risk || dummyRisk).toFixed(2)}%</div>
-                                <div className="w-[20%] flex justify-center gap-2">
-                                    <button onClick={() => setRiskStock({...h, exit_risk: (h.exit_risk || dummyRisk)})} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:border-orange-400 transition-colors shadow-sm">🚨 Risk</button>
-                                    <button onClick={() => handleReportClick(h.symbol, h)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:border-blue-400 transition-colors shadow-sm">📊 리포트</button>
+                            // Responsive Row: Flex-col on mobile, Flex-row on desktop
+                            <div key={i} className="flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
+                                
+                                {/* Mobile: Top Row (Name & PnL) | Desktop: Name col */}
+                                <div className="flex justify-between items-center w-full md:w-[20%] pr-0 md:pr-4">
+                                    <div className="text-[16px] md:text-[16px] font-black text-slate-900 dark:text-white truncate">{h.name}</div>
+                                    <div className={`md:hidden text-[16px] font-black ${pnlColor}`}>{ret > 0 ? "+" : ""}{ret.toFixed(2)}%</div>
                                 </div>
+                                
+                                {/* Mobile: Middle Row (Prices) | Desktop: Entry/Current cols */}
+                                <div className="flex justify-between items-center w-full md:w-[30%]">
+                                    <div className="flex flex-col md:w-1/2 text-left md:text-right">
+                                        <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">진입가</span>
+                                        <span className="text-[14px] md:text-[15px] font-extrabold text-slate-700 dark:text-slate-300">₩{Math.round(h.entry_price || 0).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex flex-col md:w-1/2 text-right">
+                                        <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">현재가</span>
+                                        <span className="text-[14px] md:text-[15px] font-black text-slate-900 dark:text-white">₩{Math.round(h.current_price || 0).toLocaleString()}</span>
+                                    </div>
+                                </div>
+
+                                {/* Desktop: PnL col (Hidden on mobile) */}
+                                <div className={`hidden md:block w-[15%] text-[16px] font-black text-right ${pnlColor}`}>{ret > 0 ? "+" : ""}{ret.toFixed(2)}%</div>
+                                
+                                {/* Mobile: Bottom Row (Risk & Actions) | Desktop: Risk/Action cols */}
+                                <div className="flex justify-between items-center w-full md:w-[35%] mt-1 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0">
+                                    <div className="flex items-center md:w-[45%] md:justify-center gap-2">
+                                        <span className="text-[11px] font-bold text-slate-400 md:hidden">Exit Risk</span>
+                                        <span className="text-[14px] md:text-[15px] font-black text-orange-500">{(h.exit_risk || dummyRisk).toFixed(2)}%</span>
+                                    </div>
+                                    <div className="flex justify-end md:w-[55%] md:justify-center gap-2">
+                                        <button onClick={() => setRiskStock({...h, exit_risk: (h.exit_risk || dummyRisk)})} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:border-orange-400 transition-colors">🚨 Risk</button>
+                                        <button onClick={() => handleReportClick(h.symbol, h)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:border-blue-400 transition-colors">📊 리포트</button>
+                                    </div>
+                                </div>
+
                             </div>
                             );
                         })}
@@ -317,15 +345,14 @@ export default function QuantDesk() {
                 <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-2 tracking-tight">KOSPI 대비 포트폴리오 성과 (Alpha)</h2>
                 <p className="text-[14px] font-extrabold text-slate-500 mb-6 tracking-tight">※ 매도(Exit)가 완료된 종목의 실현 수익률을 바탕으로 KOSPI 지수와 비교합니다.</p>
 
-                <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm w-full mb-12 relative overflow-hidden">
-
-                    <div className="flex flex-col md:flex-row justify-between md:items-end mb-8 relative z-10 border-b border-slate-200 dark:border-slate-800/80 pb-6">
+                <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 md:p-8 rounded-2xl shadow-sm w-full mb-12 relative overflow-hidden">
+                    <div className="flex flex-col md:flex-row justify-between md:items-end mb-6 md:mb-8 relative z-10 border-b border-slate-200 dark:border-slate-800/80 pb-6">
                         <div>
                             <div className="flex items-baseline gap-4 mt-2">
                                 <h1 className="text-4xl md:text-5xl font-black tracking-tighter" style={{ color: mainColor }}>
                                     {lastChartData.cum > 0 ? '+' : ''}{lastChartData.cum.toFixed(2)}%
                                 </h1>
-                                <span className={`text-[15px] font-black ${lastChartData.alpha >= 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
+                                <span className={`text-[14px] md:text-[15px] font-black ${lastChartData.alpha >= 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
                                     ▲ {lastChartData.alpha > 0 ? '+' : ''}{lastChartData.alpha.toFixed(2)}% (Alpha)
                                 </span>
                             </div>
@@ -353,7 +380,7 @@ export default function QuantDesk() {
                         </div>
                     </div>
 
-                    <div className="w-full h-[400px] relative z-10">
+                    <div className="w-full h-[300px] md:h-[400px] relative z-10">
                         {displayChartData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <ComposedChart data={displayChartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
@@ -366,9 +393,7 @@ export default function QuantDesk() {
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
                                     <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} tickMargin={12} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''}/>
                                     <YAxis tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(value) => value !== undefined && value !== null ? `${value > 0 ? '+' : ''}${value}%` : ''} />
-
                                     <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(100,116,139,0.2)', strokeWidth: 1, strokeDasharray: '4 4' }} />
-
                                     <Line type="monotone" dataKey="kospi_cum" stroke="#94A3B8" strokeWidth={1.5} strokeDasharray="4 4" dot={false} activeDot={false} isAnimationActive={false} />
                                     <Area type="monotone" dataKey="cum" stroke={mainColor} strokeWidth={3} fillOpacity={1} fill="url(#colorCum)" activeDot={{r: 6, fill: mainColor, strokeWidth: 2, stroke: '#111827'}} />
                                 </ComposedChart>
@@ -381,30 +406,56 @@ export default function QuantDesk() {
             </div>
           )}
 
-          {}
+          {/* ===================== WATCHLIST TAB ===================== */}
           {activeTab === "Watchlist" && (
               <div className="animate-in fade-in duration-300 w-full">
                 <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">👀 예비 관심 종목 (4/6 조건 이상)</h2>
-                <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm w-full mb-12">
-                    <div className="min-w-[800px] w-full">
-                        <div className="flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
-                            <div className="w-[10%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-center">순위</div>
-                            <div className="w-[30%] text-[13px] md:text-[14px] font-extrabold text-slate-500">종목명</div>
-                            <div className="w-[20%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-right">현재가</div>
-                            <div className="w-[15%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-center">통과</div>
-                            <div className="w-[15%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-right">랭킹점수</div>
-                            <div className="w-[10%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-center">액션</div>
+                
+                <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm w-full mb-12">
+                    <div className="w-full">
+                        {/* Desktop Header */}
+                        <div className="hidden md:flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
+                            <div className="w-[10%] text-[14px] font-extrabold text-slate-500 text-center">순위</div>
+                            <div className="w-[30%] text-[14px] font-extrabold text-slate-500">종목명</div>
+                            <div className="w-[20%] text-[14px] font-extrabold text-slate-500 text-right">현재가</div>
+                            <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-center">통과</div>
+                            <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-right">랭킹점수</div>
+                            <div className="w-[10%] text-[14px] font-extrabold text-slate-500 text-center">액션</div>
                         </div>
+
                         {filWatchlist.length === 0 ? <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-extrabold">종목이 없습니다.</div> : filWatchlist.map((c, idx) => (
-                            <div key={idx} className="flex items-center px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full">
-                                <div className="w-[10%] text-[14px] md:text-[15px] font-extrabold text-slate-500 text-center">{idx+1}</div>
-                                <div className="w-[30%] text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white pr-4">{c.name}</div>
-                                <div className="w-[20%] text-[14px] md:text-[15px] font-black text-slate-900 dark:text-white text-right">₩{Math.round(c.current_price || 0).toLocaleString()}</div>
-                                <div className="w-[15%] text-[14px] md:text-[15px] font-extrabold text-slate-600 dark:text-slate-400 text-center">{c.total_pass}/6</div>
-                                <div className="w-[15%] text-[15px] md:text-[16px] font-black text-slate-500 dark:text-slate-400 text-right">{(c.factor_score || 0).toFixed(2)}점</div>
-                                <div className="w-[10%] flex justify-center">
-                                    <button onClick={() => handleReportClick(c.symbol, c)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:border-blue-400 transition-colors shadow-sm">📊 리포트</button>
+                            // Responsive Row
+                            <div key={idx} className="flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
+                                
+                                {/* Mobile: Top Row (Name) | Desktop: Rank & Name cols */}
+                                <div className="flex justify-between items-center w-full md:w-[40%] pr-0 md:pr-4">
+                                    <div className="flex items-center gap-3 w-full">
+                                        <span className="text-[12px] font-extrabold text-white bg-blue-500 rounded-md px-2 py-0.5 md:bg-transparent md:text-slate-500 md:px-0 md:py-0 w-auto md:w-[25%] text-center">{idx+1}</span>
+                                        <span className="text-[16px] font-black text-slate-900 dark:text-white truncate md:w-[75%]">{c.name}</span>
+                                    </div>
+                                    <div className="md:hidden text-[15px] font-black text-slate-900 dark:text-white shrink-0">₩{Math.round(c.current_price || 0).toLocaleString()}</div>
                                 </div>
+                                
+                                {/* Desktop: Price col (Hidden on mobile) */}
+                                <div className="hidden md:block w-[20%] text-[15px] font-black text-slate-900 dark:text-white text-right">₩{Math.round(c.current_price || 0).toLocaleString()}</div>
+                                
+                                {/* Mobile: Middle Row (Pass & Score) | Desktop: Pass & Score cols */}
+                                <div className="flex justify-between items-center w-full md:w-[30%]">
+                                    <div className="flex flex-col md:flex-row md:w-1/2 md:justify-center text-left md:text-center">
+                                        <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">통과 관문</span>
+                                        <span className="text-[14px] md:text-[15px] font-extrabold text-slate-600 dark:text-slate-400">{c.total_pass}/6</span>
+                                    </div>
+                                    <div className="flex flex-col md:flex-row md:w-1/2 md:justify-end text-right">
+                                        <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">랭킹 점수</span>
+                                        <span className="text-[15px] md:text-[16px] font-black text-slate-500 dark:text-slate-400">{(c.factor_score || 0).toFixed(2)}점</span>
+                                    </div>
+                                </div>
+                                
+                                {/* Mobile: Bottom Row (Actions) | Desktop: Action col */}
+                                <div className="w-full md:w-[10%] flex justify-end md:justify-center mt-2 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0">
+                                    <button onClick={() => handleReportClick(c.symbol, c)} className="px-4 md:px-3 py-1.5 md:w-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:border-blue-400 transition-colors shadow-sm">📊 리포트</button>
+                                </div>
+
                             </div>
                         ))}
                     </div>
@@ -412,51 +463,80 @@ export default function QuantDesk() {
               </div>
           )}
 
-          {}
+          {/* ===================== HISTORY TAB ===================== */}
           {activeTab === "History" && (
               <div className="animate-in fade-in duration-300 w-full">
                   <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-6 tracking-tight">📉 자동 매도 (Exit) 완료 히스토리 & 성과 지표</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-10 w-full">
-                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-                          <p className="text-[13px] font-extrabold text-slate-500 mb-2">총 매도 횟수</p>
-                          <p className="text-3xl font-black text-slate-900 dark:text-white mb-1">{sellTrades.length}회</p>
-                          <p className="text-[12px] font-extrabold text-slate-400">승 {wins.length} / 패 {losses.length}</p>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10 w-full">
+                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
+                          <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">총 매도 횟수</p>
+                          <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white mb-1">{sellTrades.length}회</p>
+                          <p className="text-[11px] md:text-[12px] font-extrabold text-slate-400">승 {wins.length} / 패 {losses.length}</p>
                       </div>
-                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-                          <p className="text-[13px] font-extrabold text-slate-500 mb-2">🎯 승률 (타율)</p>
-                          <p className="text-3xl font-black text-[#3B82F6]">{winRate.toFixed(1)}%</p>
+                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
+                          <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">🎯 승률 (타율)</p>
+                          <p className="text-2xl md:text-3xl font-black text-[#3B82F6]">{winRate.toFixed(1)}%</p>
                       </div>
-                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-                          <p className="text-[13px] font-extrabold text-slate-500 mb-2">⚖️ 손익비</p>
-                          <p className="text-3xl font-black text-slate-900 dark:text-white mb-1">{avgLoss !== 0 ? Math.abs(avgWin/avgLoss).toFixed(2) : "0.00"}</p>
-                          <p className="text-[12px] font-extrabold text-slate-400">평균 {avgWin.toFixed(2)}% / {avgLoss.toFixed(2)}%</p>
+                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
+                          <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">⚖️ 손익비</p>
+                          <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white mb-1">{avgLoss !== 0 ? Math.abs(avgWin/avgLoss).toFixed(2) : "0.00"}</p>
+                          <p className="text-[11px] md:text-[12px] font-extrabold text-slate-400">평균 {avgWin.toFixed(2)}% / {avgLoss.toFixed(2)}%</p>
                       </div>
-                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-                          <p className="text-[13px] font-extrabold text-slate-500 mb-2">💰 주당 누적 실현손익금</p>
-                          <p className={`text-2xl lg:text-3xl font-black mb-1 tracking-tight ${totalProfitAmt > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{parseInt(totalProfitAmt).toLocaleString('ko-KR')}원</p>
+                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
+                          <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">💰 주당 누적 실현손익금</p>
+                          <p className={`text-xl md:text-2xl lg:text-3xl font-black tracking-tight ${totalProfitAmt > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{parseInt(totalProfitAmt).toLocaleString('ko-KR')}원</p>
                       </div>
                   </div>
-
-                  <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm w-full mb-12">
-                      <div className="min-w-[900px] w-full">
-                          <div className="flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
-                              <div className="w-[15%] text-[13px] md:text-[14px] font-extrabold text-slate-500">매도 일자</div>
-                              <div className="w-[20%] text-[13px] md:text-[14px] font-extrabold text-slate-500">종목명</div>
-                              <div className="w-[15%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-right">진입가</div>
-                              <div className="w-[15%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-right">매도가</div>
-                              <div className="w-[15%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-right">실현손익(%)</div>
-                              <div className="w-[20%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-right">매도 사유</div>
+                  
+                  <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm w-full mb-12">
+                      <div className="w-full">
+                          {/* Desktop Header */}
+                          <div className="hidden md:flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
+                              <div className="w-[15%] text-[14px] font-extrabold text-slate-500">매도 일자</div>
+                              <div className="w-[20%] text-[14px] font-extrabold text-slate-500">종목명</div>
+                              <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-right">진입가</div>
+                              <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-right">매도가</div>
+                              <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-right">실현손익(%)</div>
+                              <div className="w-[20%] text-[14px] font-extrabold text-slate-500 text-right">매도 사유</div>
                           </div>
+
                           {sellTrades.length === 0 ? <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-extrabold w-full">매도 이력이 없습니다.</div> : sellTrades.map((t, idx) => {
                                 const entryPrice = t.trade_price / (1 + ((t.return_rate || 0) / 100));
                                 return (
-                                  <div key={idx} className="flex items-center px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full">
-                                      <div className="w-[15%] text-[14px] md:text-[15px] font-extrabold text-slate-500">{t.trade_date}</div>
-                                      <div className="w-[20%] text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white pr-4">{t.name}</div>
-                                      <div className="w-[15%] text-[14px] md:text-[15px] font-extrabold text-slate-600 dark:text-slate-400 text-right">₩{Math.round(entryPrice).toLocaleString()}</div>
-                                      <div className="w-[15%] text-[14px] md:text-[15px] font-black text-slate-800 dark:text-slate-200 text-right">₩{Math.round(t.trade_price || 0).toLocaleString()}</div>
-                                      <div className={`w-[15%] text-[15px] md:text-[16px] font-black text-right ${(t.return_rate || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(t.return_rate || 0) > 0 ? "+" : ""}{(t.return_rate || 0).toFixed(2)}%</div>
-                                      <div className="w-[20%] text-[13px] font-extrabold text-slate-500 dark:text-slate-400 text-right pl-4 leading-snug">{t.reason}</div>
+                                  // Responsive Row
+                                  <div key={idx} className="flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
+                                      
+                                      {/* Mobile: Top Row (Date & Name & PnL) | Desktop: Date & Name cols */}
+                                      <div className="flex justify-between items-center w-full md:w-[35%] pr-0 md:pr-4">
+                                          <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-4 w-full">
+                                              <span className="text-[11px] font-extrabold text-slate-400 md:w-[42%] md:text-[14px] md:text-slate-500">{t.trade_date}</span>
+                                              <span className="text-[16px] md:text-[16px] font-black text-slate-900 dark:text-white md:w-[58%] truncate">{t.name}</span>
+                                          </div>
+                                          <div className={`md:hidden text-[16px] font-black shrink-0 ${(t.return_rate || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(t.return_rate || 0) > 0 ? "+" : ""}{(t.return_rate || 0).toFixed(2)}%</div>
+                                      </div>
+
+                                      {/* Mobile: Middle Row (Prices) | Desktop: Prices cols */}
+                                      <div className="flex justify-between items-center w-full md:w-[30%]">
+                                          <div className="flex flex-col md:w-1/2 text-left md:text-right">
+                                              <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">진입가</span>
+                                              <span className="text-[14px] md:text-[15px] font-extrabold text-slate-600 dark:text-slate-400">₩{Math.round(entryPrice).toLocaleString()}</span>
+                                          </div>
+                                          <div className="flex flex-col md:w-1/2 text-right">
+                                              <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">매도가</span>
+                                              <span className="text-[14px] md:text-[15px] font-black text-slate-800 dark:text-slate-200">₩{Math.round(t.trade_price || 0).toLocaleString()}</span>
+                                          </div>
+                                      </div>
+
+                                      {/* Desktop: PnL col (Hidden on mobile) */}
+                                      <div className={`hidden md:block w-[15%] text-[15px] md:text-[16px] font-black text-right ${(t.return_rate || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(t.return_rate || 0) > 0 ? "+" : ""}{(t.return_rate || 0).toFixed(2)}%</div>
+
+                                      {/* Mobile: Bottom Row (Reason) | Desktop: Reason col */}
+                                      <div className="w-full md:w-[20%] text-[13px] font-extrabold text-slate-500 dark:text-slate-400 text-left md:text-right mt-1 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 leading-snug break-keep md:pl-4">
+                                          <span className="text-[11px] font-bold text-slate-400 md:hidden mr-2">사유:</span>
+                                          {t.reason}
+                                      </div>
+
                                   </div>
                               );
                           })}
@@ -465,7 +545,7 @@ export default function QuantDesk() {
               </div>
           )}
 
-          {}
+          {/* ===================== WHITEPAPER TAB ===================== */}
           {activeTab === "Whitepaper" && (
               <div className="animate-in fade-in duration-500 w-full pb-10">
                   <div className="mb-10">
@@ -599,16 +679,16 @@ export default function QuantDesk() {
         </div>
       )}
 
-      {}
+      {/* RISK MODAL */}
       {riskStock && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-            <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-3xl shadow-2xl p-8 relative animate-in fade-in zoom-in-95">
+            <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-3xl shadow-2xl p-6 md:p-8 relative animate-in fade-in zoom-in-95">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-2xl font-black text-slate-900 dark:text-white">🚨 {riskStock.name} Risk 분석</h3>
                     <button onClick={() => setRiskStock(null)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"><X size={20}/></button>
                 </div>
 
-                <p className="text-[15px] font-extrabold text-slate-600 dark:text-slate-400 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
+                <p className="text-[14px] md:text-[15px] font-extrabold text-slate-600 dark:text-slate-400 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
                     현재가: ₩{Math.round(riskStock.current_price || 0).toLocaleString()} &nbsp;|&nbsp; 손절가: ₩{Math.round(riskStock.stop_price || 0).toLocaleString()}
                 </p>
 
@@ -618,32 +698,32 @@ export default function QuantDesk() {
                         <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-3"><div className={`h-3 rounded-full ${(riskStock.exit_risk || 0) > 70 ? 'bg-[#FF4B4B]' : 'bg-[#00B464]'}`} style={{width: `${riskStock.exit_risk || 0}%`}}></div></div>
                     </div>
                     <div>
-                        <div className="flex justify-between text-[14px] font-extrabold mb-2 text-slate-500"><span>Trailing Stop (ATR) 추정</span><span>{Math.max(0, (riskStock.exit_risk || 0) - 15).toFixed(2)}%</span></div>
+                        <div className="flex justify-between text-[13px] md:text-[14px] font-extrabold mb-2 text-slate-500"><span>Trailing Stop (ATR) 추정</span><span>{Math.max(0, (riskStock.exit_risk || 0) - 15).toFixed(2)}%</span></div>
                         <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2"><div className="bg-slate-400 dark:bg-slate-600 h-2 rounded-full" style={{width: `${Math.max(0, (riskStock.exit_risk || 0) - 15)}%`}}></div></div>
                     </div>
                     <div>
-                        <div className="flex justify-between text-[14px] font-extrabold mb-2 text-slate-500"><span>Trend Break (MA20) 추정</span><span>{Math.max(0, (riskStock.exit_risk || 0) - 5).toFixed(2)}%</span></div>
+                        <div className="flex justify-between text-[13px] md:text-[14px] font-extrabold mb-2 text-slate-500"><span>Trend Break (MA20) 추정</span><span>{Math.max(0, (riskStock.exit_risk || 0) - 5).toFixed(2)}%</span></div>
                         <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2"><div className="bg-slate-400 dark:bg-slate-600 h-2 rounded-full" style={{width: `${Math.max(0, (riskStock.exit_risk || 0) - 5)}%`}}></div></div>
                     </div>
                 </div>
 
                 <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 grid grid-cols-2 gap-4">
-                    <div><p className="text-[13px] font-extrabold text-slate-500 mb-1">진입가 (Entry)</p><p className="text-xl font-black text-slate-900 dark:text-white">₩{Math.round(riskStock.entry_price || 0).toLocaleString()}</p></div>
-                    <div><p className="text-[13px] font-extrabold text-slate-500 mb-1">보유 수익률 (P&L)</p><p className={`text-xl font-black ${(riskStock.return_rate || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(riskStock.return_rate || 0) > 0 ? '+' : ''}{(riskStock.return_rate || 0).toFixed(2)}%</p></div>
+                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">진입가 (Entry)</p><p className="text-lg md:text-xl font-black text-slate-900 dark:text-white">₩{Math.round(riskStock.entry_price || 0).toLocaleString()}</p></div>
+                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">보유 수익률 (P&L)</p><p className={`text-lg md:text-xl font-black ${(riskStock.return_rate || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(riskStock.return_rate || 0) > 0 ? '+' : ''}{(riskStock.return_rate || 0).toFixed(2)}%</p></div>
                 </div>
             </div>
         </div>
       )}
 
-      {}
+      {/* REPORT MODAL */}
       {selectedStock && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
             <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[1200px] min-h-[60vh] md:min-h-[75vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
                 <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
                     <div className="flex gap-2 items-center">
-                        <span className="text-[14.5px] font-black text-slate-500 dark:text-slate-400">{selectedStock.symbol} · {selectedStock.market}</span>
-                        {selectedStock.sector && <span className="text-[13.5px] font-extrabold px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{selectedStock.sector}</span>}
+                        <span className="text-[14px] md:text-[14.5px] font-black text-slate-500 dark:text-slate-400">{selectedStock.symbol} · {selectedStock.market || "KOSPI"}</span>
+                        {selectedStock.sector && <span className="text-[12px] md:text-[13.5px] font-extrabold px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{selectedStock.sector}</span>}
                     </div>
                     <button onClick={() => setSelectedStock(null)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors"><X size={20}/></button>
                 </div>
@@ -652,21 +732,21 @@ export default function QuantDesk() {
                     {reportLoading || selectedStock.isLoading ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-500">
                             <RefreshCcw className="animate-spin mb-4 text-blue-500" size={40} />
-                            <p className="font-black text-lg animate-pulse text-slate-700 dark:text-slate-300">최신 재무 데이터와 실시간 지표를 융합하여 리포트를 생성 중입니다...</p>
+                            <p className="font-black text-[15px] md:text-lg animate-pulse text-slate-700 dark:text-slate-300 text-center">최신 재무 데이터와 실시간 지표를 융합하여 리포트를 생성 중입니다...</p>
                         </div>
                     ) : selectedStock.fetchError ? (
                         <div className="flex flex-col items-center justify-center h-full text-[#FF4B4B]">
                             <X size={40} className="mb-4" />
-                            <p className="font-black text-lg">해당 종목의 데이터(API)를 불러오는데 실패했습니다.</p>
+                            <p className="font-black text-[15px] md:text-lg text-center">해당 종목의 데이터(API)를 불러오는데 실패했습니다.</p>
                         </div>
                     ) : (
                         <>
-                            <div className="mb-10">
-                                <h2 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-white mb-4 leading-tight tracking-tight">
+                            <div className="mb-8 md:mb-10">
+                                <h2 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-white mb-2 md:mb-4 leading-tight tracking-tight">
                                     {selectedStock.name}
                                 </h2>
-                                <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-                                    {formatNumber(selectedStock.current_price)} 원 <span className={`text-[20px] md:text-[24px] ml-2 ${(selectedStock.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(selectedStock.ret_1m || 0) > 0 ? '+' : ''}{formatPct(selectedStock.ret_1m || 0)} (1M)</span>
+                                <h1 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight flex items-baseline">
+                                    {formatNumber(selectedStock.current_price)} 원 <span className={`text-[16px] md:text-[24px] ml-2 md:ml-3 ${(selectedStock.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(selectedStock.ret_1m || 0) > 0 ? '+' : ''}{formatPct(selectedStock.ret_1m || 0)} (1M)</span>
                                 </h1>
                             </div>
 
@@ -674,19 +754,19 @@ export default function QuantDesk() {
                                 <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                                     <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">⚡ Quant Scores</h3>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div><p className="text-[13px] font-extrabold text-slate-500 mb-1">실시간 랭킹 스코어</p><p className="text-3xl font-black text-slate-900 dark:text-white">{(selectedStock.score || 0).toFixed(2)}점</p></div>
+                                        <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">실시간 랭킹 스코어</p><p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">{(selectedStock.score || 0).toFixed(2)}점</p></div>
                                         <div>
-                                            <p className="text-[13px] font-extrabold text-slate-500 mb-1">현재시점 생존 필터</p>
-                                            <p className="text-3xl font-black text-slate-900 dark:text-white">
+                                            <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">현재시점 생존 필터</p>
+                                            <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
                                                 {selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0} / 6
                                             </p>
                                         </div>
                                     </div>
-                                    <p className="text-[12px] font-extrabold text-slate-500 mt-6 p-3 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/50">💡 과거 배치(Cron) 시점엔 6/6 통과였어도, 현재 실시간 주가 변동에 따라 다를 수 있습니다.</p>
+                                    <p className="text-[11px] md:text-[12px] font-extrabold text-slate-500 mt-6 p-3 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/50">💡 과거 배치(Cron) 시점엔 6/6 통과였어도, 현재 실시간 주가 변동에 따라 다를 수 있습니다.</p>
                                 </div>
 
                                 <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-center items-center relative">
-                                    <div className="relative w-56 h-32 mb-2 flex justify-center items-end">
+                                    <div className="relative w-48 md:w-56 h-28 md:h-32 mb-2 flex justify-center items-end">
                                         <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0">
                                             <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="18" strokeLinecap="round" />
                                             <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#00B464" strokeWidth="18" strokeLinecap="round"
@@ -694,29 +774,29 @@ export default function QuantDesk() {
                                                   style={{ transition: 'stroke-dashoffset 1.5s ease-in-out' }} />
                                         </svg>
                                         <div className="absolute bottom-0 w-full flex flex-col items-center justify-end pb-2">
-                                            <p className="text-5xl font-black text-[#00B464] tracking-tighter">{(selectedStock.score || 0).toFixed(1)}</p>
+                                            <p className="text-4xl md:text-5xl font-black text-[#00B464] tracking-tighter">{(selectedStock.score || 0).toFixed(1)}</p>
                                         </div>
                                     </div>
-                                    <p className="text-[14px] font-extrabold text-slate-500 mt-2">퀀트 랭킹 스코어</p>
+                                    <p className="text-[13px] md:text-[14px] font-extrabold text-slate-500 mt-2">퀀트 랭킹 스코어</p>
                                 </div>
                             </div>
 
                             <div className="mb-10">
-                                <h5 className="text-xl font-black text-slate-900 dark:text-white mb-6">Entry Gates (6 conditions)</h5>
-                                <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                                <h5 className="text-xl font-black text-slate-900 dark:text-white mb-4 md:mb-6">Entry Gates (6 conditions)</h5>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
                                     {['A', 'B', 'C', 'D', 'E', 'F'].map((label, idx) => {
                                         const gateKeys = selectedStock.gates ? Object.keys(selectedStock.gates) : [];
                                         const gate = gateKeys.length > idx ? selectedStock.gates[gateKeys[idx]] : { pass: false, name: '-', reason: '-' };
                                         const passed = gate.pass;
 
                                         return (
-                                        <div key={label} className={`p-4 rounded-2xl border ${passed ? 'bg-[#00B464]/10 border-[#00B464]/50 shadow-sm' : 'bg-slate-50 dark:bg-[#1E2329] border-slate-200 dark:border-slate-800'} flex flex-col justify-between h-28`}>
+                                        <div key={label} className={`p-4 rounded-2xl border ${passed ? 'bg-[#00B464]/10 border-[#00B464]/50 shadow-sm' : 'bg-slate-50 dark:bg-[#1E2329] border-slate-200 dark:border-slate-800'} flex flex-col justify-between h-24 md:h-28`}>
                                             <div className="flex justify-between items-center mb-2">
-                                                <span className={`font-black text-[16px] ${passed ? 'text-[#00B464]' : 'text-slate-400'}`}>{label}</span>
+                                                <span className={`font-black text-[15px] md:text-[16px] ${passed ? 'text-[#00B464]' : 'text-slate-400'}`}>{label}</span>
                                                 <span className="text-[12px]">{passed ? '✔️' : '❌'}</span>
                                             </div>
-                                            <div className={`h-1.5 rounded-full w-full mb-3 ${passed ? 'bg-[#00B464]' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
-                                            <p className={`text-[12px] font-extrabold truncate ${passed ? 'text-[#00B464]' : 'text-slate-500'}`} title={gate.name}>{gate.name}</p>
+                                            <div className={`h-1 md:h-1.5 rounded-full w-full mb-2 md:mb-3 ${passed ? 'bg-[#00B464]' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                                            <p className={`text-[11px] md:text-[12px] font-extrabold truncate ${passed ? 'text-[#00B464]' : 'text-slate-500'}`} title={gate.name}>{gate.name}</p>
                                         </div>
                                     )})}
                                 </div>
@@ -724,21 +804,21 @@ export default function QuantDesk() {
 
                             <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-10">
                                 <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📊 Financials & Valuation</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-8 gap-x-6">
-                                    <div><p className="text-[13px] font-extrabold text-slate-500 mb-1">매출액</p><p className="text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.revenue_cur)}</p></div>
-                                    <div><p className="text-[13px] font-extrabold text-slate-500 mb-1">영업이익</p><p className="text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.op_profit_cur)}</p></div>
-                                    <div><p className="text-[13px] font-extrabold text-slate-500 mb-1">영업이익률</p><p className="text-[16px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.fundamental?.op_margin)}</p></div>
-                                    <div><p className="text-[13px] font-extrabold text-slate-500 mb-1">ROE</p><p className="text-[16px] font-black text-[#FF4B4B]">{formatPct(selectedStock.fundamental?.roe)}</p></div>
-                                    <div><p className="text-[13px] font-extrabold text-slate-500 mb-1">시가총액</p><p className="text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.marcap_억)}</p></div>
-                                    <div><p className="text-[13px] font-extrabold text-slate-500 mb-1">PER</p><p className="text-[16px] font-black text-slate-900 dark:text-white">{formatNumber(selectedStock.fundamental?.per)} 배</p></div>
-                                    <div><p className="text-[13px] font-extrabold text-slate-500 mb-1">PBR</p><p className="text-[16px] font-black text-slate-900 dark:text-white">{formatNumber(selectedStock.fundamental?.pbr)} 배</p></div>
-                                    <div><p className="text-[13px] font-extrabold text-slate-500 mb-1">부채비율</p><p className="text-[16px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.fundamental?.debt_ratio)}</p></div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 md:gap-y-8 gap-x-4 md:gap-x-6">
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">매출액</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.revenue_cur)}</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">영업이익</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.op_profit_cur)}</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">영업이익률</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.fundamental?.op_margin)}</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">ROE</p><p className="text-[15px] md:text-[16px] font-black text-[#FF4B4B]">{formatPct(selectedStock.fundamental?.roe)}</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">시가총액</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.marcap_억)}</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">PER</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatNumber(selectedStock.fundamental?.per)} 배</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">PBR</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatNumber(selectedStock.fundamental?.pbr)} 배</p></div>
+                                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">부채비율</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.fundamental?.debt_ratio)}</p></div>
                                 </div>
                             </div>
 
                             <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                                 <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📈 가격 차트 (최근 120일)</h3>
-                                <div className="w-full h-[300px]">
+                                <div className="w-full h-[250px] md:h-[300px]">
                                     {selectedStock.chart_data && selectedStock.chart_data.length > 0 ? (
                                         <ResponsiveContainer width="100%" height="100%">
                                             <LineChart data={selectedStock.chart_data} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
