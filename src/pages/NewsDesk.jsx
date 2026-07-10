@@ -344,8 +344,8 @@ export default function NewsDesk() {
               <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
                   <div className="flex gap-2 items-center">
                       <span className={`text-[11.5px] font-black px-2.5 py-1 rounded ${getRegionStyle(selectedNews.region)}`}>{selectedNews.region}</span>
-                      {/* 🌟 모달 상단 태그: 원본 대신 변환된 짧은 한글 태그 노출 */}
-                      <span className="text-[14.5px] font-extrabold text-slate-500 dark:text-slate-400">· {getShortCategoryName(selectedNews.sector_asset)}</span>
+                      {/* 🌟 모달 상단 태그: 오리지널 영문 텍스트 노출 */}
+                      <span className="text-[14.5px] font-extrabold text-slate-500 dark:text-slate-400">· {selectedNews.sector_asset}</span>
                   </div>
                   <div className="flex items-center gap-4">
                       <span className="text-[14px] font-extrabold text-slate-400 dark:text-slate-500 tracking-tight">{formatExactTime(selectedNews.created_at)}</span>
