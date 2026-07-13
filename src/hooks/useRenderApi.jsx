@@ -1,33 +1,48 @@
+// src/hooks/useRenderApi.jsx
 import { useState, useCallback } from 'react';
 import { Coffee } from 'lucide-react';
-import { fetchApi } from '../utils/api';
 
-/**
- * Render.com 특유의 무료 티어 콜드 스타트(서버 슬립) 현상 대응을 위한 커스텀 훅
- * - API 요청 후 3초 이상 지연되면 "서버 깨우기" 애니메이션 오버레이를 표시합니다.
- */
+// 🌟 BASE_URL을 훅 내부에 직접 정의 (utils/api.js 불필요)
+const BASE_URL = "https://moon-bbh0.onrender.com";
+
 export function useRenderApi() {
   const [isSleeping, setIsSleeping] = useState(false);
 
-  /**
-   * utils/api.js의 fetchApi를 래핑하여 슬립 타이머 로직 추가
-   */
+  // 🌟 fetchApi의 통신 기능과 슬립 타이머(애니메이션) 기능을 하나로 합침
   const callApi = useCallback(async (endpoint, options = {}) => {
     let isResolved = false;
     
-    // 💡 3초(3000ms) 동안 응답이 없으면 Render 서버가 슬립 상태인 것으로 간주하고 오버레이 작동
+    // 💡 3초 동안 응답이 없으면 서버 슬립 상태로 간주
     const sleepTimer = setTimeout(() => {
       if (!isResolved) setIsSleeping(true);
     }, 3000);
 
+    const url = `${BASE_URL}${endpoint}`;
+
     try {
-      // 💡 공통 유틸리티 fetchApi 사용
-      const response = await fetchApi(endpoint, options);
+      // 직접 fetch 호출
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
       isResolved = true;
       clearTimeout(sleepTimer);
-      setIsSleeping(false); // 응답이 오면 즉시 오버레이 해제
-      return response;
+      setIsSleeping(false); 
+      
+      return result; // JSON 결과 반환
+
     } catch (error) {
+      console.error(`[API 통신 오류] ${endpoint}:`, error);
       isResolved = true;
       clearTimeout(sleepTimer);
       setIsSleeping(false);
@@ -35,10 +50,6 @@ export function useRenderApi() {
     }
   }, []);
 
-  /**
-   * 공통으로 띄워줄 서버 기상 애니메이션 컴포넌트
-   * (사용하는 페이지의 JSX 루트에 삽입해야 합니다)
-   */
   const ServerWakeupOverlay = () => {
     if (!isSleeping) return null;
     return (
