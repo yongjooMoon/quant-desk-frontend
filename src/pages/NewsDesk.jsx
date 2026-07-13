@@ -336,7 +336,7 @@ export default function NewsDesk() {
                       )}
                       
                       {selectedNews.sector_asset && selectedNews.sector_asset.trim() !== "" && (
-                        <span className="text-[14.5px] font-extrabold text-slate-500 dark:text-slate-400">
+                        <span className="text-[13px] font-extrabold text-slate-500 dark:text-slate-400">
                           · {selectedNews.sector_asset}
                         </span>
                       )}
