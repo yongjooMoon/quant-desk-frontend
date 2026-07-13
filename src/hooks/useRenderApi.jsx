@@ -1,25 +1,27 @@
 // src/hooks/useRenderApi.jsx
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 // 🌟 BASE_URL을 훅 내부에 직접 정의
 const BASE_URL = "https://moon-bbh0.onrender.com";
 
 export function useRenderApi() {
   const [isSleeping, setIsSleeping] = useState(false);
+  // 💡 컴포넌트가 언마운트되거나 재요청될 때 타이머를 안전하게 클리어하기 위해 useRef 사용
+  const timerRef = useRef(null); 
 
   const callApi = useCallback(async (endpoint, options = {}) => {
-    let isDataResolved = false;
-    let isPingResolved = false;
+    // 이전 타이머가 있다면 초기화
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
     
-    // 💡 1. [스마트 감지] 서버 생존 여부만 묻는 초경량 Ping 병렬 요청
-    fetch(`${BASE_URL}/`, { method: 'HEAD' })
-      .then(() => { isPingResolved = true; })
-      .catch(() => { isPingResolved = true; }); // 에러(404 등)가 나도 응답이 온 거면 깬 것임
-
-    // 💡 2. 콜드 스타트 판별 타이머 (미국 서버 레이턴시를 고려하여 4초로 설정!)
-    // 4초가 지났는데도 Ping 응답조차 없다면 이건 네크워크 지연이 아니라 확실한 '서버 슬립'입니다.
-    const sleepTimer = setTimeout(() => {
-      if (!isDataResolved && !isPingResolved) {
+    let isResolved = false;
+    
+    // 💡 1. 콜드 스타트 판별 타이머 (4초)
+    // 별도의 Ping 요청 없이, 메인 데이터 요청이 4초를 넘어가면 무조건 서버가 잔다고 판단!
+    // 이렇게 하면 콘솔창에 404나 502 같은 불필요한 에러가 찍히지 않습니다.
+    timerRef.current = setTimeout(() => {
+      if (!isResolved) {
         setIsSleeping(true);
       }
     }, 4000);
@@ -27,7 +29,7 @@ export function useRenderApi() {
     const url = `${BASE_URL}${endpoint}`;
 
     try {
-      // 💡 3. 실제 데이터 요청
+      // 💡 2. 실제 데이터 요청
       const response = await fetch(url, {
         ...options,
         headers: {
@@ -42,17 +44,20 @@ export function useRenderApi() {
 
       const result = await response.json();
       
-      isDataResolved = true;
-      clearTimeout(sleepTimer);
+      // 💡 3. 정상 응답 시 타이머 해제 및 오버레이 닫기
+      isResolved = true;
+      clearTimeout(timerRef.current);
       setIsSleeping(false); 
       
       return result;
 
     } catch (error) {
-      console.error(`[API 통신 오류] ${endpoint}:`, error);
-      isDataResolved = true;
-      clearTimeout(sleepTimer);
+      // 💡 4. 에러 발생 시에도 무한 로딩 방지를 위해 오버레이 닫기
+      isResolved = true;
+      clearTimeout(timerRef.current);
       setIsSleeping(false);
+      
+      console.error(`[API 통신 오류] ${endpoint}:`, error);
       throw error;
     }
   }, []);
@@ -113,3 +118,4 @@ export function useRenderApi() {
 
   return { callApi, ServerWakeupOverlay };
 }
+```eof
