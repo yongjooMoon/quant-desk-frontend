@@ -1,7 +1,7 @@
 // src/pages/NewsDesk.jsx
 import { useEffect, useState, useRef } from 'react';
 import { Search, ChevronLeft, ChevronRight, RefreshCcw, X, Calendar } from 'lucide-react';
-// 🌟 분리된 공통 API 훅 임포트
+// 분리된 공통 API 훅 임포트
 import { useRenderApi } from '../hooks/useRenderApi';
 
 export default function NewsDesk() {
@@ -11,7 +11,7 @@ export default function NewsDesk() {
   const [activeTab, setActiveTab] = useState("전체");
   const [selectedNews, setSelectedNews] = useState(null);
 
-  // 🌟 공통 API 훅 사용
+  // 공통 API 훅 사용
   const { callApi, ServerWakeupOverlay } = useRenderApi();
 
   const getTodayStr = () => {
