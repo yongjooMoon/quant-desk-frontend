@@ -353,20 +353,32 @@ export default function NewsDesk() {
 
               {/* 🌟 모달 헤더: 군더더기 없이 카테고리, 시간, 닫기 버튼만 (기존 방식 복구 및 간소화) */}
               <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800/80">
-                  <div className="flex gap-3 items-center">
-                      {showCategoryBadge && (
-                        <span className={`text-[11.5px] font-black px-2.5 py-1 rounded ${getCategoryStyle(getItemCategory(selectedNews))}`}>
-                          {getShortCategoryName(getItemCategory(selectedNews))}
-                        </span>
-                      )}
-                      <span className="text-[13.5px] font-extrabold text-slate-400 dark:text-slate-500 tracking-tight">
-                          {formatExactTime(selectedNews.created_at)}
-                      </span>
-                  </div>
-                  
-                  <button onClick={() => setSelectedNews(null)} className="shrink-0 p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors">
-                      <X size={20}/>
+                {/* 왼쪽 */}
+                <div className="flex items-center gap-3">
+                  {showCategoryBadge && (
+                    <span
+                      className={`text-[11.5px] font-black px-2.5 py-1 rounded ${getCategoryStyle(
+                        getItemCategory(selectedNews)
+                      )}`}
+                    >
+                      {getShortCategoryName(getItemCategory(selectedNews))}
+                    </span>
+                  )}
+                </div>
+              
+                {/* 오른쪽 */}
+                <div className="flex items-center gap-3">
+                  <span className="text-[13.5px] font-extrabold text-slate-400 dark:text-slate-500 tracking-tight whitespace-nowrap">
+                    {formatExactTime(selectedNews.created_at)}
+                  </span>
+              
+                  <button
+                    onClick={() => setSelectedNews(null)}
+                    className="shrink-0 p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors"
+                  >
+                    <X size={20} />
                   </button>
+                </div>
               </div>
 
               <div className="p-6 md:p-10 overflow-y-auto flex-1">
