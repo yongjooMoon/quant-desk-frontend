@@ -357,7 +357,7 @@ export default function NewsDesk() {
                 <div className="flex items-center gap-3">
                   {showCategoryBadge && (
                     <span
-                      className={`text-[11.5px] font-black px-2.5 py-1 rounded ${getCategoryStyle(
+                      className={`text-[13.5px] font-black px-2.5 py-1 rounded ${getCategoryStyle(
                         getItemCategory(selectedNews)
                       )}`}
                     >
@@ -368,7 +368,7 @@ export default function NewsDesk() {
               
                 {/* 오른쪽 */}
                 <div className="flex items-center gap-3">
-                  <span className="text-[13.5px] font-extrabold text-slate-400 dark:text-slate-500 tracking-tight whitespace-nowrap">
+                  <span className="text-[14.5px] font-extrabold text-slate-400 dark:text-slate-500 tracking-tight whitespace-nowrap">
                     {formatExactTime(selectedNews.created_at)}
                   </span>
               
