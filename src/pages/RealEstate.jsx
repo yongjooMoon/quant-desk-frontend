@@ -1,6 +1,8 @@
 // src/pages/RealEstate.jsx
 import { Building2, Search, Download, RefreshCcw, Calendar } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+// 🌟 공통 API 훅 임포트
+import { useRenderApi } from '../hooks/useRenderApi';
 
 export default function RealEstate() {
   const guMap = {
@@ -33,6 +35,10 @@ export default function RealEstate() {
   const [error, setError] = useState("");
   const [downloadReady, setDownloadReady] = useState(false);
 
+  // 🌟 공통 훅에서 오버레이 애니메이션만 가져옵니다.
+  const { ServerWakeupOverlay } = useRenderApi();
+  const [isSleeping, setIsSleeping] = useState(false); // SSE 전용 슬립 상태 관리
+
   const logEndRef = useRef(null);
 
   useEffect(() => {
@@ -43,22 +49,32 @@ export default function RealEstate() {
     setLoading(true);
     setError("");
     setDownloadReady(false);
+    setIsSleeping(false);
 
     const targetDong = dong.startsWith("전체") ? "전체" : dong;
-
-    // 🌟 핵심 버그 수정: 초기 로그를 변수에 저장해두고 활용합니다.
     const initialLog = `🚀 부동산 데이터 대시보드 빌드 시작...\n🔗 자치구: ${guMap[guCode]} | 법정동: ${targetDong}\n📅 기간: ${startDate} ~ ${endDate}\n\n`;
     setLogs(initialLog);
 
     const url = `https://moon-bbh0.onrender.com/api/realestate/build-stream?gu_code=${guCode}&gu_name=${encodeURIComponent(guMap[guCode])}&dong=${encodeURIComponent(targetDong)}&start_date=${startDate}&end_date=${endDate}&filters=${encodeURIComponent(filters)}`;
 
+    // 💡 SSE 스트리밍 특성을 고려한 커스텀 슬립 타이머 작동
+    let isConnected = false;
+    const sleepTimer = setTimeout(() => {
+      if (!isConnected) setIsSleeping(true);
+    }, 3000);
+
     const eventSource = new EventSource(url);
 
     eventSource.onmessage = (event) => {
+      // 💡 첫 메시지를 받으면 무조건 연결된 것으로 간주하고 애니메이션 종료
+      if (!isConnected) {
+        isConnected = true;
+        clearTimeout(sleepTimer);
+        setIsSleeping(false);
+      }
+
       const data = JSON.parse(event.data);
       if (data.status === "log" || data.status === "progress") {
-        // 🌟 핵심 버그 수정: 백엔드에서 전체 누적 텍스트를 보내주므로,
-        // prev에 더하지 않고 [초기로그 + 방금 받은 전체 누적로그]로 덮어씌웁니다!
         setLogs(initialLog + data.message + "\n");
       } else if (data.status === "error") {
         setError(data.message);
@@ -73,6 +89,10 @@ export default function RealEstate() {
     };
 
     eventSource.onerror = (e) => {
+      isConnected = true;
+      clearTimeout(sleepTimer);
+      setIsSleeping(false);
+
       setError("서버 에러가 발생했습니다. 백엔드(main.py)의 실시간 터미널 로그를 확인해 주세요.");
       setLoading(false);
       eventSource.close();
@@ -85,6 +105,9 @@ export default function RealEstate() {
 
   return (
     <div className="w-full px-0 py-0 transition-colors duration-300 relative font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif] pb-20">
+
+      {/* 🌟 통신 지연 시 띄워주는 서버 기상 오버레이 */}
+      {isSleeping && <ServerWakeupOverlay />}
 
       {/* 🌟 타이틀 섹션 (디자인 통일) */}
       <div className="mb-10">
