@@ -6,6 +6,8 @@ import {
   Crosshair, TrendingDown, Flag, BookOpen, ShieldAlert, Target
 } from 'lucide-react';
 import { AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ComposedChart, LineChart } from 'recharts';
+// 🌟 공통 API 훅 임포트
+import { useRenderApi } from '../hooks/useRenderApi';
 
 export default function QuantDesk() {
   const [activeTab, setActiveTab] = useState("Portfolio");
@@ -20,13 +22,16 @@ export default function QuantDesk() {
 
   const [timeRange, setTimeRange] = useState("All");
 
-  // 🌟 세션 스토리지 캐싱 제거: 항상 API에서 새로 조회
+  // 🌟 공통 API 훅 및 오버레이 가져오기
+  const { callApi, ServerWakeupOverlay } = useRenderApi();
+
   const fetchQuantData = () => {
     setLoading(true);
 
+    // 🌟 fetch 대신 callApi 사용 (URL 하드코딩 및 .json() 파싱 중복 제거)
     Promise.allSettled([
-      fetch("https://moon-bbh0.onrender.com/api/quant-dashboard").then(res => res.ok ? res.json() : { status: 'error' }),
-      fetch("https://moon-bbh0.onrender.com/api/search/KS11").then(res => res.ok ? res.json() : { status: 'error' })
+      callApi("/api/quant-dashboard"),
+      callApi("/api/search/KS11")
     ])
     .then((results) => {
       const quantResult = results[0].status === 'fulfilled' ? results[0].value : null;
@@ -71,8 +76,8 @@ export default function QuantDesk() {
     setReportLoading(true);
     setSelectedStock({ ...basicData, isLoading: true });
 
-    fetch(`https://moon-bbh0.onrender.com/api/search/${symbol}`)
-      .then(res => res.json())
+    // 🌟 리포트 조회 시에도 공통 callApi 사용
+    callApi(`/api/search/${symbol}`)
       .then(result => {
         if (result.status === "success") {
             setSelectedStock({
@@ -229,7 +234,10 @@ export default function QuantDesk() {
   return (
     <div className="w-full transition-colors duration-300 pb-20 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
 
-      {/* Syncing Overlay */}
+      {/* 🌟 통신 지연 시 띄워주는 서버 기상 오버레이 */}
+      <ServerWakeupOverlay />
+
+      {/* Syncing Overlay (기존 수동 동기화용) */}
       {syncing && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md">
            <div className="relative w-40 h-32 mb-6">
