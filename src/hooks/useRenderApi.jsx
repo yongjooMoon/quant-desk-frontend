@@ -1,26 +1,35 @@
 // src/hooks/useRenderApi.jsx
 import { useState, useCallback } from 'react';
 
-// 🌟 BASE_URL을 훅 내부에 직접 정의 (utils/api.js 불필요)
+// 🌟 BASE_URL을 훅 내부에 직접 정의
 const BASE_URL = "https://moon-bbh0.onrender.com";
 
 export function useRenderApi() {
   const [isSleeping, setIsSleeping] = useState(false);
 
-  // 🌟 fetchApi의 통신 기능과 슬립 타이머(애니메이션) 기능을 하나로 합침
   const callApi = useCallback(async (endpoint, options = {}) => {
-    let isResolved = false;
+    let isDataResolved = false;
+    let isPingResolved = false;
     
-    // 💡 분석가님 아이디어 적용: 0.8초(800ms) 이내에 응답이 없으면 즉시 서버 슬립으로 간주!
-    // 별도의 Ping 없이 실제 요청의 지연 시간으로만 똑똑하게 판단합니다.
+    // 💡 1. [스마트 감지] 서버 생존 여부만 묻는 초경량 Ping 병렬 요청
+    // method: 'HEAD'는 실제 데이터를 받지 않고 헤더만 받아오므로 매우 가볍고 빠릅니다.
+    // 백엔드에 따로 API를 만들지 않아도 기본 주소("/")를 찌르면 상태를 알 수 있습니다.
+    fetch(`${BASE_URL}/`, { method: 'HEAD' })
+      .then(() => { isPingResolved = true; })
+      .catch(() => { isPingResolved = true; }); // 에러(404 등)가 나도 응답이 온 거면 깬 것임
+
+    // 💡 2. 콜드 스타트 판별 타이머 (1.5초)
     const sleepTimer = setTimeout(() => {
-      if (!isResolved) setIsSleeping(true);
-    }, 800);
+      // 1.5초가 지났는데도 데이터가 안 왔고, Ping조차 대답이 없다면 = "아! 서버 자체가 자고 있구나"
+      if (!isDataResolved && !isPingResolved) {
+        setIsSleeping(true);
+      }
+    }, 1500);
 
     const url = `${BASE_URL}${endpoint}`;
 
     try {
-      // 직접 fetch 호출
+      // 💡 3. 실제 데이터 요청 (미국 서버 + DB 조회라 시간이 걸릴 수 있음)
       const response = await fetch(url, {
         ...options,
         headers: {
@@ -35,15 +44,15 @@ export function useRenderApi() {
 
       const result = await response.json();
       
-      isResolved = true;
+      isDataResolved = true;
       clearTimeout(sleepTimer);
       setIsSleeping(false); 
       
-      return result; // JSON 결과 반환
+      return result;
 
     } catch (error) {
       console.error(`[API 통신 오류] ${endpoint}:`, error);
-      isResolved = true;
+      isDataResolved = true;
       clearTimeout(sleepTimer);
       setIsSleeping(false);
       throw error;
@@ -106,3 +115,4 @@ export function useRenderApi() {
 
   return { callApi, ServerWakeupOverlay };
 }
+```eof
