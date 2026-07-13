@@ -118,4 +118,3 @@ export function useRenderApi() {
 
   return { callApi, ServerWakeupOverlay };
 }
-```eof
