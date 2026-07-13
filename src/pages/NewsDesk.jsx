@@ -1,7 +1,7 @@
 // src/pages/NewsDesk.jsx
 import { useEffect, useState, useRef } from 'react';
 import { Search, ChevronLeft, ChevronRight, RefreshCcw, X, Calendar } from 'lucide-react';
-// 분리된 공통 API 훅 임포트
+// 🌟 분리된 공통 API 훅 임포트
 import { useRenderApi } from '../hooks/useRenderApi';
 
 export default function NewsDesk() {
@@ -11,7 +11,7 @@ export default function NewsDesk() {
   const [activeTab, setActiveTab] = useState("전체");
   const [selectedNews, setSelectedNews] = useState(null);
 
-  // 공통 API 훅 사용
+  // 🌟 공통 API 훅 사용
   const { callApi, ServerWakeupOverlay } = useRenderApi();
 
   const getTodayStr = () => {
@@ -42,10 +42,8 @@ export default function NewsDesk() {
   const fetchNews = (isRefresh = false) => {
     setLoading(true);
 
-    // 🌟 BASE_URL이 fetchApi에 정의되어 있으므로 엔드포인트만 전달
     const endpoint = isRefresh ? "/api/news?refresh=true" : "/api/news";
 
-    // 🌟 분리된 callApi(fetchApi 래퍼) 호출 (내부적으로 슬립 타이머 작동, 이미 json으로 파싱되어 반환됨)
     callApi(endpoint)
       .then((result) => {
         if (result.status === "success") {
@@ -327,24 +325,32 @@ export default function NewsDesk() {
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
             <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[1200px] min-h-[60vh] md:min-h-[75vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
-              <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
-                  <div className="flex gap-2 items-center">
-                      {showCategoryBadge && (
-                        <span className={`text-[11.5px] font-black px-2.5 py-1 rounded ${getCategoryStyle(getItemCategory(selectedNews))}`}>
-                          {getShortCategoryName(getItemCategory(selectedNews))}
-                        </span>
-                      )}
+              {/* 🌟 모달 헤더: 모바일 최적화 레이아웃 (세로 배치) */}
+              <div className="flex items-start justify-between p-5 border-b border-slate-100 dark:border-slate-800/80">
+                  <div className="flex flex-col gap-2 w-full pr-4">
+                      {/* 첫 번째 줄: 카테고리 & 시간 */}
+                      <div className="flex items-center gap-3">
+                          {showCategoryBadge && (
+                            <span className={`text-[11.5px] font-black px-2.5 py-1 rounded ${getCategoryStyle(getItemCategory(selectedNews))}`}>
+                              {getShortCategoryName(getItemCategory(selectedNews))}
+                            </span>
+                          )}
+                          <span className="text-[13.5px] font-extrabold text-slate-400 dark:text-slate-500 tracking-tight">
+                              {formatExactTime(selectedNews.created_at)}
+                          </span>
+                      </div>
                       
+                      {/* 두 번째 줄: 섹터 / 자산 */}
                       {selectedNews.sector_asset && selectedNews.sector_asset.trim() !== "" && (
-                        <span className="text-[13px] font-extrabold text-slate-500 dark:text-slate-400">
-                          · {selectedNews.sector_asset}
+                        <span className="text-[14px] md:text-[14.5px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                          📌 {selectedNews.sector_asset}
                         </span>
                       )}
                   </div>
-                  <div className="flex items-center gap-4">
-                      <span className="text-[14px] font-extrabold text-slate-400 dark:text-slate-500 tracking-tight">{formatExactTime(selectedNews.created_at)}</span>
-                      <button onClick={() => setSelectedNews(null)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors"><X size={20}/></button>
-                  </div>
+                  
+                  <button onClick={() => setSelectedNews(null)} className="shrink-0 p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors mt-0.5">
+                      <X size={20}/>
+                  </button>
               </div>
 
               <div className="p-6 md:p-10 overflow-y-auto flex-1">
