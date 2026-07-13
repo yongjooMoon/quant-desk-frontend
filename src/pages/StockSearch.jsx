@@ -1,17 +1,14 @@
+// src/pages/StockSearch.jsx
 import { useState, useEffect, useRef } from 'react';
 import { Search, BarChart2, RefreshCcw, X } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip, XAxis, CartesianGrid } from 'recharts';
+// 🌟 공통 API 훅 임포트
+import { useRenderApi } from '../hooks/useRenderApi';
 
 // 🚫 [캐시 비활성화] 세션스토리지 TTL 캐시 로직 제거됨
 // 기존에는 setCacheWithExpiry / getCacheWithExpiry 를 통해
 // sessionStorage 에 종목 리스트 / 상세 데이터를 저장해두고 재사용했지만,
 // 이제 새로고침 또는 재검색 시 항상 백엔드로 요청이 가도록 캐시를 사용하지 않습니다.
-
-const CACHE_TTL = {
-  KRX_LIST: 24 * 60 * 60 * 1000,   // 종목 마스터 리스트: 24시간 (미사용)
-  STOCK_DETAIL: 10 * 60 * 1000,    // 종목 상세 리포트: 10분 (미사용)
-  FUNDAMENTAL_ALL: 60 * 60 * 1000  // 전체 펀더멘털 사전 로딩: 1시간 (미사용)
-};
 
 export default function StockSearch() {
   const [options, setOptions] = useState([]);
@@ -24,13 +21,14 @@ export default function StockSearch() {
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const wrapperRef = useRef(null);
   const optionsListRef = useRef(null);
-  // 💡 [개선] input 박스의 포커스를 제어하기 위한 ref 추가
   const inputRef = useRef(null);
 
+  // 🌟 공통 API 훅 및 오버레이 가져오기
+  const { callApi, ServerWakeupOverlay } = useRenderApi();
+
   useEffect(() => {
-    // 💡 1. 종목 마스터 리스트 로딩 — 캐시 사용하지 않고 항상 백엔드 호출
-    fetch("https://moon-bbh0.onrender.com/api/krx-list")
-      .then(res => res.json())
+    // 💡 1. 종목 마스터 리스트 로딩 — 캐시 사용하지 않고 항상 백엔드 호출 (callApi 사용)
+    callApi("/api/krx-list")
       .then(data => {
         if (data.status === "success") {
           setOptions(data.data);
@@ -38,15 +36,14 @@ export default function StockSearch() {
       })
       .catch(err => console.error(err));
 
-    // 💡 2. 펀더멘털 선제적 로딩 — 캐시 확인 없이 항상 백엔드 호출
-    fetch("https://moon-bbh0.onrender.com/api/fundamentals")
-      .then(res => res.json())
+    // 💡 2. 펀더멘털 선제적 로딩 — 캐시 확인 없이 항상 백엔드 호출 (callApi 사용)
+    callApi("/api/fundamentals")
       .then(data => {
         if (data.status === "success") {
           console.log("✅ 백엔드 펀더멘털 일괄 캐싱 완료!");
         }
       });
-  }, []);
+  }, [callApi]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -93,9 +90,8 @@ export default function StockSearch() {
       inputRef.current.blur();
     }
 
-    // 💡 3. 개별 종목 검색 — 캐시 확인 없이 항상 백엔드 호출
-    fetch(`https://moon-bbh0.onrender.com/api/search/${symbol}`)
-      .then(res => res.json())
+    // 💡 3. 개별 종목 검색 — 캐시 확인 없이 항상 백엔드 호출 (callApi 사용)
+    callApi(`/api/search/${symbol}`)
       .then(data => {
         if (data.status === "success") {
           if (!data.data.name) {
@@ -153,6 +149,9 @@ export default function StockSearch() {
 
   return (
     <div className="w-full px-4 md:px-8 py-8 md:py-10 transition-colors duration-300 relative font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif] pb-20">
+
+      {/* 🌟 통신 지연 시 띄워주는 서버 기상 오버레이 */}
+      <ServerWakeupOverlay />
 
       {/* 🌟 타이틀 섹션 */}
       <div className="mb-6 md:mb-8">
@@ -226,7 +225,7 @@ export default function StockSearch() {
       {/* 📊 분석 리포트 */}
       {result && !loading && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full mt-2">
-
+            
             {/* 💡 [개선] 헤더 영역 마진/패딩 대폭 축소하여 내용이 바로 보이게 함 */}
             <div className="mb-4 flex flex-col items-start gap-1 border-b border-slate-200 dark:border-slate-800/80 pb-3">
                 <div className="flex items-center gap-2 mb-1">
@@ -239,7 +238,7 @@ export default function StockSearch() {
                     {result.name}
                 </h2>
                 <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight flex items-baseline mt-1">
-                    {formatNumber(result.current_price)} 원
+                    {formatNumber(result.current_price)} 원 
                     <span className={`text-[18px] md:text-[24px] ml-3 ${(result.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
                         {(result.ret_1m || 0) > 0 ? '+' : ''}{formatPct(result.ret_1m || 0)} (1M)
                     </span>
