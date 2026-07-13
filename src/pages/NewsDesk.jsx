@@ -1,9 +1,8 @@
 // src/pages/NewsDesk.jsx
 import { useEffect, useState, useRef } from 'react';
 import { Search, ChevronLeft, ChevronRight, RefreshCcw, X, Calendar } from 'lucide-react';
-
-// 🌟 [추가] 공통 API 클라이언트 임포트
-import { fetchApi } from '../utils/api';
+// 🌟 분리된 공통 API 훅 임포트
+import { useRenderApi } from '../hooks/useRenderApi';
 
 export default function NewsDesk() {
   const [news, setNews] = useState([]);
@@ -12,14 +11,15 @@ export default function NewsDesk() {
   const [activeTab, setActiveTab] = useState("전체");
   const [selectedNews, setSelectedNews] = useState(null);
 
-  // 🌟 날짜 선택기 상태 (기본값 오늘)
+  // 🌟 공통 API 훅 사용
+  const { callApi, ServerWakeupOverlay } = useRenderApi();
+
   const getTodayStr = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
   const [historyDate, setHistoryDate] = useState(getTodayStr());
 
-  // 🌟 공유 드래그 상태
   const sliderRef = useRef(null);
   const tabsRef = useRef(null);
   const dragRef = useRef(null);
@@ -39,22 +39,21 @@ export default function NewsDesk() {
     "🏘️ 대체/기타 자산"
   ];
 
-  // 🌟 [변경] 공통 모듈인 fetchApi를 사용하여 통신 로직 간소화 (프론트엔드 캐싱 제거)
-  const fetchNews = async (isRefresh = false) => {
+  const fetchNews = (isRefresh = false) => {
     setLoading(true);
 
+    // 🌟 BASE_URL이 fetchApi에 정의되어 있으므로 엔드포인트만 전달
     const endpoint = isRefresh ? "/api/news?refresh=true" : "/api/news";
 
-    try {
-      const result = await fetchApi(endpoint);
-      if (result.status === "success") {
-        setNews(result.data);
-      }
-    } catch (error) {
-      console.error("뉴스 데이터를 불러오는데 실패했습니다.", error);
-    } finally {
-      setLoading(false);
-    }
+    // 🌟 분리된 callApi(fetchApi 래퍼) 호출 (내부적으로 슬립 타이머 작동, 이미 json으로 파싱되어 반환됨)
+    callApi(endpoint)
+      .then((result) => {
+        if (result.status === "success") {
+           setNews(result.data);
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   };
 
   useEffect(() => { fetchNews(); }, []);
@@ -184,6 +183,10 @@ export default function NewsDesk() {
 
   return (
     <div className="w-full transition-colors duration-300 pb-20 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
+      
+      {/* 🌟 통신 지연 시 띄워주는 서버 기상 오버레이 */}
+      <ServerWakeupOverlay />
+
       <div className="mb-10">
         <div className="w-full flex items-center bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/80 rounded-xl px-4 py-3 shadow-sm">
           <Search className="text-slate-400 mr-3" size={20} />
