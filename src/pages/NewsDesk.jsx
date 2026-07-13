@@ -351,35 +351,35 @@ export default function NewsDesk() {
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
             <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[1200px] min-h-[60vh] md:min-h-[75vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
-              {/* 🌟 모달 헤더: 모바일 최적화 레이아웃 (세로 배치) */}
-              <div className="flex items-start justify-between p-5 border-b border-slate-100 dark:border-slate-800/80">
-                  <div className="flex flex-col gap-2 w-full pr-4">
-                      {/* 첫 번째 줄: 카테고리 & 시간 */}
-                      <div className="flex items-center gap-3">
-                          {showCategoryBadge && (
-                            <span className={`text-[11.5px] font-black px-2.5 py-1 rounded ${getCategoryStyle(getItemCategory(selectedNews))}`}>
-                              {getShortCategoryName(getItemCategory(selectedNews))}
-                            </span>
-                          )}
-                          <span className="text-[13.5px] font-extrabold text-slate-400 dark:text-slate-500 tracking-tight">
-                              {formatExactTime(selectedNews.created_at)}
-                          </span>
-                      </div>
-                      
-                      {/* 두 번째 줄: 섹터 / 자산 */}
-                      {selectedNews.sector_asset && selectedNews.sector_asset.trim() !== "" && (
-                        <span className="text-[14px] md:text-[14.5px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
-                          📌 {selectedNews.sector_asset}
+              {/* 🌟 모달 헤더: 군더더기 없이 카테고리, 시간, 닫기 버튼만 (기존 방식 복구 및 간소화) */}
+              <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800/80">
+                  <div className="flex gap-3 items-center">
+                      {showCategoryBadge && (
+                        <span className={`text-[11.5px] font-black px-2.5 py-1 rounded ${getCategoryStyle(getItemCategory(selectedNews))}`}>
+                          {getShortCategoryName(getItemCategory(selectedNews))}
                         </span>
                       )}
+                      <span className="text-[13.5px] font-extrabold text-slate-400 dark:text-slate-500 tracking-tight">
+                          {formatExactTime(selectedNews.created_at)}
+                      </span>
                   </div>
                   
-                  <button onClick={() => setSelectedNews(null)} className="shrink-0 p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors mt-0.5">
+                  <button onClick={() => setSelectedNews(null)} className="shrink-0 p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors">
                       <X size={20}/>
                   </button>
               </div>
 
               <div className="p-6 md:p-10 overflow-y-auto flex-1">
+                  
+                  {/* 🌟 섹터/자산 태그: 분석가님 아이디어 적용! 본문 상단으로 이동하여 칩(Chip) 형태로 배치 */}
+                  {selectedNews.sector_asset && selectedNews.sector_asset.trim() !== "" && (
+                      <div className="mb-4 flex flex-wrap gap-2">
+                          <span className="text-[12.5px] md:text-[13.5px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/50 shadow-sm">
+                              #{selectedNews.sector_asset}
+                          </span>
+                      </div>
+                  )}
+
                   <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white mb-8 leading-tight tracking-tight">
                       {selectedNews.title}
                   </h2>
