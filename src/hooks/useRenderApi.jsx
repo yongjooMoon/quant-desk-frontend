@@ -59,7 +59,7 @@ export function useRenderApi() {
               <div className="absolute -top-2 -right-4 text-4xl animate-[bounce_2s_infinite]">💤</div>
          </div>
          <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight mb-3 shadow-black drop-shadow-xl text-center">
-             백엔드 서버가 자고 있어요
+             서버가 자고 있어요
          </h2>
          <p className="text-[#60A5FA] font-black tracking-wide text-[14px] md:text-[15px] text-center px-6 leading-relaxed">
              무료 인스턴스를 커피를 먹여 깨우는 중입니다.<br className="hidden md:block"/> 최대 30초 정도 소요될 수 있으니 조금만 기다려주세요 🚀
