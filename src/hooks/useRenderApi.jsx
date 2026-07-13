@@ -12,24 +12,22 @@ export function useRenderApi() {
     let isPingResolved = false;
     
     // 💡 1. [스마트 감지] 서버 생존 여부만 묻는 초경량 Ping 병렬 요청
-    // method: 'HEAD'는 실제 데이터를 받지 않고 헤더만 받아오므로 매우 가볍고 빠릅니다.
-    // 백엔드에 따로 API를 만들지 않아도 기본 주소("/")를 찌르면 상태를 알 수 있습니다.
     fetch(`${BASE_URL}/`, { method: 'HEAD' })
       .then(() => { isPingResolved = true; })
       .catch(() => { isPingResolved = true; }); // 에러(404 등)가 나도 응답이 온 거면 깬 것임
 
-    // 💡 2. 콜드 스타트 판별 타이머 (1.5초)
+    // 💡 2. 콜드 스타트 판별 타이머 (미국 서버 레이턴시를 고려하여 4초로 설정!)
+    // 4초가 지났는데도 Ping 응답조차 없다면 이건 네크워크 지연이 아니라 확실한 '서버 슬립'입니다.
     const sleepTimer = setTimeout(() => {
-      // 1.5초가 지났는데도 데이터가 안 왔고, Ping조차 대답이 없다면 = "아! 서버 자체가 자고 있구나"
       if (!isDataResolved && !isPingResolved) {
         setIsSleeping(true);
       }
-    }, 1500);
+    }, 4000);
 
     const url = `${BASE_URL}${endpoint}`;
 
     try {
-      // 💡 3. 실제 데이터 요청 (미국 서버 + DB 조회라 시간이 걸릴 수 있음)
+      // 💡 3. 실제 데이터 요청
       const response = await fetch(url, {
         ...options,
         headers: {
