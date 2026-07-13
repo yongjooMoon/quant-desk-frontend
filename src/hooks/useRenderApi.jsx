@@ -105,7 +105,7 @@ export function useRenderApi() {
          </h2>
          <p className="text-[#60A5FA] font-black tracking-wide text-[14px] md:text-[15px] text-center px-6 leading-relaxed">
              아침 해가 떴습니다! 곰돌이가 모닝 커피를 내려서 서버를 깨우고 있어요.<br className="hidden md:block"/> 
-             (무료 티어 인스턴스 부팅에 약 20~30초 정도 소요됩니다 🚀)
+             (인스턴스 부팅에 약 20~30초 정도 소요됩니다 🚀)
          </p>
       </div>
     );
