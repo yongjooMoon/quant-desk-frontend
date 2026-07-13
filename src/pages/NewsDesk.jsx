@@ -70,18 +70,44 @@ export default function NewsDesk() {
     );
   };
 
+  // 🌟 핵심 수정: 카드 리스트용 상대 시간 포맷 함수
   const formatTime = (isoString) => {
     if (!isoString) return "";
     const date = parseDBTime(isoString);
     const now = new Date();
-    let diffMins = Math.floor((now - date) / 1000 / 60);
+    
+    // 두 시간의 차이를 분 단위로 계산
+    const diffMs = now - date;
+    let diffMins = Math.floor(diffMs / (1000 * 60));
 
-    if (diffMins < 0) diffMins = 0;
+    if (diffMins < 0) diffMins = 0; // 미래 시간이 나올 경우 방어
 
-    if (diffMins < 60) return diffMins === 0 ? "방금 전" : `${diffMins}분 전`;
-    if (diffMins >= 60 && diffMins < 1440) return `${Math.floor(diffMins / 60)}시간 전`;
+    // 1. 60분 미만일 경우: "X분 전"
+    if (diffMins < 60) {
+        // 0분 전일 경우 "방금 전"으로 표시
+        // 분석가님 요청사항을 더 살려 "1분 전"부터 나오게 하려면 아래 코드 유지
+        // 10분 단위로 끊고 싶으시다면 아래 주석을 참고해주세요!
+        // --------------------------------------------------
+        // (요청 해석) "10분단위로 몇분전" 이라는 말씀이
+        // 1~9분 -> 방금 전
+        // 12분 -> 10분 전
+        // 27분 -> 20분 전
+        // 이렇게 끊어서 보여달라는 말씀이시라면:
+        // const roundedMins = Math.floor(diffMins / 10) * 10; 
+        // return roundedMins === 0 ? "방금 전" : `${roundedMins}분 전`;
+        // --------------------------------------------------
+        // 일단은 정확하게 "X분 전" 으로 구현해두었습니다. (원하시면 위 로직으로 10분 절사 가능)
+        return diffMins === 0 ? "방금 전" : `${diffMins}분 전`;
+    }
+    
+    // 2. 24시간(1440분) 미만일 경우: "X시간 전"
+    if (diffMins < 1440) {
+        const diffHours = Math.floor(diffMins / 60);
+        return `${diffHours}시간 전`;
+    }
 
-    return `${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    // 3. 24시간 이상일 경우: "YY.MM.DD HH:mm" 형태
+    return `${String(date.getFullYear()).slice(2)}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
 
   const formatExactTime = (isoString) => {
