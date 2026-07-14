@@ -106,11 +106,11 @@ export function useRenderApi() {
          </div>
 
          <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight mb-3 shadow-black drop-shadow-xl text-center">
-             백엔드 서버가 쿨쿨 자고 있어요
+             서버가 쿨쿨 자고 있어요
          </h2>
          <p className="text-[#60A5FA] font-black tracking-wide text-[14px] md:text-[15px] text-center px-6 leading-relaxed">
              아침 해가 떴습니다! 곰돌이가 모닝 커피를 내려서 서버를 깨우고 있어요.<br className="hidden md:block"/> 
-             (인스턴스 부팅에 약 20~30초 정도 소요됩니다 🚀)
+             (부팅에 약 20~30초 정도 소요됩니다 🚀)
          </p>
       </div>
     );
