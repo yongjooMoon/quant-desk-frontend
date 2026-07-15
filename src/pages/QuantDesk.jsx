@@ -1,4 +1,3 @@
-// src/pages/QuantDesk.jsx
 import { useEffect, useState, useMemo } from 'react';
 import {
   RefreshCcw, X,
@@ -7,7 +6,6 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ComposedChart, LineChart } from 'recharts';
 
-// 🌟 공통 API 훅 임포트
 import { useRenderApi } from '../hooks/useRenderApi';
 
 export default function QuantDesk() {
@@ -23,23 +21,26 @@ export default function QuantDesk() {
 
   const [timeRange, setTimeRange] = useState("All");
 
-  // 🌟 지수 전용 상태 및 모달 제어
   const [indices, setIndices] = useState({ kospi: null, kosdaq: null, nasdaq: null, sp500: null });
   const [isIndexModalOpen, setIsIndexModalOpen] = useState(false);
 
-  // 🌟 공통 API 훅 및 오버레이 가져오기
   const { callApi, ServerWakeupOverlay } = useRenderApi();
 
   useEffect(() => {
     let intervalId;
     
     const fetchIndices = () => {
-      // callApi를 사용하여 4개 지수를 조용히 호출 (background: true로 오버레이 방지)
+      // 화면이 숨겨져 있을 때는 불필요한 트래픽 낭비 방지
+      if (document.hidden) return;
+
+      // 브라우저 디스크 캐시 완전 무력화 (타임스탬프 추가)
+      const t = Date.now();
+      
       Promise.allSettled([
-        callApi("/api/search/KS11", { background: true }), // KOSPI
-        callApi("/api/search/KQ11", { background: true }), // KOSDAQ
-        callApi("/api/search/US500", { background: true }), // S&P 500
-        callApi("/api/search/IXIC", { background: true })   // NASDAQ
+        callApi(`/api/search/KS11?t=${t}`, { background: true }), // KOSPI
+        callApi(`/api/search/KQ11?t=${t}`, { background: true }), // KOSDAQ
+        callApi(`/api/search/US500?t=${t}`, { background: true }), // S&P 500
+        callApi(`/api/search/IXIC?t=${t}`, { background: true })   // NASDAQ
       ]).then((results) => {
         const parse = (res) => res.status === 'fulfilled' && res.value?.status === 'success' ? res.value.data : null;
         setIndices({
@@ -51,14 +52,19 @@ export default function QuantDesk() {
       });
     };
 
-    // 1. 처음 마운트 될 때 즉시 호출
     fetchIndices(); 
-
-    // 2. 1분(60,000ms)마다 반복 호출 설정
     intervalId = setInterval(fetchIndices, 60000);
 
-    // 3. 컴포넌트 언마운트 시 폴링 정리
-    return () => clearInterval(intervalId);
+    // 탭을 옮겼다가 다시 돌아왔을 때 즉시 갱신
+    const handleVisibilityChange = () => {
+      if (!document.hidden) fetchIndices();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [callApi]);
 
   const fetchQuantData = () => {
@@ -270,7 +276,6 @@ export default function QuantDesk() {
 
       <ServerWakeupOverlay />
 
-      {/* Syncing Overlay (기존 수동 동기화용) */}
       {syncing && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md">
            <div className="relative w-40 h-32 mb-6">
@@ -321,22 +326,22 @@ export default function QuantDesk() {
           {activeTab === "Portfolio" && (
             <div className="animate-in fade-in duration-300 w-full">
                 
-                {/* 🌟 토스 스타일 지수 티커 */}
+                {/* 🌟 토스 스타일 지수 티커 (ret_1d 전일대비 반영) */}
                 {indices.kospi && (
                   <div 
                     onClick={() => setIsIndexModalOpen(true)}
                     className="mb-8 p-4 md:p-5 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-400 dark:hover:border-slate-600 transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-lg shadow-inner">🇰🇷</div>
+                      <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white flex items-center justify-center text-[11px] font-black text-slate-300 shadow-inner">KR</div>
                       <span className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white">KOSPI</span>
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-full border border-emerald-200">● 장중</span>
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100/50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50">● 장중</span>
                     </div>
                     
                     <div className="flex items-center gap-4">
                       <div className="flex flex-col items-end md:flex-row md:items-baseline md:gap-3">
                         <span className="text-[11px] md:text-[13px] font-extrabold text-slate-500 mb-0.5 md:mb-0">
-                          전일대비 <span className={(indices.kospi.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}>{(indices.kospi.ret_1m > 0 ? '+' : '')}{indices.kospi.ret_1m?.toFixed(2)}%</span>
+                          전일대비 <span className={(indices.kospi.ret_1d || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}>{(indices.kospi.ret_1d > 0 ? '+' : '')}{indices.kospi.ret_1d?.toFixed(2)}%</span>
                         </span>
                         <span className="text-[22px] md:text-[26px] font-black text-slate-900 dark:text-white tracking-tighter">
                           {indices.kospi.current_price?.toLocaleString()}
@@ -347,9 +352,10 @@ export default function QuantDesk() {
                   </div>
                 )}
 
+                {}
                 <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm mb-12">
                     <div className="w-full">
-                        {/* Desktop Header (Hidden on Mobile) */}
+                        {/* Desktop Header */}
                         <div className="hidden md:flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent w-full">
                             <div className="w-[20%] text-[14px] font-extrabold text-slate-500">종목명</div>
                             <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-right">진입가</div>
@@ -367,16 +373,11 @@ export default function QuantDesk() {
                             const dummyRisk = Math.min(100, Math.max(0, 100 - (ret * 2 + 50)));
 
                             return (
-                            // Responsive Row: Flex-col on mobile, Flex-row on desktop
                             <div key={i} className="flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
-                                
-                                {/* Mobile: Top Row (Name & PnL) | Desktop: Name col */}
                                 <div className="flex justify-between items-center w-full md:w-[20%] pr-0 md:pr-4">
                                     <div className="text-[16px] md:text-[16px] font-black text-slate-900 dark:text-white truncate">{h.name}</div>
                                     <div className={`md:hidden text-[16px] font-black ${pnlColor}`}>{ret > 0 ? "+" : ""}{ret.toFixed(2)}%</div>
                                 </div>
-                                
-                                {/* Mobile: Middle Row (Prices) | Desktop: Entry/Current cols */}
                                 <div className="flex justify-between items-center w-full md:w-[30%]">
                                     <div className="flex flex-col md:w-1/2 text-left md:text-right">
                                         <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">진입가</span>
@@ -387,11 +388,7 @@ export default function QuantDesk() {
                                         <span className="text-[14px] md:text-[15px] font-black text-slate-900 dark:text-white">₩{Math.round(h.current_price || 0).toLocaleString()}</span>
                                     </div>
                                 </div>
-
-                                {/* Desktop: PnL col (Hidden on mobile) */}
                                 <div className={`hidden md:block w-[15%] text-[16px] font-black text-right ${pnlColor}`}>{ret > 0 ? "+" : ""}{ret.toFixed(2)}%</div>
-                                
-                                {/* Mobile: Bottom Row (Risk & Actions) | Desktop: Risk/Action cols */}
                                 <div className="flex justify-between items-center w-full md:w-[35%] mt-1 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0">
                                     <div className="flex items-center md:w-[40%] md:justify-center gap-2">
                                         <span className="text-[11px] font-bold text-slate-400 md:hidden">Exit Risk</span>
@@ -402,7 +399,6 @@ export default function QuantDesk() {
                                         <button onClick={() => handleReportClick(h.symbol, h)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
                                     </div>
                                 </div>
-
                             </div>
                             );
                         })}
@@ -473,12 +469,12 @@ export default function QuantDesk() {
             </div>
           )}
 
+          {}
           {/* ===================== WATCHLIST TAB ===================== */}
           {activeTab === "Watchlist" && (
               <div className="animate-in fade-in duration-300 w-full">
                 <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm w-full mb-12">
                     <div className="w-full">
-                        {/* Desktop Header */}
                         <div className="hidden md:flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
                             <div className="w-[10%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-center">순위</div>
                             <div className="w-[30%] text-[13px] md:text-[14px] font-extrabold text-slate-500">종목명</div>
@@ -489,10 +485,7 @@ export default function QuantDesk() {
                         </div>
 
                         {filWatchlist.length === 0 ? <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-extrabold">종목이 없습니다.</div> : filWatchlist.map((c, idx) => (
-                            // Responsive Row
                             <div key={idx} className="flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
-                                
-                                {/* Mobile: Top Row (Name) | Desktop: Rank & Name cols */}
                                 <div className="flex justify-between items-center w-full md:w-[40%] pr-0 md:pr-4">
                                     <div className="flex items-center gap-3 w-full">
                                         <span className="text-[12px] font-extrabold text-white bg-blue-500 rounded-md px-2 py-0.5 md:bg-transparent md:text-slate-500 md:px-0 md:py-0 w-auto md:w-[25%] text-center">{idx+1}</span>
@@ -500,11 +493,7 @@ export default function QuantDesk() {
                                     </div>
                                     <div className="md:hidden text-[15px] font-black text-slate-900 dark:text-white shrink-0">₩{Math.round(c.current_price || 0).toLocaleString()}</div>
                                 </div>
-                                
-                                {/* Desktop: Price col (Hidden on mobile) */}
                                 <div className="hidden md:block w-[20%] text-[15px] font-black text-slate-900 dark:text-white text-right">₩{Math.round(c.current_price || 0).toLocaleString()}</div>
-                                
-                                {/* Mobile: Middle Row (Pass & Score) | Desktop: Pass & Score cols */}
                                 <div className="flex justify-between items-center w-full md:w-[30%]">
                                     <div className="flex flex-col md:flex-row md:w-1/2 md:justify-center text-left md:text-center">
                                         <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">통과 관문</span>
@@ -515,12 +504,9 @@ export default function QuantDesk() {
                                         <span className="text-[15px] md:text-[16px] font-black text-slate-500 dark:text-slate-400">{(c.factor_score || 0).toFixed(2)}점</span>
                                     </div>
                                 </div>
-                                
-                                {/* Mobile: Bottom Row (Actions) | Desktop: Action col */}
                                 <div className="w-full md:w-[10%] flex justify-end md:justify-center mt-2 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 px-2">
                                     <button onClick={() => handleReportClick(c.symbol, c)} className="px-4 md:px-3 py-1.5 md:w-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
                                 </div>
-
                             </div>
                         ))}
                     </div>
@@ -528,6 +514,7 @@ export default function QuantDesk() {
               </div>
           )}
 
+          {}
           {/* ===================== HISTORY TAB ===================== */}
           {activeTab === "History" && (
               <div className="animate-in fade-in duration-300 w-full">
@@ -566,10 +553,7 @@ export default function QuantDesk() {
                           {sellTrades.length === 0 ? <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-extrabold w-full">매도 이력이 없습니다.</div> : sellTrades.map((t, idx) => {
                                 const entryPrice = t.trade_price / (1 + ((t.return_rate || 0) / 100));
                                 return (
-                                  // Responsive Row
                                   <div key={idx} className="flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
-                                      
-                                      {/* Mobile: Top Row (Date & Name & PnL) | Desktop: Date & Name cols */}
                                       <div className="flex justify-between items-center w-full md:w-[35%] pr-0 md:pr-4">
                                           <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-4 w-full">
                                               <span className="text-[11px] font-extrabold text-slate-400 md:w-[42%] md:text-[14px] md:text-slate-500">{t.trade_date}</span>
@@ -577,8 +561,6 @@ export default function QuantDesk() {
                                           </div>
                                           <div className={`md:hidden text-[16px] font-black shrink-0 ${(t.return_rate || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(t.return_rate || 0) > 0 ? "+" : ""}{(t.return_rate || 0).toFixed(2)}%</div>
                                       </div>
-
-                                      {/* Mobile: Middle Row (Prices) | Desktop: Prices cols */}
                                       <div className="flex justify-between items-center w-full md:w-[30%]">
                                           <div className="flex flex-col md:w-1/2 text-left md:text-right">
                                               <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">진입가</span>
@@ -589,16 +571,11 @@ export default function QuantDesk() {
                                               <span className="text-[14px] md:text-[15px] font-black text-slate-800 dark:text-slate-200">₩{Math.round(t.trade_price || 0).toLocaleString()}</span>
                                           </div>
                                       </div>
-
-                                      {/* Desktop: PnL col (Hidden on mobile) */}
                                       <div className={`hidden md:block w-[15%] text-[15px] md:text-[16px] font-black text-right ${(t.return_rate || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(t.return_rate || 0) > 0 ? "+" : ""}{(t.return_rate || 0).toFixed(2)}%</div>
-
-                                      {/* Mobile: Bottom Row (Reason) | Desktop: Reason col */}
                                       <div className="w-full md:w-[20%] text-[12px] md:text-[13px] font-extrabold text-slate-500 dark:text-slate-400 text-left md:text-right mt-1 md:mt-0 pt-2 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 leading-snug truncate" title={t.reason}>
                                           <span className="font-bold text-slate-400 md:hidden mr-1">사유:</span>
                                           {t.reason}
                                       </div>
-
                                   </div>
                               );
                           })}
@@ -607,6 +584,7 @@ export default function QuantDesk() {
               </div>
           )}
 
+          {}
           {/* ===================== WHITEPAPER TAB ===================== */}
           {activeTab === "Whitepaper" && (
               <div className="animate-in fade-in duration-500 w-full pb-10">
@@ -741,6 +719,7 @@ export default function QuantDesk() {
         </div>
       )}
 
+      {}
       {/* RISK MODAL */}
       {riskStock && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
@@ -903,21 +882,19 @@ export default function QuantDesk() {
         </div>
       )}
 
-      {/* 🌟 글로벌 지수 비교 모달 */}
+      {/* 🌟 글로벌 지수 비교 모달 (ret_1d 및 다크모드 개선) */}
       {isIndexModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             
-            {/* Header */}
             <div className="p-6 border-b border-slate-100 dark:border-slate-800/80 flex justify-between items-start">
               <div>
                 <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">지수 비교</h2>
                 <p className="text-[13px] font-bold text-slate-500">한국·미국 주요 지수를 한 화면에서.</p>
               </div>
-              <button onClick={() => setIsIndexModalOpen(false)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors"><X size={18}/></button>
+              <button onClick={() => setIsIndexModalOpen(false)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 rounded-full transition-colors"><X size={18}/></button>
             </div>
 
-            {/* List */}
             <div className="p-5 flex flex-col gap-3 bg-slate-50/50 dark:bg-transparent">
               {[
                 { key: 'kospi', name: '코스피', icon: 'K', color: 'bg-[#1e4e8c]', isUS: false },
@@ -927,25 +904,25 @@ export default function QuantDesk() {
               ].map(idx => {
                 const data = indices[idx.key];
                 if (!data) return null;
-                const isPos = (data.ret_1m || 0) > 0;
+                const isPos = (data.ret_1d || 0) > 0;
                 
                 return (
-                  <div key={idx.key} className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-sm hover:border-blue-400 dark:hover:border-slate-600 transition-colors">
+                  <div key={idx.key} className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className={`w-9 h-9 rounded-full ${idx.color} text-white flex items-center justify-center font-black text-[12px] shadow-sm`}>
                         {idx.icon}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[17px] font-black text-slate-900 dark:text-white tracking-tight">{idx.name}</span>
-                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">지수</span>
+                        <span className="text-[17px] font-black text-slate-900 dark:text-white">{idx.name}</span>
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300 bg-slate-100 dark:bg-[#1E293B] px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">지수</span>
                       </div>
                     </div>
                     
                     <div className="flex items-baseline gap-3">
-                      <span className={`text-[13px] md:text-[14px] font-black ${isPos ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
-                        {isPos ? '+' : ''}{data.ret_1m?.toFixed(2)}%
+                      <span className={`text-[13px] font-black ${isPos ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
+                        {isPos ? '+' : ''}{data.ret_1d?.toFixed(2)}%
                       </span>
-                      <span className="text-[20px] md:text-[22px] font-black text-slate-900 dark:text-white tracking-tighter w-[85px] md:w-24 text-right">
+                      <span className="text-[20px] font-black text-slate-900 dark:text-white tracking-tighter w-20 text-right">
                         {data.current_price?.toLocaleString()}
                       </span>
                     </div>
@@ -954,7 +931,6 @@ export default function QuantDesk() {
               })}
             </div>
             
-            {/* Footer */}
             <div className="p-5 border-t border-slate-100 dark:border-slate-800/80 bg-white dark:bg-[#111827]">
               <p className="text-[11px] font-bold text-slate-400 leading-relaxed">
                 KR <span className="font-extrabold text-slate-500">KOSPI · KOSDAQ</span> &nbsp; US <span className="font-extrabold text-slate-500">NASDAQ · S&P 500</span><br/>
