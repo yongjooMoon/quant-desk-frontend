@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo } from 'react';
+// src/pages/QuantDesk.jsx
+import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   RefreshCcw, X,
   TrendingUp, ShieldCheck, Droplets, Activity, Rocket, Zap,
@@ -26,30 +27,73 @@ export default function QuantDesk() {
 
   const { callApi, ServerWakeupOverlay } = useRenderApi();
 
+  // 🌟 [추가] 초기 로딩 여부를 추적하여, 장마감 시간이라도 최초 1회는 데이터를 무조건 가져오게 합니다.
+  const initialLoadRef = useRef({ kr: false, us: false });
+
   useEffect(() => {
     let intervalId;
     
+    // 🌟 [추가] 각 시장별 운영 시간 판단 함수 (한국 시간 기준)
+    const getMarketStatus = () => {
+      const now = new Date();
+      // 브라우저 환경에 상관없이 무조건 KST(한국 표준시)로 계산
+      const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+      const kst = new Date(utc + (9 * 3600000));
+      const day = kst.getDay(); // 0:일, 1:월 ... 6:토
+      const hour = kst.getHours();
+      const minute = kst.getMinutes();
+      const timeNum = hour * 100 + minute; // 예: 09:30 -> 930
+
+      // 1. 한국장 (평일 09:00 ~ 15:30)
+      const isWeekendKR = day === 0 || day === 6;
+      const isKoreaOpen = !isWeekendKR && (timeNum >= 900 && timeNum < 1530);
+
+      // 2. 미국장 (한국 기준 보수적 커버: 밤 22:00 ~ 익일 아침 07:00)
+      let isUSOpen = false;
+      if (day >= 1 && day <= 5 && hour >= 22) {
+          isUSOpen = true; // 월~금 밤 10시 이후
+      } else if (day >= 2 && day <= 6 && hour < 7) {
+          isUSOpen = true; // 화~토 아침 7시 이전
+      }
+
+      return { isKoreaOpen, isUSOpen };
+    };
+
     const fetchIndices = () => {
       // 화면이 숨겨져 있을 때는 불필요한 트래픽 낭비 방지
       if (document.hidden) return;
 
-      // 브라우저 디스크 캐시 완전 무력화 (타임스탬프 추가)
       const t = Date.now();
-      
-      Promise.allSettled([
-        callApi(`/api/search/KS11?t=${t}`, { background: true }), // KOSPI
-        callApi(`/api/search/KQ11?t=${t}`, { background: true }), // KOSDAQ
-        callApi(`/api/search/US500?t=${t}`, { background: true }), // S&P 500
-        callApi(`/api/search/IXIC?t=${t}`, { background: true })   // NASDAQ
-      ]).then((results) => {
-        const parse = (res) => res.status === 'fulfilled' && res.value?.status === 'success' ? res.value.data : null;
-        setIndices({
-          kospi: parse(results[0]),
-          kosdaq: parse(results[1]),
-          sp500: parse(results[2]),
-          nasdaq: parse(results[3])
+      const { isKoreaOpen, isUSOpen } = getMarketStatus();
+      const promises = [];
+
+      // 🌟 한국장이 열려있거나, 최초 로딩인 경우에만 쏘기
+      if (isKoreaOpen || !initialLoadRef.current.kr) {
+        promises.push(callApi(`/api/search/KS11?t=${t}`, { background: true }).then(res => ({ key: 'kospi', res })));
+        promises.push(callApi(`/api/search/KQ11?t=${t}`, { background: true }).then(res => ({ key: 'kosdaq', res })));
+      }
+
+      // 🌟 미국장이 열려있거나, 최초 로딩인 경우에만 쏘기
+      if (isUSOpen || !initialLoadRef.current.us) {
+        promises.push(callApi(`/api/search/US500?t=${t}`, { background: true }).then(res => ({ key: 'sp500', res })));
+        promises.push(callApi(`/api/search/IXIC?t=${t}`, { background: true }).then(res => ({ key: 'nasdaq', res })));
+      }
+
+      if (promises.length > 0) {
+        Promise.allSettled(promises).then((results) => {
+          setIndices(prev => {
+            const next = { ...prev };
+            results.forEach(result => {
+              if (result.status === 'fulfilled' && result.value.res?.status === 'success') {
+                next[result.value.key] = result.value.res.data;
+              }
+            });
+            return next;
+          });
+          // 최초 로딩 플래그 완료 처리
+          initialLoadRef.current = { kr: true, us: true };
         });
-      });
+      }
     };
 
     fetchIndices(); 
@@ -326,7 +370,7 @@ export default function QuantDesk() {
           {activeTab === "Portfolio" && (
             <div className="animate-in fade-in duration-300 w-full">
                 
-                {/* 🌟 토스 스타일 지수 티커 (ret_1d 전일대비 반영) */}
+                {/* 🌟 토스 스타일 지수 티커 */}
                 {indices.kospi && (
                   <div 
                     onClick={() => setIsIndexModalOpen(true)}
@@ -335,7 +379,13 @@ export default function QuantDesk() {
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white flex items-center justify-center text-[11px] font-black text-slate-300 shadow-inner">KR</div>
                       <span className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white">KOSPI</span>
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100/50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50">● 장중</span>
+                      
+                      {/* 🌟 API에서 받아온 장중/장마감 상태 반영 */}
+                      {indices.kospi.market_status === "장중" ? (
+                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100/50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50">● 장중</span>
+                      ) : (
+                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">장마감</span>
+                      )}
                     </div>
                     
                     <div className="flex items-center gap-4">
@@ -352,7 +402,6 @@ export default function QuantDesk() {
                   </div>
                 )}
 
-                {}
                 <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm mb-12">
                     <div className="w-full">
                         {/* Desktop Header */}
@@ -469,7 +518,6 @@ export default function QuantDesk() {
             </div>
           )}
 
-          {}
           {/* ===================== WATCHLIST TAB ===================== */}
           {activeTab === "Watchlist" && (
               <div className="animate-in fade-in duration-300 w-full">
@@ -514,7 +562,6 @@ export default function QuantDesk() {
               </div>
           )}
 
-          {}
           {/* ===================== HISTORY TAB ===================== */}
           {activeTab === "History" && (
               <div className="animate-in fade-in duration-300 w-full">
@@ -584,7 +631,6 @@ export default function QuantDesk() {
               </div>
           )}
 
-          {}
           {/* ===================== WHITEPAPER TAB ===================== */}
           {activeTab === "Whitepaper" && (
               <div className="animate-in fade-in duration-500 w-full pb-10">
@@ -719,7 +765,6 @@ export default function QuantDesk() {
         </div>
       )}
 
-      {}
       {/* RISK MODAL */}
       {riskStock && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
@@ -882,7 +927,7 @@ export default function QuantDesk() {
         </div>
       )}
 
-      {/* 🌟 글로벌 지수 비교 모달 (ret_1d 및 다크모드 개선) */}
+      {/* 🌟 글로벌 지수 비교 모달 */}
       {isIndexModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
@@ -914,7 +959,7 @@ export default function QuantDesk() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[17px] font-black text-slate-900 dark:text-white">{idx.name}</span>
-                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300 bg-slate-100 dark:bg-[#1E293B] px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">지수</span>
+                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">지수</span>
                       </div>
                     </div>
                     
