@@ -3,9 +3,10 @@ import { useEffect, useState, useMemo } from 'react';
 import {
   RefreshCcw, X,
   TrendingUp, ShieldCheck, Droplets, Activity, Rocket, Zap,
-  Crosshair, TrendingDown, Flag, BookOpen, ShieldAlert, Target
+  Crosshair, TrendingDown, Flag, BookOpen, ShieldAlert, Target, ChevronRight
 } from 'lucide-react';
 import { AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ComposedChart, LineChart } from 'recharts';
+
 // 🌟 공통 API 훅 임포트
 import { useRenderApi } from '../hooks/useRenderApi';
 
@@ -22,13 +23,47 @@ export default function QuantDesk() {
 
   const [timeRange, setTimeRange] = useState("All");
 
+  // 🌟 지수 전용 상태 및 모달 제어
+  const [indices, setIndices] = useState({ kospi: null, kosdaq: null, nasdaq: null, sp500: null });
+  const [isIndexModalOpen, setIsIndexModalOpen] = useState(false);
+
   // 🌟 공통 API 훅 및 오버레이 가져오기
   const { callApi, ServerWakeupOverlay } = useRenderApi();
+
+  useEffect(() => {
+    let intervalId;
+    
+    const fetchIndices = () => {
+      // callApi를 사용하여 4개 지수를 조용히 호출 (background: true로 오버레이 방지)
+      Promise.allSettled([
+        callApi("/api/search/KS11", { background: true }), // KOSPI
+        callApi("/api/search/KQ11", { background: true }), // KOSDAQ
+        callApi("/api/search/US500", { background: true }), // S&P 500
+        callApi("/api/search/IXIC", { background: true })   // NASDAQ
+      ]).then((results) => {
+        const parse = (res) => res.status === 'fulfilled' && res.value?.status === 'success' ? res.value.data : null;
+        setIndices({
+          kospi: parse(results[0]),
+          kosdaq: parse(results[1]),
+          sp500: parse(results[2]),
+          nasdaq: parse(results[3])
+        });
+      });
+    };
+
+    // 1. 처음 마운트 될 때 즉시 호출
+    fetchIndices(); 
+
+    // 2. 1분(60,000ms)마다 반복 호출 설정
+    intervalId = setInterval(fetchIndices, 60000);
+
+    // 3. 컴포넌트 언마운트 시 폴링 정리
+    return () => clearInterval(intervalId);
+  }, [callApi]);
 
   const fetchQuantData = () => {
     setLoading(true);
 
-    // 🌟 fetch 대신 callApi 사용 (URL 하드코딩 및 .json() 파싱 중복 제거)
     Promise.allSettled([
       callApi("/api/quant-dashboard"),
       callApi("/api/search/KS11")
@@ -76,7 +111,6 @@ export default function QuantDesk() {
     setReportLoading(true);
     setSelectedStock({ ...basicData, isLoading: true });
 
-    // 🌟 리포트 조회 시에도 공통 callApi 사용
     callApi(`/api/search/${symbol}`)
       .then(result => {
         if (result.status === "success") {
@@ -234,7 +268,6 @@ export default function QuantDesk() {
   return (
     <div className="w-full transition-colors duration-300 pb-20 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
 
-      {/* 🌟 통신 지연 시 띄워주는 서버 기상 오버레이 */}
       <ServerWakeupOverlay />
 
       {/* Syncing Overlay (기존 수동 동기화용) */}
@@ -287,6 +320,33 @@ export default function QuantDesk() {
           {/* ===================== PORTFOLIO TAB ===================== */}
           {activeTab === "Portfolio" && (
             <div className="animate-in fade-in duration-300 w-full">
+                
+                {/* 🌟 토스 스타일 지수 티커 */}
+                {indices.kospi && (
+                  <div 
+                    onClick={() => setIsIndexModalOpen(true)}
+                    className="mb-8 p-4 md:p-5 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-400 dark:hover:border-slate-600 transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-lg shadow-inner">🇰🇷</div>
+                      <span className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white">KOSPI</span>
+                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-full border border-emerald-200">● 장중</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      <div className="flex flex-col items-end md:flex-row md:items-baseline md:gap-3">
+                        <span className="text-[11px] md:text-[13px] font-extrabold text-slate-500 mb-0.5 md:mb-0">
+                          전일대비 <span className={(indices.kospi.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}>{(indices.kospi.ret_1m > 0 ? '+' : '')}{indices.kospi.ret_1m?.toFixed(2)}%</span>
+                        </span>
+                        <span className="text-[22px] md:text-[26px] font-black text-slate-900 dark:text-white tracking-tighter">
+                          {indices.kospi.current_price?.toLocaleString()}
+                        </span>
+                      </div>
+                      <ChevronRight className="text-slate-400 group-hover:text-slate-600 transition-colors" size={20} />
+                    </div>
+                  </div>
+                )}
+
                 <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm mb-12">
                     <div className="w-full">
                         {/* Desktop Header (Hidden on Mobile) */}
@@ -494,7 +554,6 @@ export default function QuantDesk() {
                   
                   <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm w-full mb-12">
                       <div className="w-full">
-                          {/* Desktop Header */}
                           <div className="hidden md:flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
                               <div className="w-[15%] text-[14px] font-extrabold text-slate-500">매도 일자</div>
                               <div className="w-[20%] text-[14px] font-extrabold text-slate-500">종목명</div>
@@ -535,8 +594,8 @@ export default function QuantDesk() {
                                       <div className={`hidden md:block w-[15%] text-[15px] md:text-[16px] font-black text-right ${(t.return_rate || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(t.return_rate || 0) > 0 ? "+" : ""}{(t.return_rate || 0).toFixed(2)}%</div>
 
                                       {/* Mobile: Bottom Row (Reason) | Desktop: Reason col */}
-                                      <div className="w-full md:w-[20%] text-[13px] font-extrabold text-slate-500 dark:text-slate-400 text-left md:text-right mt-1 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 leading-snug break-keep md:pl-4">
-                                          <span className="text-[11px] font-bold text-slate-400 md:hidden mr-2">사유:</span>
+                                      <div className="w-full md:w-[20%] text-[12px] md:text-[13px] font-extrabold text-slate-500 dark:text-slate-400 text-left md:text-right mt-1 md:mt-0 pt-2 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 leading-snug truncate" title={t.reason}>
+                                          <span className="font-bold text-slate-400 md:hidden mr-1">사유:</span>
                                           {t.reason}
                                       </div>
 
@@ -688,7 +747,7 @@ export default function QuantDesk() {
             <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-3xl shadow-2xl p-6 md:p-8 relative animate-in fade-in zoom-in-95">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-2xl font-black text-slate-900 dark:text-white">🚨 {riskStock.name} Risk 분석</h3>
-                    <button onClick={() => setRiskStock(null)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"><X size={20}/></button>
+                    <button onClick={() => setRiskStock(null)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors cursor-pointer"><X size={20}/></button>
                 </div>
 
                 <p className="text-[14px] md:text-[15px] font-extrabold text-slate-600 dark:text-slate-400 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
@@ -843,6 +902,69 @@ export default function QuantDesk() {
             </div>
         </div>
       )}
+
+      {/* 🌟 글로벌 지수 비교 모달 */}
+      {isIndexModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            {/* Header */}
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800/80 flex justify-between items-start">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">지수 비교</h2>
+                <p className="text-[13px] font-bold text-slate-500">한국·미국 주요 지수를 한 화면에서.</p>
+              </div>
+              <button onClick={() => setIsIndexModalOpen(false)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors"><X size={18}/></button>
+            </div>
+
+            {/* List */}
+            <div className="p-5 flex flex-col gap-3 bg-slate-50/50 dark:bg-transparent">
+              {[
+                { key: 'kospi', name: '코스피', icon: 'K', color: 'bg-[#1e4e8c]', isUS: false },
+                { key: 'kosdaq', name: '코스닥', icon: 'Q', color: 'bg-[#7e57c2]', isUS: false },
+                { key: 'nasdaq', name: 'NASDAQ', icon: 'NDQ', color: 'bg-[#007aff]', isUS: true },
+                { key: 'sp500', name: 'S&P 500', icon: 'S&P', color: 'bg-[#ff3b30]', isUS: true }
+              ].map(idx => {
+                const data = indices[idx.key];
+                if (!data) return null;
+                const isPos = (data.ret_1m || 0) > 0;
+                
+                return (
+                  <div key={idx.key} className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-sm hover:border-blue-400 dark:hover:border-slate-600 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-full ${idx.color} text-white flex items-center justify-center font-black text-[12px] shadow-sm`}>
+                        {idx.icon}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[17px] font-black text-slate-900 dark:text-white tracking-tight">{idx.name}</span>
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">지수</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-baseline gap-3">
+                      <span className={`text-[13px] md:text-[14px] font-black ${isPos ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
+                        {isPos ? '+' : ''}{data.ret_1m?.toFixed(2)}%
+                      </span>
+                      <span className="text-[20px] md:text-[22px] font-black text-slate-900 dark:text-white tracking-tighter w-[85px] md:w-24 text-right">
+                        {data.current_price?.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Footer */}
+            <div className="p-5 border-t border-slate-100 dark:border-slate-800/80 bg-white dark:bg-[#111827]">
+              <p className="text-[11px] font-bold text-slate-400 leading-relaxed">
+                KR <span className="font-extrabold text-slate-500">KOSPI · KOSDAQ</span> &nbsp; US <span className="font-extrabold text-slate-500">NASDAQ · S&P 500</span><br/>
+                프리/애프터마켓은 ETF(QQQ·SPY) 기준 추정값
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
