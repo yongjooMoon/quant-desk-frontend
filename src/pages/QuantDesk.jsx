@@ -377,7 +377,8 @@ export default function QuantDesk() {
                     className="mb-8 p-4 md:p-5 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-400 dark:hover:border-slate-600 transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white flex items-center justify-center text-[11px] font-black text-slate-300 shadow-inner">KR</div>
+                      {/* 👇 이 부분을 KR 텍스트 대신 국기 이모지(🇰🇷)와 텍스트 크기(text-[18px])로 수정했습니다. */}
+                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[18px] shadow-inner">🇰🇷</div>
                       <span className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white">KOSPI</span>
                       
                       {/* 🌟 API에서 받아온 장중/장마감 상태 반영 */}
