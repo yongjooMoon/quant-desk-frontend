@@ -9,6 +9,56 @@ import { AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cart
 
 import { useRenderApi } from '../hooks/useRenderApi';
 
+// 🌟 대한민국 국기 아이콘 (원형 배지용)
+// 태극: 큰 반원(R) + 작은 반원(R/2) 조합으로 S자 곡선 생성
+// 4괘: 막대 3개(실선/끊긴선 조합)로 건(乾)·리(離)·감(坎)·곤(坤) 표현
+function KoreanFlagIcon({ size = 32, className = '' }) {
+  const barW = 70, barH = 12, gap = 12, gapMid = 12;
+
+  const Trigram = ({ x, y, pattern }) => (
+    <g transform={`translate(${x},${y})`}>
+      {pattern.map((solid, i) => {
+        const yPos = i * (barH + gap);
+        return solid ? (
+          <rect key={i} x={0} y={yPos} width={barW} height={barH} fill="#000" />
+        ) : (
+          <g key={i}>
+            <rect x={0} y={yPos} width={(barW - gapMid) / 2} height={barH} fill="#000" />
+            <rect x={(barW + gapMid) / 2} y={yPos} width={(barW - gapMid) / 2} height={barH} fill="#000" />
+          </g>
+        );
+      })}
+    </g>
+  );
+
+  return (
+    <div
+      className={`rounded-full bg-white flex items-center justify-center shadow-inner overflow-hidden border border-slate-200 shrink-0 ${className}`}
+      style={{ width: size, height: size }}
+    >
+      <svg viewBox="0 0 300 300" className="w-full h-full">
+        <circle cx="150" cy="150" r="150" fill="#fff" />
+
+        {/* 태극 문양 */}
+        <path
+          d="M150,85 A65,65 0 0,1 150,215 A32.5,32.5 0 0,0 150,150 A32.5,32.5 0 0,1 150,85 Z"
+          fill="#CD2E3A"
+        />
+        <path
+          d="M150,215 A65,65 0 0,1 150,85 A32.5,32.5 0 0,0 150,150 A32.5,32.5 0 0,1 150,215 Z"
+          fill="#0047A0"
+        />
+
+        {/* 4괘: 건(좌상, 전부 실선) / 리(우상, 가운데 끊김) / 감(좌하, 위아래 끊김) / 곤(우하, 전부 끊김) */}
+        <Trigram x={30} y={30} pattern={[true, true, true]} />
+        <Trigram x={200} y={30} pattern={[true, false, true]} />
+        <Trigram x={30} y={210} pattern={[false, true, false]} />
+        <Trigram x={200} y={210} pattern={[false, false, false]} />
+      </svg>
+    </div>
+  );
+}
+
 export default function QuantDesk() {
   const [activeTab, setActiveTab] = useState("Portfolio");
   const [data, setData] = useState({ holdings: [], trades: [], history: [], confirmed: [], watchlist: [] });
@@ -367,21 +417,8 @@ export default function QuantDesk() {
                     className="mb-8 p-4 md:p-5 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-400 dark:hover:border-slate-600 transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      {/* 🌟 SVG 국기 렌더링 부분 */}
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-inner overflow-hidden border border-slate-200 shrink-0">
-                        <svg viewBox="0 0 54 36" className="w-full h-full scale-[1.2]">
-                          <rect width="54" height="36" fill="#fff"/>
-                          <path d="M0 0h54v36H0z" fill="#fff"/>
-                          <path d="M27 9c4.97 0 9 4.03 9 9s-4.03 9-9 9-9-4.03-9-9 4.03-9 9-9z" fill="#CD2E3A"/>
-                          <path d="M27 9c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9z" fill="#0047A0"/>
-                          <g fill="#000">
-                            <path d="M7 7h6v3H7zM7 11h6v3H7zM7 15h6v3H7zM9 9h2v2H9z"/>
-                            <path d="M41 7h6v3h-6zM41 11h6v3h-6zM41 15h6v3h-6zM43 9h2v2h-2z"/>
-                            <path d="M7 23h6v3H7zM7 27h6v3H7zM7 31h6v3H7zM9 25h2v2H9z"/>
-                            <path d="M41 23h6v3h-6zM41 27h6v3h-6zM41 31h6v3h-6zM43 25h2v2h-2z"/>
-                          </g>
-                        </svg>
-                      </div>
+                      {/* 🌟 국기 아이콘 (컴포넌트로 분리) */}
+                      <KoreanFlagIcon size={32} />
                       <span className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white">KOSPI</span>
                       
                       {/* 🌟 API에서 받아온 장중/장마감 상태 반영 */}
