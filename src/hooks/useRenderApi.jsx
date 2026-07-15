@@ -18,13 +18,14 @@ export function useRenderApi() {
     let isResolved = false;
     
     // 💡 1. 콜드 스타트 판별 타이머 (4초)
-    // 별도의 Ping 요청 없이, 메인 데이터 요청이 4초를 넘어가면 무조건 서버가 잔다고 판단!
-    // 이렇게 하면 콘솔창에 404나 502 같은 불필요한 에러가 찍히지 않습니다.
-    timerRef.current = setTimeout(() => {
-      if (!isResolved) {
-        setIsSleeping(true);
-      }
-    }, 4000);
+    // 🌟 [추가] options.background가 true면 백그라운드 폴링이므로 오버레이 팝업을 띄우지 않습니다.
+    if (!options.background) {
+      timerRef.current = setTimeout(() => {
+        if (!isResolved) {
+          setIsSleeping(true);
+        }
+      }, 4000);
+    }
 
     const url = `${BASE_URL}${endpoint}`;
 
@@ -46,7 +47,7 @@ export function useRenderApi() {
       
       // 💡 3. 정상 응답 시 타이머 해제 및 오버레이 닫기
       isResolved = true;
-      clearTimeout(timerRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
       setIsSleeping(false); 
       
       return result;
@@ -54,7 +55,7 @@ export function useRenderApi() {
     } catch (error) {
       // 💡 4. 에러 발생 시에도 무한 로딩 방지를 위해 오버레이 닫기
       isResolved = true;
-      clearTimeout(timerRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
       setIsSleeping(false);
       
       console.error(`[API 통신 오류] ${endpoint}:`, error);
