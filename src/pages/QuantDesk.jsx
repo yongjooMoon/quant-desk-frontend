@@ -9,56 +9,6 @@ import { AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cart
 
 import { useRenderApi } from '../hooks/useRenderApi';
 
-// 🌟 대한민국 국기 아이콘 (원형 배지용)
-// 태극: 큰 반원(R) + 작은 반원(R/2) 조합으로 S자 곡선 생성
-// 4괘: 막대 3개(실선/끊긴선 조합)로 건(乾)·리(離)·감(坎)·곤(坤) 표현
-function KoreanFlagIcon({ size = 32, className = '' }) {
-  const barW = 70, barH = 12, gap = 12, gapMid = 12;
-
-  const Trigram = ({ x, y, pattern }) => (
-    <g transform={`translate(${x},${y})`}>
-      {pattern.map((solid, i) => {
-        const yPos = i * (barH + gap);
-        return solid ? (
-          <rect key={i} x={0} y={yPos} width={barW} height={barH} fill="#000" />
-        ) : (
-          <g key={i}>
-            <rect x={0} y={yPos} width={(barW - gapMid) / 2} height={barH} fill="#000" />
-            <rect x={(barW + gapMid) / 2} y={yPos} width={(barW - gapMid) / 2} height={barH} fill="#000" />
-          </g>
-        );
-      })}
-    </g>
-  );
-
-  return (
-    <div
-      className={`rounded-full bg-white flex items-center justify-center shadow-inner overflow-hidden border border-slate-200 shrink-0 ${className}`}
-      style={{ width: size, height: size }}
-    >
-      <svg viewBox="0 0 300 300" className="w-full h-full">
-        <circle cx="150" cy="150" r="150" fill="#fff" />
-
-        {/* 태극 문양 */}
-        <path
-          d="M150,85 A65,65 0 0,1 150,215 A32.5,32.5 0 0,0 150,150 A32.5,32.5 0 0,1 150,85 Z"
-          fill="#CD2E3A"
-        />
-        <path
-          d="M150,215 A65,65 0 0,1 150,85 A32.5,32.5 0 0,0 150,150 A32.5,32.5 0 0,1 150,215 Z"
-          fill="#0047A0"
-        />
-
-        {/* 4괘: 건(좌상, 전부 실선) / 리(우상, 가운데 끊김) / 감(좌하, 위아래 끊김) / 곤(우하, 전부 끊김) */}
-        <Trigram x={30} y={30} pattern={[true, true, true]} />
-        <Trigram x={200} y={30} pattern={[true, false, true]} />
-        <Trigram x={30} y={210} pattern={[false, true, false]} />
-        <Trigram x={200} y={210} pattern={[false, false, false]} />
-      </svg>
-    </div>
-  );
-}
-
 export default function QuantDesk() {
   const [activeTab, setActiveTab] = useState("Portfolio");
   const [data, setData] = useState({ holdings: [], trades: [], history: [], confirmed: [], watchlist: [] });
@@ -417,8 +367,10 @@ export default function QuantDesk() {
                     className="mb-8 p-4 md:p-5 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-400 dark:hover:border-slate-600 transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      {/* 🌟 국기 아이콘 (컴포넌트로 분리) */}
-                      <KoreanFlagIcon size={32} />
+                      {/* 🌟 PNG 국기 이미지 렌더링 부분 */}
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-inner overflow-hidden border border-slate-200 shrink-0">
+                        <img src="/태극기.png" alt="KR" className="w-full h-full object-cover" />
+                      </div>
                       <span className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white">KOSPI</span>
                       
                       {/* 🌟 API에서 받아온 장중/장마감 상태 반영 */}
@@ -976,7 +928,7 @@ export default function QuantDesk() {
             <div className="p-6 border-b border-slate-100 dark:border-slate-800/80 flex justify-between items-start">
               <div>
                 <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">지수 비교</h2>
-                <p className="text-[13px] font-bold text-slate-500">한국·미국 주요 지수</p>
+                <p className="text-[13px] font-bold text-slate-500">한국·미국 주요 지수를 한 화면에서.</p>
               </div>
               <button onClick={() => setIsIndexModalOpen(false)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 rounded-full transition-colors"><X size={18}/></button>
             </div>
@@ -1000,6 +952,7 @@ export default function QuantDesk() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[17px] font-black text-slate-900 dark:text-white">{idx.name}</span>
+                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-[#1E293B] px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">지수</span>
                       </div>
                     </div>
                     
@@ -1019,6 +972,7 @@ export default function QuantDesk() {
             <div className="p-5 border-t border-slate-100 dark:border-slate-800/80 bg-white dark:bg-[#111827]">
               <p className="text-[11px] font-bold text-slate-400 leading-relaxed">
                 KR <span className="font-extrabold text-slate-500">KOSPI · KOSDAQ</span> &nbsp; US <span className="font-extrabold text-slate-500">NASDAQ · S&P 500</span><br/>
+                프리/애프터마켓은 ETF(QQQ·SPY) 기준 추정값
               </p>
             </div>
           </div>
