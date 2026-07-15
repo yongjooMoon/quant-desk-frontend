@@ -27,53 +27,45 @@ export default function QuantDesk() {
 
   const { callApi, ServerWakeupOverlay } = useRenderApi();
 
-  // 🌟 [추가] 초기 로딩 여부를 추적하여, 장마감 시간이라도 최초 1회는 데이터를 무조건 가져오게 합니다.
   const initialLoadRef = useRef({ kr: false, us: false });
 
   useEffect(() => {
     let intervalId;
     
-    // 🌟 [추가] 각 시장별 운영 시간 판단 함수 (한국 시간 기준)
     const getMarketStatus = () => {
       const now = new Date();
-      // 브라우저 환경에 상관없이 무조건 KST(한국 표준시)로 계산
       const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
       const kst = new Date(utc + (9 * 3600000));
       const day = kst.getDay(); // 0:일, 1:월 ... 6:토
       const hour = kst.getHours();
       const minute = kst.getMinutes();
-      const timeNum = hour * 100 + minute; // 예: 09:30 -> 930
+      const timeNum = hour * 100 + minute; 
 
-      // 1. 한국장 (평일 09:00 ~ 15:30)
       const isWeekendKR = day === 0 || day === 6;
       const isKoreaOpen = !isWeekendKR && (timeNum >= 900 && timeNum < 1530);
 
-      // 2. 미국장 (한국 기준 보수적 커버: 밤 22:00 ~ 익일 아침 07:00)
       let isUSOpen = false;
       if (day >= 1 && day <= 5 && hour >= 22) {
-          isUSOpen = true; // 월~금 밤 10시 이후
+          isUSOpen = true; 
       } else if (day >= 2 && day <= 6 && hour < 7) {
-          isUSOpen = true; // 화~토 아침 7시 이전
+          isUSOpen = true; 
       }
 
       return { isKoreaOpen, isUSOpen };
     };
 
     const fetchIndices = () => {
-      // 화면이 숨겨져 있을 때는 불필요한 트래픽 낭비 방지
       if (document.hidden) return;
 
       const t = Date.now();
       const { isKoreaOpen, isUSOpen } = getMarketStatus();
       const promises = [];
 
-      // 🌟 한국장이 열려있거나, 최초 로딩인 경우에만 쏘기
       if (isKoreaOpen || !initialLoadRef.current.kr) {
         promises.push(callApi(`/api/search/KS11?t=${t}`, { background: true }).then(res => ({ key: 'kospi', res })));
         promises.push(callApi(`/api/search/KQ11?t=${t}`, { background: true }).then(res => ({ key: 'kosdaq', res })));
       }
 
-      // 🌟 미국장이 열려있거나, 최초 로딩인 경우에만 쏘기
       if (isUSOpen || !initialLoadRef.current.us) {
         promises.push(callApi(`/api/search/US500?t=${t}`, { background: true }).then(res => ({ key: 'sp500', res })));
         promises.push(callApi(`/api/search/IXIC?t=${t}`, { background: true }).then(res => ({ key: 'nasdaq', res })));
@@ -90,7 +82,6 @@ export default function QuantDesk() {
             });
             return next;
           });
-          // 최초 로딩 플래그 완료 처리
           initialLoadRef.current = { kr: true, us: true };
         });
       }
@@ -99,7 +90,6 @@ export default function QuantDesk() {
     fetchIndices(); 
     intervalId = setInterval(fetchIndices, 60000);
 
-    // 탭을 옮겼다가 다시 돌아왔을 때 즉시 갱신
     const handleVisibilityChange = () => {
       if (!document.hidden) fetchIndices();
     };
@@ -377,8 +367,21 @@ export default function QuantDesk() {
                     className="mb-8 p-4 md:p-5 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-400 dark:hover:border-slate-600 transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      {/* 👇 이 부분을 KR 텍스트 대신 국기 이모지(🇰🇷)와 텍스트 크기(text-[18px])로 수정했습니다. */}
-                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[18px] shadow-inner">🇰🇷</div>
+                      {/* 🌟 SVG 국기 렌더링 부분 */}
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-inner overflow-hidden border border-slate-200 shrink-0">
+                        <svg viewBox="0 0 54 36" className="w-full h-full scale-[1.2]">
+                          <rect width="54" height="36" fill="#fff"/>
+                          <path d="M0 0h54v36H0z" fill="#fff"/>
+                          <path d="M27 9c4.97 0 9 4.03 9 9s-4.03 9-9 9-9-4.03-9-9 4.03-9 9-9z" fill="#CD2E3A"/>
+                          <path d="M27 9c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9z" fill="#0047A0"/>
+                          <g fill="#000">
+                            <path d="M7 7h6v3H7zM7 11h6v3H7zM7 15h6v3H7zM9 9h2v2H9z"/>
+                            <path d="M41 7h6v3h-6zM41 11h6v3h-6zM41 15h6v3h-6zM43 9h2v2h-2z"/>
+                            <path d="M7 23h6v3H7zM7 27h6v3H7zM7 31h6v3H7zM9 25h2v2H9z"/>
+                            <path d="M41 23h6v3h-6zM41 27h6v3h-6zM41 31h6v3h-6zM43 25h2v2h-2z"/>
+                          </g>
+                        </svg>
+                      </div>
                       <span className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white">KOSPI</span>
                       
                       {/* 🌟 API에서 받아온 장중/장마감 상태 반영 */}
@@ -960,7 +963,6 @@ export default function QuantDesk() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[17px] font-black text-slate-900 dark:text-white">{idx.name}</span>
-                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">지수</span>
                       </div>
                     </div>
                     
@@ -980,7 +982,6 @@ export default function QuantDesk() {
             <div className="p-5 border-t border-slate-100 dark:border-slate-800/80 bg-white dark:bg-[#111827]">
               <p className="text-[11px] font-bold text-slate-400 leading-relaxed">
                 KR <span className="font-extrabold text-slate-500">KOSPI · KOSDAQ</span> &nbsp; US <span className="font-extrabold text-slate-500">NASDAQ · S&P 500</span><br/>
-                프리/애프터마켓은 ETF(QQQ·SPY) 기준 추정값
               </p>
             </div>
           </div>
