@@ -939,7 +939,7 @@ export default function QuantDesk() {
             <div className="p-6 border-b border-slate-100 dark:border-slate-800/80 flex justify-between items-start">
               <div>
                 <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">지수 비교</h2>
-                <p className="text-[13px] font-bold text-slate-500">한국·미국 주요 지수를 한 화면에서.</p>
+                <p className="text-[13px] font-bold text-slate-500">한국·미국 주요 지수</p>
               </div>
               <button onClick={() => setIsIndexModalOpen(false)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 rounded-full transition-colors"><X size={18}/></button>
             </div>
