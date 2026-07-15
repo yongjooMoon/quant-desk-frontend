@@ -928,7 +928,7 @@ export default function QuantDesk() {
             <div className="p-6 border-b border-slate-100 dark:border-slate-800/80 flex justify-between items-start">
               <div>
                 <h2 className="text-xl font-black text-slate-900 dark:text-white mb-1">지수 비교</h2>
-                <p className="text-[13px] font-bold text-slate-500">한국·미국 주요 지수를 한 화면에서.</p>
+                <p className="text-[13px] font-bold text-slate-500">한국·미국 주요 지수</p>
               </div>
               <button onClick={() => setIsIndexModalOpen(false)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 rounded-full transition-colors"><X size={18}/></button>
             </div>
@@ -952,7 +952,6 @@ export default function QuantDesk() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[17px] font-black text-slate-900 dark:text-white">{idx.name}</span>
-                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-[#1E293B] px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">지수</span>
                       </div>
                     </div>
                     
@@ -972,7 +971,6 @@ export default function QuantDesk() {
             <div className="p-5 border-t border-slate-100 dark:border-slate-800/80 bg-white dark:bg-[#111827]">
               <p className="text-[11px] font-bold text-slate-400 leading-relaxed">
                 KR <span className="font-extrabold text-slate-500">KOSPI · KOSDAQ</span> &nbsp; US <span className="font-extrabold text-slate-500">NASDAQ · S&P 500</span><br/>
-                프리/애프터마켓은 ETF(QQQ·SPY) 기준 추정값
               </p>
             </div>
           </div>
