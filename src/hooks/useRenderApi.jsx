@@ -66,67 +66,94 @@ export function useRenderApi() {
   const ServerWakeupOverlay = () => {
     if (!isSleeping) return null;
     return (
-      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/95 backdrop-blur-xl animate-in fade-in duration-300">
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#08090D] overflow-hidden animate-in fade-in duration-300">
 
-         {/* Toss 스타일 미니멀 모션을 위한 Keyframes */}
+         {/* 오로라 블롭 시그니처 모션을 위한 Keyframes */}
          <style>{`
-            @keyframes ringSpin {
+            @keyframes auroraSpin {
                 to { transform: rotate(360deg); }
             }
-            @keyframes ringPulse {
-                0%, 100% { opacity: 1; }
-                50% { opacity: 0.4; }
+            @keyframes blobMorph {
+                0%   { border-radius: 42% 58% 65% 35% / 45% 45% 55% 55%; transform: rotate(0deg) scale(1); }
+                50%  { border-radius: 63% 37% 30% 70% / 62% 35% 65% 38%; transform: rotate(180deg) scale(1.12); }
+                100% { border-radius: 42% 58% 65% 35% / 45% 45% 55% 55%; transform: rotate(360deg) scale(1); }
             }
-            @keyframes dotBlink {
-                0%, 80%, 100% { opacity: 0.2; transform: scale(0.85); }
-                40% { opacity: 1; transform: scale(1); }
+            @keyframes driftA {
+                0%, 100% { transform: translate(-8%, -6%) scale(1); }
+                50% { transform: translate(6%, 4%) scale(1.15); }
             }
-            @keyframes barGrow {
-                0% { width: 8%; }
-                50% { width: 78%; }
-                100% { width: 92%; }
+            @keyframes driftB {
+                0%, 100% { transform: translate(10%, 8%) scale(1); }
+                50% { transform: translate(-6%, -5%) scale(1.1); }
+            }
+            @keyframes shimmerText {
+                0% { background-position: 0% 50%; }
+                100% { background-position: 200% 50%; }
+            }
+            @keyframes lineGrow {
+                0% { width: 6%; }
+                50% { width: 70%; }
+                100% { width: 88%; }
+            }
+            @keyframes lineGlow {
+                0%, 100% { opacity: 0.6; }
+                50% { opacity: 1; }
             }
          `}</style>
 
-         {/* 원형 로딩 인디케이터 */}
-         <div className="relative w-16 h-16 mb-8">
-             <div className="absolute inset-0 rounded-full border-[3px] border-[#E8EBF3]" />
+         {/* 배경 앰비언트 글로우 (깊이감) */}
+         <div
+            className="absolute w-[420px] h-[420px] rounded-full blur-[110px] opacity-30 top-1/3 left-1/4"
+            style={{ background: '#6D5CFF', animation: 'driftA 9s ease-in-out infinite' }}
+         />
+         <div
+            className="absolute w-[380px] h-[380px] rounded-full blur-[110px] opacity-25 bottom-1/3 right-1/4"
+            style={{ background: '#22D3EE', animation: 'driftB 11s ease-in-out infinite' }}
+         />
+
+         {/* 시그니처: 모핑되는 오로라 블롭 */}
+         <div className="relative w-28 h-28 mb-9 flex items-center justify-center">
              <div
-                className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-[#3182F6] border-r-[#3182F6]"
-                style={{ animation: 'ringSpin 0.9s linear infinite' }}
+                className="absolute w-full h-full rounded-full blur-2xl opacity-80"
+                style={{
+                  background: 'conic-gradient(from 0deg, #6D5CFF, #3B82F6, #22D3EE, #6D5CFF)',
+                  animation: 'auroraSpin 3.2s linear infinite',
+                }}
              />
              <div
-                className="absolute inset-0 flex items-center justify-center"
-                style={{ animation: 'ringPulse 1.8s ease-in-out infinite' }}
-             >
-                <div className="w-2.5 h-2.5 rounded-full bg-[#3182F6]" />
-             </div>
+                className="absolute w-16 h-16"
+                style={{
+                  background: 'linear-gradient(135deg, #7C6CFF 0%, #3B82F6 55%, #22D3EE 100%)',
+                  animation: 'blobMorph 4.2s ease-in-out infinite',
+                  boxShadow: '0 0 40px rgba(109,92,255,0.55)',
+                }}
+             />
          </div>
 
-         <h2 className="text-[20px] md:text-[22px] font-bold text-[#191F28] tracking-tight mb-2 text-center">
-             서버를 준비하고 있어요
+         <h2
+            className="text-[21px] md:text-[23px] font-bold tracking-tight mb-2 text-center bg-clip-text text-transparent"
+            style={{
+              backgroundImage: 'linear-gradient(90deg, #FFFFFF, #A5B4FC, #FFFFFF)',
+              backgroundSize: '200% auto',
+              animation: 'shimmerText 3s linear infinite',
+            }}
+         >
+             서버를 깨우는 중이에요
          </h2>
-         <p className="text-[#8B95A1] font-medium text-[14px] md:text-[15px] text-center px-6 leading-relaxed mb-6">
-             접속이 오랜만이라 서버가 깨어나는 중이에요<br className="hidden md:block"/>
+         <p className="text-[#7C8598] font-medium text-[14px] md:text-[15px] text-center px-6 leading-relaxed mb-7">
+             접속이 뜸했던 서버가 다시 살아나고 있어요<br className="hidden md:block"/>
              보통 20~30초 정도 걸려요
          </p>
 
          {/* 진행 바 */}
-         <div className="w-[180px] h-1 rounded-full bg-[#F2F4F6] overflow-hidden mb-3">
+         <div className="w-[190px] h-[3px] rounded-full bg-white/[0.06] overflow-hidden">
              <div
-                className="h-full rounded-full bg-[#3182F6]"
-                style={{ animation: 'barGrow 6s ease-out forwards' }}
+                className="h-full rounded-full"
+                style={{
+                  background: 'linear-gradient(90deg, #6D5CFF, #22D3EE)',
+                  animation: 'lineGrow 6s ease-out forwards, lineGlow 1.6s ease-in-out infinite',
+                }}
              />
-         </div>
-
-         {/* 점 3개 로딩 문구 */}
-         <div className="flex items-center gap-1">
-             <span className="text-[13px] text-[#B0B8C1] font-medium">잠시만 기다려주세요</span>
-             <span className="flex gap-[3px] ml-0.5">
-                <span className="w-1 h-1 rounded-full bg-[#B0B8C1]" style={{ animation: 'dotBlink 1.4s ease-in-out infinite' }} />
-                <span className="w-1 h-1 rounded-full bg-[#B0B8C1]" style={{ animation: 'dotBlink 1.4s ease-in-out 0.2s infinite' }} />
-                <span className="w-1 h-1 rounded-full bg-[#B0B8C1]" style={{ animation: 'dotBlink 1.4s ease-in-out 0.4s infinite' }} />
-             </span>
          </div>
       </div>
     );
