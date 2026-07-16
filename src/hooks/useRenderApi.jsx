@@ -24,7 +24,7 @@ export function useRenderApi() {
         if (!isResolved) {
           setIsSleeping(true);
         }
-      }, 4000);
+      }, 100);
     }
 
     const url = `${BASE_URL}${endpoint}`;
