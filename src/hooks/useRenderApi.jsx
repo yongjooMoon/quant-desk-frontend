@@ -1,5 +1,5 @@
 // src/hooks/useRenderApi.jsx
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 // 🌟 BASE_URL을 훅 내부에 직접 정의
 const BASE_URL = "https://moon-bbh0.onrender.com";
@@ -8,6 +8,38 @@ export function useRenderApi() {
   const [isSleeping, setIsSleeping] = useState(false);
   // 💡 컴포넌트가 언마운트되거나 재요청될 때 타이머를 안전하게 클리어하기 위해 useRef 사용
   const timerRef = useRef(null); 
+
+  // 🌟 [추가] 최초 1회 방문 기록(Logging)을 백엔드로 쏘는 로직
+  useEffect(() => {
+    // 세션 스토리지를 이용해 새로고침 할 때마다 무한으로 찍히는 것을 방지
+    if (!sessionStorage.getItem('visited_logged')) {
+      const logVisit = async () => {
+        try {
+          // 1. 브라우저의 깐깐한 보안 정책을 피해 프론트엔드에서 확실하게 잡을 수 있는 정보 추출
+          const referer = document.referrer || "Direct"; // 어디서 클릭해서 왔는지
+          const userAgent = navigator.userAgent; // 어떤 기기/앱(리멤버, 카톡 등)으로 들어왔는지
+          const currentUrl = window.location.href; // 현재 사용자가 보고 있는 주소
+
+          // 2. 백엔드의 로깅 전용 API로 바구니(Body)에 담아서 던짐
+          await fetch(`${BASE_URL}/api/log-visit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              referer: referer,
+              user_agent: userAgent,
+              screen_id: currentUrl
+            })
+          });
+          
+          // 성공하든 실패하든 세션에 기록을 남겨 다음번 렌더링 시 중복 호출 방지
+          sessionStorage.setItem('visited_logged', 'true');
+        } catch (error) {
+          console.error("Visit logging failed (silent)", error);
+        }
+      };
+      logVisit();
+    }
+  }, []);
 
   const callApi = useCallback(async (endpoint, options = {}) => {
     // 이전 타이머가 있다면 초기화
