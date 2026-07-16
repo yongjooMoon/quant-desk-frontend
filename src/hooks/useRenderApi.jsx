@@ -141,7 +141,7 @@ export function useRenderApi() {
              서버를 깨우는 중이에요
          </h2>
          <p className="text-[#7C8598] font-medium text-[14px] md:text-[15px] text-center px-6 leading-relaxed mb-7">
-             접속이 뜸했던 서버가 다시 살아나고 있어요<br className="hidden md:block"/>
+             접속이 뜸했던 서버가 다시 살아나고 있어요<br/>
              보통 20~30초 정도 걸려요
          </p>
 
