@@ -64,9 +64,32 @@ export function useRenderApi() {
   }, []);
 
   const ServerWakeupOverlay = () => {
+    // 🌟 터치/클릭한 자리에 오로라 톤의 리플(파문)을 살짝 띄워주는 상태
+    const [ripples, setRipples] = useState([]);
+
+    const handleRipple = (e) => {
+      // 모션에 민감한 사용자는 리플도 끔 (prefers-reduced-motion 존중)
+      if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const point = e.touches ? e.touches[0] : e;
+      const x = point.clientX - rect.left;
+      const y = point.clientY - rect.top;
+      const id = `${Date.now()}-${Math.random()}`;
+
+      // 성능 보호를 위해 동시에 떠있는 리플은 최대 5개까지만
+      setRipples(prev => [...prev.slice(-4), { id, x, y }]);
+      setTimeout(() => {
+        setRipples(prev => prev.filter(r => r.id !== id));
+      }, 900);
+    };
+
     if (!isSleeping) return null;
     return (
-      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#08090D] overflow-hidden animate-in fade-in duration-300">
+      <div
+        onPointerDown={handleRipple}
+        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#08090D] overflow-hidden animate-in fade-in duration-300 cursor-pointer"
+      >
 
          {/* 오로라 블롭 시그니처 모션을 위한 Keyframes */}
          <style>{`
@@ -99,7 +122,24 @@ export function useRenderApi() {
                 0%, 100% { opacity: 0.6; }
                 50% { opacity: 1; }
             }
+            @keyframes rippleExpand {
+                0%   { transform: translate(-50%, -50%) scale(0); opacity: 0.55; }
+                100% { transform: translate(-50%, -50%) scale(22); opacity: 0; }
+            }
          `}</style>
+
+         {/* 🌟 터치/클릭 리플 — 정보(텍스트·진행바)를 가리지 않게 pointer-events-none, 은은한 잔상만 남김 */}
+         {ripples.map(r => (
+            <span
+                key={r.id}
+                className="pointer-events-none absolute rounded-full"
+                style={{
+                  left: r.x, top: r.y, width: 10, height: 10,
+                  background: 'radial-gradient(circle, rgba(165,180,252,0.55) 0%, rgba(34,211,238,0.25) 45%, rgba(34,211,238,0) 70%)',
+                  animation: 'rippleExpand 900ms ease-out forwards',
+                }}
+            />
+         ))}
 
          {/* 배경 앰비언트 글로우 (깊이감) */}
          <div
