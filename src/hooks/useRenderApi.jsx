@@ -30,6 +30,8 @@ export function useRenderApi() {
     const url = `${BASE_URL}${endpoint}`;
 
     try {
+      await new Promise(resolve => setTimeout(resolve, 10000));
+      
       // 💡 2. 실제 데이터 요청
       const response = await fetch(url, {
         ...options,
