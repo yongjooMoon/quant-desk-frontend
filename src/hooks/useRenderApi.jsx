@@ -23,7 +23,7 @@ function CandleTapGame() {
           id: idRef.current,
           up: Math.random() < 0.55, // 초록(익절) 쪽이 살짝 더 잘 나오게
           x: 8 + Math.random() * 78,
-          h: 24 + Math.random() * 26,
+          h: 30 + Math.random() * 34,
         }];
       });
     }, 650);
@@ -42,18 +42,18 @@ function CandleTapGame() {
 
   return (
     <>
-      <div className="relative w-[260px] h-40 mb-4 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+      <div className="relative w-[300px] h-56 mb-4 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
         {candles.map(c => (
           <button
             key={c.id}
             onClick={() => handleHit(c)}
             aria-label={c.up ? "초록 캔들 (익절)" : "빨간 캔들 (손절)"}
             className="absolute bottom-0 flex flex-col items-center px-2 py-1 -mx-2 -my-1"
-            style={{ left: `${c.x}%`, animation: 'candleRise 2.4s linear forwards' }}
+            style={{ left: `${c.x}%`, animation: 'candleRise 2.6s linear forwards' }}
             onAnimationEnd={() => removeCandle(c.id)}
           >
-            <div className={`w-[2px] h-2 ${c.up ? 'bg-emerald-400/70' : 'bg-rose-400/70'}`} />
-            <div className={`w-3 rounded-[2px] ${c.up ? 'bg-emerald-400' : 'bg-rose-400'}`} style={{ height: c.h }} />
+            <div className={`w-[3px] h-3 ${c.up ? 'bg-emerald-400/70' : 'bg-rose-400/70'}`} />
+            <div className={`w-4 rounded-[3px] ${c.up ? 'bg-emerald-400' : 'bg-rose-400'}`} style={{ height: c.h }} />
           </button>
         ))}
       </div>
@@ -67,6 +67,8 @@ function CandleTapGame() {
 
 // ══════════════════════════════════════════
 // 🎮 대기화면 재미 요소 ② 카드 뒤집기 (퀀트 드립/명언)
+//   처음엔 카드 뒷면(패턴)만 보이고, 탭하면 진짜 카드처럼 뒤집히며 내용이 드러남.
+//   한 세션(로딩 1회)에는 카드 1장만 — 뒤집은 뒤에는 다시 안 바뀜.
 // ══════════════════════════════════════════
 const FUN_LINES = [
   "무릎에 사서 어깨에 팔라던데, 제 무릎은 대체 어디 갔을까요.",
@@ -82,31 +84,36 @@ const FUN_LINES = [
 ];
 
 function LineFlipCard() {
-  const [idx, setIdx] = useState(() => Math.floor(Math.random() * FUN_LINES.length));
-  const [flip, setFlip] = useState(false);
-
-  const next = () => {
-    setFlip(f => !f);
-    setTimeout(() => {
-      setIdx(prev => {
-        if (FUN_LINES.length <= 1) return prev;
-        let n = Math.floor(Math.random() * FUN_LINES.length);
-        while (n === prev) n = Math.floor(Math.random() * FUN_LINES.length);
-        return n;
-      });
-    }, 160);
-  };
+  // 이 세션에서 보여줄 카드 문구 — 처음 한 번만 뽑고 이후 고정 (탭해도 안 바뀜)
+  const [line] = useState(() => FUN_LINES[Math.floor(Math.random() * FUN_LINES.length)]);
+  const [flipped, setFlipped] = useState(false);
 
   return (
     <>
-      <button
-        onClick={next}
-        className="w-[260px] min-h-[140px] mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex items-center justify-center text-center transition-transform duration-300 ease-out"
-        style={{ transform: flip ? 'rotateY(8deg) scale(0.97)' : 'rotateY(0deg) scale(1)' }}
-      >
-        <p className="text-[14px] font-bold text-slate-200 leading-relaxed">{FUN_LINES[idx]}</p>
-      </button>
-      <p className="text-[12px] font-bold text-slate-500 mb-6">🔄 카드를 눌러 다음 한마디 보기</p>
+      <div className="[perspective:1200px] w-[300px] h-56 mb-4">
+        <button
+          onClick={() => setFlipped(true)}
+          aria-label="카드 뒤집기"
+          className={`relative w-full h-full [transform-style:preserve-3d] transition-transform duration-500 ease-out ${flipped ? '[transform:rotateY(180deg)]' : ''}`}
+        >
+          {/* 카드 뒷면 (처음 보이는 면) */}
+          <div className="absolute inset-0 [backface-visibility:hidden] rounded-2xl border border-white/10 bg-white/[0.03] flex flex-col items-center justify-center gap-3">
+            <div
+              className="w-14 h-14 rounded-2xl"
+              style={{
+                background: 'linear-gradient(135deg, #7C6CFF 0%, #3B82F6 55%, #22D3EE 100%)',
+                boxShadow: '0 0 30px rgba(109,92,255,0.45)',
+              }}
+            />
+            <p className="text-[12px] font-bold text-slate-500">탭해서 카드 뒤집기</p>
+          </div>
+          {/* 카드 앞면 (뒤집으면 보이는 면) */}
+          <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-2xl border border-white/10 bg-white/[0.03] p-7 flex items-center justify-center text-center">
+            <p className="text-[15px] font-bold text-slate-200 leading-relaxed">{line}</p>
+          </div>
+        </button>
+      </div>
+      <p className="text-[12px] font-bold text-slate-500 mb-6 h-4">{flipped ? '' : '\u00A0'}</p>
     </>
   );
 }
@@ -175,7 +182,7 @@ export function useRenderApi() {
   }, []);
 
   // 🌟 useCallback으로 컴포넌트 identity를 고정 — 매 렌더마다 새로 만들어지면
-  //    캔들 게임의 점수 같은 내부 상태가 중간에 리셋되는 버그가 생길 수 있어서 방지.
+  //    게임/카드의 내부 상태가 중간에 리셋되는 버그가 생길 수 있어서 방지.
   const ServerWakeupOverlay = useCallback(() => {
     // 🌟 터치/클릭한 자리에 오로라 톤의 리플(파문)을 살짝 띄워주는 상태
     const [ripples, setRipples] = useState([]);
@@ -204,16 +211,8 @@ export function useRenderApi() {
         className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#08090D] overflow-hidden animate-in fade-in duration-300"
       >
 
-         {/* 오로라 블롭 시그니처 모션 + 게임 요소 Keyframes */}
+         {/* Keyframes: 텍스트 시머 + 진행바 + 리플 + 캔들게임. (오로라 블롭 회전/모핑 애니메이션은 재미 요소와 중복돼서 제거) */}
          <style>{`
-            @keyframes auroraSpin {
-                to { transform: rotate(360deg); }
-            }
-            @keyframes blobMorph {
-                0%   { border-radius: 42% 58% 65% 35% / 45% 45% 55% 55%; transform: rotate(0deg) scale(1); }
-                50%  { border-radius: 63% 37% 30% 70% / 62% 35% 65% 38%; transform: rotate(180deg) scale(1.12); }
-                100% { border-radius: 42% 58% 65% 35% / 45% 45% 55% 55%; transform: rotate(360deg) scale(1); }
-            }
             @keyframes driftA {
                 0%, 100% { transform: translate(-8%, -6%) scale(1); }
                 50% { transform: translate(6%, 4%) scale(1.15); }
@@ -243,7 +242,7 @@ export function useRenderApi() {
                 0%   { transform: translateY(0); opacity: 0; }
                 10%  { opacity: 1; }
                 88%  { opacity: 1; }
-                100% { transform: translateY(-150px); opacity: 0; }
+                100% { transform: translateY(-210px); opacity: 0; }
             }
          `}</style>
 
@@ -260,7 +259,7 @@ export function useRenderApi() {
             />
          ))}
 
-         {/* 배경 앰비언트 글로우 (깊이감) */}
+         {/* 배경 앰비언트 글로우 (깊이감, 레이아웃 흐름 밖이라 공간 차지 없음) */}
          <div
             className="absolute w-[420px] h-[420px] rounded-full blur-[110px] opacity-30 top-1/3 left-1/4"
             style={{ background: '#6D5CFF', animation: 'driftA 9s ease-in-out infinite' }}
@@ -269,25 +268,6 @@ export function useRenderApi() {
             className="absolute w-[380px] h-[380px] rounded-full blur-[110px] opacity-25 bottom-1/3 right-1/4"
             style={{ background: '#22D3EE', animation: 'driftB 11s ease-in-out infinite' }}
          />
-
-         {/* 시그니처: 모핑되는 오로라 블롭 (게임 공간 확보를 위해 살짝 축소) */}
-         <div className="relative w-20 h-20 mb-5 flex items-center justify-center">
-             <div
-                className="absolute w-full h-full rounded-full blur-2xl opacity-80"
-                style={{
-                  background: 'conic-gradient(from 0deg, #6D5CFF, #3B82F6, #22D3EE, #6D5CFF)',
-                  animation: 'auroraSpin 3.2s linear infinite',
-                }}
-             />
-             <div
-                className="absolute w-12 h-12"
-                style={{
-                  background: 'linear-gradient(135deg, #7C6CFF 0%, #3B82F6 55%, #22D3EE 100%)',
-                  animation: 'blobMorph 4.2s ease-in-out infinite',
-                  boxShadow: '0 0 40px rgba(109,92,255,0.55)',
-                }}
-             />
-         </div>
 
          <h2
             className="text-[19px] md:text-[21px] font-bold tracking-tight mb-2 text-center bg-clip-text text-transparent"
@@ -299,7 +279,7 @@ export function useRenderApi() {
          >
              서버를 깨우는 중이에요
          </h2>
-         <p className="text-[#7C8598] font-medium text-[13px] md:text-[14px] text-center px-6 leading-relaxed mb-5">
+         <p className="text-[#7C8598] font-medium text-[13px] md:text-[14px] text-center px-6 leading-relaxed mb-6">
              보통 20~30초 정도 걸려요. 기다리는 동안 이거 한 판 어때요?
          </p>
 
