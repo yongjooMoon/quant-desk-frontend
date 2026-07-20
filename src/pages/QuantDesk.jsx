@@ -1,4 +1,3 @@
-// src/pages/QuantDesk.jsx
 import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   RefreshCcw, X,
@@ -149,24 +148,45 @@ export default function QuantDesk() {
 
   const handleReportClick = (symbol, basicData) => {
     setReportLoading(true);
-    setSelectedStock({ ...basicData, isLoading: true });
+
+    let mappedGates = null;
+    if (basicData.filter_details) {
+        mappedGates = Object.fromEntries(
+            Object.entries(basicData.filter_details).map(([k, v]) => [k, { ...v, name: k }])
+        );
+    }
+
+    setSelectedStock({ 
+        ...basicData,
+        score: basicData.factor_score !== undefined ? basicData.factor_score : basicData.score,
+        gates: mappedGates || basicData.gates,
+        isLoading: true 
+    });
 
     callApi(`/api/search/${symbol}`)
       .then(result => {
         if (result.status === "success") {
+            const fetchedData = result.data;
+            const finalScore = basicData.factor_score !== undefined ? basicData.factor_score : fetchedData.score;
+            const finalGates = mappedGates || fetchedData.gates;
+            const finalPass = basicData.total_pass !== undefined ? basicData.total_pass : (fetchedData.gates ? Object.values(fetchedData.gates).filter(g => g.pass).length : 0);
+
             setSelectedStock({
               ...basicData,
-              ...result.data,
-              name: result.data.name || basicData.name,
+              ...fetchedData,
+              name: fetchedData.name || basicData.name,
+              score: finalScore,
+              gates: finalGates,
+              total_pass: finalPass,
               isLoading: false
             });
         } else {
-            setSelectedStock({ ...basicData, isLoading: false, fetchError: true });
+            setSelectedStock(prev => ({ ...prev, isLoading: false, fetchError: true }));
         }
         setReportLoading(false);
       })
       .catch(() => {
-          setSelectedStock({ ...basicData, isLoading: false, fetchError: true });
+          setSelectedStock(prev => ({ ...prev, isLoading: false, fetchError: true }));
           setReportLoading(false);
       });
   };
@@ -367,13 +387,11 @@ export default function QuantDesk() {
                     className="mb-8 p-4 md:p-5 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-400 dark:hover:border-slate-600 transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      {/* 🌟 PNG 국기 이미지 렌더링 부분 */}
                       <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-inner overflow-hidden border border-slate-200 shrink-0">
                         <img src="/태극기.png" alt="KR" className="w-full h-full object-cover" />
                       </div>
                       <span className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white">KOSPI</span>
                       
-                      {/* 🌟 API에서 받아온 장중/장마감 상태 반영 */}
                       {indices.kospi.market_status === "장중" ? (
                           <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100/50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50">● 장중</span>
                       ) : (
@@ -397,7 +415,6 @@ export default function QuantDesk() {
 
                 <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm mb-12">
                     <div className="w-full">
-                        {/* Desktop Header */}
                         <div className="hidden md:flex px-4 md:px-5 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent w-full">
                             <div className="w-[20%] text-[14px] font-extrabold text-slate-500">종목명</div>
                             <div className="w-[15%] text-[14px] font-extrabold text-slate-500 text-right">진입가</div>
@@ -633,7 +650,7 @@ export default function QuantDesk() {
                           Chase Momentum Algorithm Whitepaper
                       </h2>
                       <p className="text-[16px] md:text-[18px] font-extrabold text-slate-700 dark:text-slate-300 leading-relaxed max-w-4xl">
-                          시장의 주도주를 포착하고 철저한 기계적 리스크 관리로 계좌를 안정적으로 우상향시키는 정통 퀀트 추격매수 & 방어 전략 안내서입니다.
+                          시장의 주도주를 포착하고 철저한 동적 리스크 관리(Dynamic Risk Management)로 계좌를 안정적으로 우상향시키는 정통 퀀트 추격매수 & 방어 전략 안내서입니다.
                       </p>
                   </div>
 
@@ -684,7 +701,7 @@ export default function QuantDesk() {
                               </div>
                               <p className="text-[#FF4B4B] font-black mb-3 text-[15px]">"오르막길을 안정적으로 걷는가?"</p>
                               <p className="text-[15px] font-extrabold text-slate-600 dark:text-slate-400 leading-loose">
-                                  주가가 미끄럼틀을 타는 역배열 종목은 배제합니다. 현재 가격이 20일선 위에, 20일선이 60일선 위에 위치한 완벽한 정배열 상승 기류 종목만 선별합니다.
+                                  20일선이 60일선 위에 있는 완벽한 정배열 기류 종목만 선별합니다. 동시에 종목별 변동성(ATR)에 맞춘 동적 이격도 제한(15~50%)을 두어 이미 너무 과열된 종목은 배제합니다.
                               </p>
                           </div>
 
@@ -695,7 +712,7 @@ export default function QuantDesk() {
                               </div>
                               <p className="text-[#FF4B4B] font-black mb-3 text-[15px]">"천장을 뚫을 준비가 되었는가?"</p>
                               <p className="text-[15px] font-extrabold text-slate-600 dark:text-slate-400 leading-loose">
-                                  최근 3개월(60일)간 가장 비쌌던 최고 기록의 90% 이상까지 매물대를 뚫고 다시 치고 올라온, 폭발적 에너지를 모은 종목만 포착합니다.
+                                  최근 3개월(60일) 최고가의 90% 이상 매물대를 2일 연속 뚫어내거나, 1일차라도 60일 평균 대비 2배 이상의 강력한 거래량이 터지면 즉각 포착합니다.
                               </p>
                           </div>
 
@@ -706,7 +723,7 @@ export default function QuantDesk() {
                               </div>
                               <p className="text-[#FF4B4B] font-black mb-3 text-[15px]">"관중들이 우르르 몰려오는가?"</p>
                               <p className="text-[15px] font-extrabold text-slate-600 dark:text-slate-400 leading-loose">
-                                  단순히 가격만 오르는 것을 넘어, 평소 거래량 대비 1.5배 이상 수급이 터져야 합니다. 거대한 자금이 쏠리며 모멘텀이 폭발한 결정적 증거입니다.
+                                  가격 상승을 뒷받침하는 강력한 자금 유입을 봅니다. 최근 5일 평균 및 당일 거래량이 60일 평균 대비 1.5배 이상 폭발한 종목만 선별합니다.
                               </p>
                           </div>
                       </div>
@@ -726,7 +743,7 @@ export default function QuantDesk() {
                               </div>
                               <p className="text-[#3B82F6] font-black mb-2 text-[15px]">Trailing Stop</p>
                               <p className="text-[15px] font-extrabold text-slate-700 dark:text-slate-300 leading-loose">
-                                  고정된 비율(-5% 등)을 쓰지 않고 주식의 성격(ATR)에 맞춰 유연하게 손절선을 잡습니다. 주가가 오르면 손절선도 함께 쫓아 올라가 이익을 철통같이 방어합니다.
+                                  주식의 성격(ATR)에 맞춰 유연한 손절선을 설정합니다. 특히 +15% 이상 수익권 진입 시 '이익 보호 모드'로 전환되어 추적 거리를 타이트하게 좁혀 번 돈을 강력히 지킵니다.
                               </p>
                           </div>
 
@@ -737,18 +754,18 @@ export default function QuantDesk() {
                               </div>
                               <p className="text-[#3B82F6] font-black mb-2 text-[15px]">Trend Breakdown</p>
                               <p className="text-[15px] font-extrabold text-slate-700 dark:text-slate-300 leading-loose">
-                                  오르막길을 가던 주가가 단기 이평선(10일, 20일)을 뚫고 내려가며 평균선의 기울기마저 꺾이면, 상승 엔진이 꺼졌다고 판단하여 즉시 매도합니다.
+                                  주가 20일선 이탈, 단기 역배열(10일&lt;20일), 20일선 하락 전환 등 3대 징후를 감시합니다. 강세장/중립장에선 2개, 약세장에선 1개만 발생해도 추세 붕괴로 판단해 신속히 탈출합니다.
                               </p>
                           </div>
 
                           <div className="bg-blue-50/50 dark:bg-[#151D2C] border border-blue-100 dark:border-slate-700/50 p-6 md:p-8 rounded-2xl shadow-inner group">
                               <div className="flex items-center gap-3 mb-4">
                                   <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1E293B] border border-blue-200 dark:border-slate-700 flex items-center justify-center text-[#3B82F6] font-black text-lg shadow-sm group-hover:bg-[#3B82F6]/10">3</div>
-                                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">목표 달성</h4>
+                                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">모멘텀 소진 익절</h4>
                               </div>
-                              <p className="text-[#3B82F6] font-black mb-2 text-[15px]">Target Take-Profit</p>
+                              <p className="text-[#3B82F6] font-black mb-2 text-[15px]">Momentum Exhaustion</p>
                               <p className="text-[15px] font-extrabold text-slate-700 dark:text-slate-300 leading-loose">
-                                  수익률이 목표(예: +40%)에 도달하면 욕심을 부리지 않고 즉각적으로 절반 또는 전량 매도하여 수익을 확정 짓는 기계적인 익절을 수행합니다.
+                                  고정된 % 익절 기준을 폐지하여 무한대의 초과 수익을 추구합니다. 단, 수익권에서 단기 거래량이 급감하고 주가가 10일선을 깨면 모멘텀 소진으로 판단하여 전량 익절합니다.
                               </p>
                           </div>
                       </div>
@@ -833,15 +850,15 @@ export default function QuantDesk() {
                                 <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                                     <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">⚡ Quant Scores</h3>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">실시간 랭킹 스코어</p><p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">{(selectedStock.score || 0).toFixed(2)}점</p></div>
+                                        <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">퀀트 랭킹 스코어</p><p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">{(selectedStock.score || 0).toFixed(2)}점</p></div>
                                         <div>
-                                            <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">현재시점 생존 필터</p>
+                                            <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">생존 필터 통과</p>
                                             <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
-                                                {selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0} / 6
+                                                {selectedStock.total_pass !== undefined ? selectedStock.total_pass : (selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0)} / 6
                                             </p>
                                         </div>
                                     </div>
-                                    <p className="text-[11px] md:text-[12px] font-extrabold text-slate-500 mt-6 p-3 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/50">💡 과거 배치(Cron) 시점엔 6/6 통과였어도, 현재 실시간 주가 변동에 따라 다를 수 있습니다.</p>
+                                    <p className="text-[11px] md:text-[12px] font-extrabold text-slate-500 mt-6 p-3 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/50">💡 평가 지표(점수/게이트)는 가장 최근 배치(Cron) 시점을 기준으로 고정 표시됩니다. (재무 및 차트는 최신 반영)</p>
                                 </div>
 
                                 <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-center items-center relative">
@@ -875,7 +892,7 @@ export default function QuantDesk() {
                                                 <span className="text-[12px]">{passed ? '✔️' : '❌'}</span>
                                             </div>
                                             <div className={`h-1 md:h-1.5 rounded-full w-full mb-2 md:mb-3 ${passed ? 'bg-[#00B464]' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
-                                            <p className={`text-[11px] md:text-[12px] font-extrabold truncate ${passed ? 'text-[#00B464]' : 'text-slate-500'}`} title={gate.name}>{gate.name}</p>
+                                            <p className={`text-[11px] md:text-[12px] font-extrabold truncate ${passed ? 'text-[#00B464]' : 'text-slate-500'}`} title={gate.reason || gate.name}>{gate.name}</p>
                                         </div>
                                     )})}
                                 </div>
