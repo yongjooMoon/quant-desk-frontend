@@ -76,15 +76,15 @@ export default function RealEstate() {
     const initialLog = `🚀 부동산 데이터 대시보드 빌드 시작...\n🔗 자치구: ${guMap[guCode]} | 법정동: ${targetDong}\n📅 기간: ${startDate} ~ ${endDate}\n\n`;
     setLogs(initialLog);
 
-    // 🌟 프론트엔드에서는 쿼리파라미터만 던지고 키 관리/암호화 등은 일절 신경쓰지 않습니다.
-    const url = `/api/realestate/build-stream?gu_code=${guCode}&gu_name=${encodeURIComponent(guMap[guCode])}&dong=${encodeURIComponent(targetDong)}&start_date=${startDate}&end_date=${endDate}&filters=${encodeURIComponent(filters)}`;
+    // 🌟 요청하신 기존 GET 방식으로 원상복구
+    const url = `https://moon-bbh0.onrender.com/api/realestate/build-stream?gu_code=${guCode}&gu_name=${encodeURIComponent(guMap[guCode])}&dong=${encodeURIComponent(targetDong)}&start_date=${startDate}&end_date=${endDate}&filters=${encodeURIComponent(filters)}`;
 
     let isConnected = false;
     const sleepTimer = setTimeout(() => {
       if (!isConnected) setIsSleeping(true);
     }, 3000);
 
-    // 🌟 완벽하게 호환되는 EventSource(GET 스트리밍)로 롤백
+    // 🌟 EventSource 사용 유지
     const eventSource = new EventSource(url);
 
     eventSource.onmessage = (event) => {
@@ -114,15 +114,15 @@ export default function RealEstate() {
       clearTimeout(sleepTimer);
       setIsSleeping(false);
 
-      setError("서버 에러가 발생했습니다. 백엔드 로그를 확인해 주세요.");
+      setError("서버 에러가 발생했습니다. 백엔드(main.py)의 실시간 터미널 로그를 확인해 주세요.");
       setLoading(false);
       eventSource.close();
     };
   };
 
   const handleDownload = () => {
-    // 🌟 백엔드 메모리에 임시 저장된 엑셀을 다운로드하는 엔드포인트로 리다이렉트
-    window.location.href = "/api/realestate/download";
+    // 🌟 기존 다운로드 주소 유지
+    window.location.href = "https://moon-bbh0.onrender.com/api/realestate/download";
   };
 
   return (
