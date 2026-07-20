@@ -47,8 +47,8 @@ const now = new Date();
 const currentYear = now.getFullYear();
 const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
 
-const [startDate, setStartDate] = useState(${currentYear}-01-01);
-const [endDate, setEndDate] = useState(${currentYear}-${currentMonth}-01);
+// 백틱()을 사용하여 템플릿 리터럴 정상 동작 const [startDate, setStartDate] = useState(${currentYear}-01-01`);
+const [endDate, setEndDate] = useState(`${currentYear}-${currentMonth}-01`);
 
 const [filters, setFilters] = useState("");
 
@@ -77,7 +77,7 @@ const targetDong = dong.startsWith("전체") ? "전체" : dong;
 const initialLog = `🚀 부동산 데이터 대시보드 빌드 시작...\n🔗 자치구: ${guMap[guCode]} | 법정동: ${targetDong}\n📅 기간: ${startDate} ~ ${endDate}\n\n`;
 setLogs(initialLog);
 
-// 💡 URL 수정: 하드코딩된 도메인을 제거하고, 프록시가 적용될 수 있도록 상대 경로(/api/...) 사용
+// 💡 URL 수정: 프록시 기반의 상대 경로 API 사용
 const url = `/api/realestate/build-stream?gu_code=${guCode}&gu_name=${encodeURIComponent(guMap[guCode])}&dong=${encodeURIComponent(targetDong)}&start_date=${startDate}&end_date=${endDate}&filters=${encodeURIComponent(filters)}`;
 
 // 💡 SSE 스트리밍 특성을 고려한 커스텀 슬립 타이머 작동
@@ -125,11 +125,11 @@ eventSource.onerror = (e) => {
 };
 
 const handleDownload = () => {
-// 💡 URL 수정: 다운로드 링크도 상대 경로로 변경
+// 💡 URL 수정: 다운로드 역시 상대 경로 API 사용
 window.location.href = "/api/realestate/download";
 };
 
-// 🌟 구 목록 가나다순 정렬
+// 🌟 구 목록 가나다순 정렬 처리
 const sortedGuEntries = Object.entries(guMap).sort((a, b) => a[1].localeCompare(b[1]));
 
 return (
@@ -270,6 +270,7 @@ return (
     </div>
   )}
 </div>
+
 
 );
 }
