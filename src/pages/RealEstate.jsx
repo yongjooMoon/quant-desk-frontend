@@ -1,6 +1,6 @@
 import { Building2, Search, Download, RefreshCcw, Calendar } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import { useRenderApi } from '../hooks/useRenderApi';
+import CryptoJS from 'crypto-js';
 
 export default function RealEstate() {
   const guMap = {
@@ -55,13 +55,9 @@ export default function RealEstate() {
   const [logs, setLogs] = useState("");
   const [error, setError] = useState("");
   
-  // 🌟 다운로드 관련 상태
+  // 다운로드 관련 상태
   const [downloadReady, setDownloadReady] = useState(false);
   const [excelData, setExcelData] = useState(null); 
-
-  // 🌟 useRenderApi 훅 사용
-  const { callApi, ServerWakeupOverlay } = useRenderApi();
-  const [isSleeping, setIsSleeping] = useState(false);
 
   const logEndRef = useRef(null);
 
@@ -69,19 +65,43 @@ export default function RealEstate() {
     if (logEndRef.current) logEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
+  // 🌟 암호화된 API 키를 로컬 스토리지에서 복호화하여 가져오는 함수
+  const getDecryptedApiKey = () => {
+    const encryptedKey = localStorage.getItem('api_key');
+    if (!encryptedKey) return null;
+
+    try {
+      // ⚠️ 중요: 암호화할 때 사용했던 동일한 Secret Key를 사용해야 합니다.
+      const secretKey = process.env.REACT_APP_SECRET_KEY || "fallback_secret_key";
+      const bytes = CryptoJS.AES.decrypt(encryptedKey, secretKey);
+      const originalKey = bytes.toString(CryptoJS.enc.Utf8);
+      return originalKey;
+    } catch (err) {
+      console.error("API 키 복호화 실패:", err);
+      return null;
+    }
+  };
+
   const handleBuild = async () => {
+    // 🌟 1. API 키 획득 및 검증
+    const apiKey = getDecryptedApiKey();
+    if (!apiKey) {
+      setError("API 키가 설정되지 않았거나 유효하지 않습니다. 메인 화면이나 설정에서 API 키를 먼저 등록해주세요.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setDownloadReady(false);
     setExcelData(null);
-    setIsSleeping(false);
 
     const targetDong = dong.startsWith("전체") ? "전체" : dong;
     const initialLog = `🚀 부동산 데이터 대시보드 빌드 시작...\n🔗 자치구: ${guMap[guCode]} | 법정동: ${targetDong}\n📅 기간: ${startDate} ~ ${endDate}\n\n`;
     setLogs(initialLog + "데이터를 수집하고 엑셀 리포트를 생성 중입니다...\n(데이터 양에 따라 1~2분 정도 소요될 수 있습니다. 잠시만 기다려주세요.)\n");
 
+    // 🌟 2. 백엔드(FastAPI)의 RealEstateRequest 모델 규격에 맞춘 Payload 생성
     const payload = {
-      api_key: "your_api_key_here", // ⚠️ 백엔드 API 키가 필요하다면 여기에 기입
+      api_key: apiKey,
       district_code: guCode,
       district_name: guMap[guCode],
       target_dong: targetDong,
@@ -90,14 +110,8 @@ export default function RealEstate() {
       apt_filters: filters
     };
 
-    let isConnected = false;
-    const sleepTimer = setTimeout(() => {
-      if (!isConnected) setIsSleeping(true);
-    }, 3000);
-
     try {
-      // 🌟 스트리밍 처리 (SSE) -> fetch API 로 직접 스트림을 읽어오도록 수정
-      // callApi는 일반 JSON 응답을 기대하는 훅이므로, 스트리밍 처리를 위해서는 fetch를 직접 사용해야 합니다.
+      // 🌟 3. fetch API를 이용해 POST 방식으로 스트리밍 엔드포인트 호출
       const response = await fetch("https://moon-bbh0.onrender.com/api/real-estate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,10 +120,7 @@ export default function RealEstate() {
 
       if (!response.ok) throw new Error(`서버 에러: ${response.status}`);
 
-      isConnected = true;
-      clearTimeout(sleepTimer);
-      setIsSleeping(false);
-
+      // 🌟 4. 스트림 데이터를 수신하며 실시간 로그 업데이트
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
 
@@ -117,6 +128,7 @@ export default function RealEstate() {
         const { value, done } = await reader.read();
         if (done) break;
 
+        // 청크 디코딩 후 라인 단위로 쪼개기 (SSE 규격의 \n\n)
         const chunk = decoder.decode(value, { stream: true });
         const lines = chunk.split("\n\n");
 
@@ -129,14 +141,17 @@ export default function RealEstate() {
               const data = JSON.parse(dataStr);
               
               if (data.status === "log" || data.status === "progress") {
+                // 일반 진행 로그
                 setLogs(prev => prev + data.message + "\n");
               } 
               else if (data.status === "error") {
+                // 에러 발생 시 처리 중단
                 setError(data.message);
                 setLoading(false);
                 return;
               } 
               else if (data.status === "success") {
+                // 성공적으로 완료되어 Base64 엑셀 데이터 수신
                 setLogs(prev => prev + "\n✅ 데이터 추출 성공!\n\n하단의 다운로드 버튼을 눌러주세요!");
                 setExcelData({
                   file_data: data.file_data,
@@ -153,15 +168,13 @@ export default function RealEstate() {
         }
       }
     } catch (err) {
-      isConnected = true;
-      clearTimeout(sleepTimer);
-      setIsSleeping(false);
       setError(err.message || "서버 통신 중 오류가 발생했습니다.");
       setLoading(false);
     }
   };
 
   const handleDownload = () => {
+    // 🌟 서버로부터 받아둔 Base64 데이터를 엑셀 파일로 브라우저상에서 바로 다운로드
     if (!excelData || !excelData.file_data) return;
 
     const link = document.createElement("a");
@@ -175,8 +188,6 @@ export default function RealEstate() {
 
   return (
     <div className="w-full px-0 py-0 transition-colors duration-300 relative font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif] pb-20">
-
-      {isSleeping && <ServerWakeupOverlay />}
 
       <div className="mb-10">
         <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white flex items-center gap-3 tracking-tight mb-3">
