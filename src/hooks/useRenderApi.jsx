@@ -88,28 +88,59 @@ function LineFlipCard() {
   const [line] = useState(() => FUN_LINES[Math.floor(Math.random() * FUN_LINES.length)]);
   const [flipped, setFlipped] = useState(false);
 
+  // 카드 뒷면 — 실제 카드처럼 보이도록 대각선 크로스해치 패턴
+  const cardBackPattern = {
+    backgroundColor: '#11131C',
+    backgroundImage: `
+      repeating-linear-gradient(45deg, rgba(124,108,255,0.12) 0px, rgba(124,108,255,0.12) 2px, transparent 2px, transparent 14px),
+      repeating-linear-gradient(-45deg, rgba(34,211,238,0.10) 0px, rgba(34,211,238,0.10) 2px, transparent 2px, transparent 14px)
+    `,
+  };
+
   return (
     <>
-      <div className="[perspective:1200px] w-[300px] h-56 mb-4">
+      <div className="[perspective:1400px] w-[210px] h-[290px] mb-4">
         <button
           onClick={() => setFlipped(true)}
           aria-label="카드 뒤집기"
           className={`relative w-full h-full [transform-style:preserve-3d] transition-transform duration-500 ease-out ${flipped ? '[transform:rotateY(180deg)]' : ''}`}
         >
           {/* 카드 뒷면 (처음 보이는 면) */}
-          <div className="absolute inset-0 [backface-visibility:hidden] rounded-2xl border border-white/10 bg-white/[0.03] flex flex-col items-center justify-center gap-3">
+          <div
+            className="absolute inset-0 [backface-visibility:hidden] rounded-2xl border-[3px] border-white/15 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.6)] overflow-hidden flex items-center justify-center"
+            style={cardBackPattern}
+          >
+            {/* 안쪽 이중 테두리 — 카드 프레임 느낌 */}
+            <div className="absolute inset-[9px] rounded-xl border border-white/10 pointer-events-none" />
+            {/* 코너 인덱스 마크 (실제 카드의 좌상단/우하단 숫자처럼) */}
+            <span className="absolute top-3 left-3.5 text-[12px] font-black tracking-widest text-white/35">Q</span>
+            <span className="absolute bottom-3 right-3.5 text-[12px] font-black tracking-widest text-white/35 rotate-180">Q</span>
+            {/* 중앙 엠블럼 */}
             <div
-              className="w-14 h-14 rounded-2xl"
+              className="w-16 h-16 rounded-full flex items-center justify-center"
               style={{
                 background: 'linear-gradient(135deg, #7C6CFF 0%, #3B82F6 55%, #22D3EE 100%)',
-                boxShadow: '0 0 30px rgba(109,92,255,0.45)',
+                boxShadow: '0 0 30px rgba(109,92,255,0.5)',
               }}
-            />
-            <p className="text-[12px] font-bold text-slate-500">탭해서 카드 뒤집기</p>
+            >
+              <span className="text-white font-black text-xl">Q</span>
+            </div>
+            <p className="absolute bottom-8 text-[11px] font-bold text-white/40">탭해서 뒤집기</p>
           </div>
+
           {/* 카드 앞면 (뒤집으면 보이는 면) */}
-          <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-2xl border border-white/10 bg-white/[0.03] p-7 flex items-center justify-center text-center">
-            <p className="text-[15px] font-bold text-slate-200 leading-relaxed">{line}</p>
+          <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-2xl border-[3px] border-white/15 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.6)] bg-[#11131C] overflow-hidden flex flex-col items-center justify-center px-6 text-center">
+            <div className="absolute inset-[9px] rounded-xl border border-white/10 pointer-events-none" />
+            <span className="absolute top-3 left-3.5 text-[12px] font-black tracking-widest text-white/20">Q</span>
+            <span className="absolute bottom-3 right-3.5 text-[12px] font-black tracking-widest text-white/20 rotate-180">Q</span>
+
+            <span
+              className="mb-4 px-3 py-1 rounded-full text-[10px] font-black tracking-wide text-white/70 border border-white/10"
+              style={{ background: 'rgba(124,108,255,0.14)' }}
+            >
+              오늘의 한마디
+            </span>
+            <p className="text-[14px] font-bold text-slate-200 leading-relaxed">{line}</p>
           </div>
         </button>
       </div>
