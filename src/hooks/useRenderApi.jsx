@@ -101,7 +101,7 @@ function LineFlipCard() {
     <>
       <div className="[perspective:1400px] w-[210px] h-[290px] mb-4">
         <button
-          onClick={() => setFlipped(true)}
+          onClick={() => setFlipped(f => !f)}
           aria-label="카드 뒤집기"
           className={`relative w-full h-full [transform-style:preserve-3d] transition-transform duration-500 ease-out ${flipped ? '[transform:rotateY(180deg)]' : ''}`}
         >
