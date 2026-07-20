@@ -643,129 +643,134 @@ export default function QuantDesk() {
 
           {/* ===================== WHITEPAPER TAB ===================== */}
           {activeTab === "Whitepaper" && (
-              <div className="animate-in fade-in duration-500 w-full pb-10">
-                  <div className="mb-10">
-                      <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-4 tracking-tight flex items-center gap-3">
-                          <BookOpen className="text-blue-500" size={28} />
-                          Chase Momentum Algorithm Whitepaper
+              <div className="animate-in fade-in duration-500 w-full max-w-5xl mx-auto pb-10">
+                  
+                  {/* 헤더 섹션 */}
+                  <div className="mb-12 text-center md:text-left mt-4">
+                      <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white mb-4 tracking-tight flex items-center justify-center md:justify-start gap-3">
+                          <Activity className="text-blue-500" size={36} />
+                          퀀트 AI는 이렇게 투자해요
                       </h2>
-                      <p className="text-[16px] md:text-[18px] font-extrabold text-slate-700 dark:text-slate-300 leading-relaxed max-w-4xl">
-                          시장의 주도주를 포착하고 철저한 동적 리스크 관리(Dynamic Risk Management)로 계좌를 안정적으로 우상향시키는 정통 퀀트 추격매수 & 방어 전략 안내서입니다.
+                      <p className="text-[16px] md:text-[18px] font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+                          좋은 주식을 찾고, 위험할 땐 재빨리 도망치는<br className="md:hidden" /> 똑똑한 로봇의 투자 규칙을 소개할게요.
                       </p>
                   </div>
 
+                  {/* 매수 진입 섹션 */}
                   <div className="mb-16">
                       <div className="flex items-center gap-3 mb-6 px-2">
-                          <Rocket className="text-[#FF4B4B]" size={24} />
-                          <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">매수 진입 6대 관문 (Entry Gates)</h3>
+                          <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-500">
+                              <Rocket size={20} />
+                          </div>
+                          <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">살 때 규칙 <span className="text-slate-400 text-lg font-bold">(Entry Gates)</span></h3>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                          <div className="bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:border-[#FF4B4B]/50 transition-colors group">
-                              <div className="flex items-center gap-3 mb-4">
-                                  <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#FF4B4B] font-black text-lg shadow-sm group-hover:bg-[#FF4B4B]/10">A</div>
-                                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">성장성</h4>
-                              </div>
-                              <p className="text-[#FF4B4B] font-black mb-3 text-[15px]">"돈을 더 잘 벌고 있는가?"</p>
-                              <p className="text-[15px] font-extrabold text-slate-600 dark:text-slate-400 leading-loose">
-                                  회사의 기초 체력을 봅니다. 단순히 흑자가 아니라, 매출, 영업이익, 순이익이 작년 동기 대비 얼마나 성장했는지 종합적으로 평가합니다.
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                          {/* Card 1 */}
+                          <div className="bg-slate-50 dark:bg-[#111827] border border-slate-100 dark:border-slate-800 p-6 rounded-[28px] shadow-sm hover:shadow-md transition-shadow group">
+                              <div className="text-3xl mb-3">📈</div>
+                              <h4 className="font-black text-lg text-slate-900 dark:text-white mb-1">돈 잘 버는 회사</h4>
+                              <p className="text-blue-500 font-bold mb-3 text-[14px]">"작년보다 돈을 더 잘 벌고 있나요?"</p>
+                              <p className="text-[14px] md:text-[15px] font-bold text-slate-600 dark:text-slate-400 leading-relaxed">
+                                  단순히 흑자인지 묻는 게 아니에요. 매출과 이익이 작년보다 쑥쑥 늘어난 튼튼한 회사만 골라요.
+                              </p>
+                          </div>
+                          
+                          {/* Card 2 */}
+                          <div className="bg-slate-50 dark:bg-[#111827] border border-slate-100 dark:border-slate-800 p-6 rounded-[28px] shadow-sm hover:shadow-md transition-shadow group">
+                              <div className="text-3xl mb-3">🛡️</div>
+                              <h4 className="font-black text-lg text-slate-900 dark:text-white mb-1">튼튼한 맷집</h4>
+                              <p className="text-blue-500 font-bold mb-3 text-[14px]">"크게 다친 적 없이 버티나요?"</p>
+                              <p className="text-[14px] md:text-[15px] font-bold text-slate-600 dark:text-slate-400 leading-relaxed">
+                                  롤러코스터처럼 가격이 심하게 오르락내리락하는 멀미 나는 주식은 피하고, 맷집 좋은 주식을 찾아요.
                               </p>
                           </div>
 
-                          <div className="bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:border-[#FF4B4B]/50 transition-colors group">
-                              <div className="flex items-center gap-3 mb-4">
-                                  <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#FF4B4B] font-black text-lg shadow-sm group-hover:bg-[#FF4B4B]/10">B</div>
-                                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">방어력</h4>
-                              </div>
-                              <p className="text-[#FF4B4B] font-black mb-3 text-[15px]">"심하게 다친 적 없이 버티는가?"</p>
-                              <p className="text-[15px] font-extrabold text-slate-600 dark:text-slate-400 leading-loose">
-                                  롤러코스터처럼 고점 대비 심하게 폭락하는 종목을 피하기 위해, ATR 기반으로 해당 주식이 버틸 수 있는 최대 하락 폭을 엄격히 한정합니다.
+                          {/* Card 3 */}
+                          <div className="bg-slate-50 dark:bg-[#111827] border border-slate-100 dark:border-slate-800 p-6 rounded-[28px] shadow-sm hover:shadow-md transition-shadow group">
+                              <div className="text-3xl mb-3">🛒</div>
+                              <h4 className="font-black text-lg text-slate-900 dark:text-white mb-1">인기 만점</h4>
+                              <p className="text-blue-500 font-bold mb-3 text-[14px]">"사람들이 많이 찾는 주식인가요?"</p>
+                              <p className="text-[14px] md:text-[15px] font-bold text-slate-600 dark:text-slate-400 leading-relaxed">
+                                  내가 팔고 싶을 때 언제든 팔 수 있게, 매일 50억 원 이상 거래되는 인기쟁이 주식만 사요.
                               </p>
                           </div>
 
-                          <div className="bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:border-[#FF4B4B]/50 transition-colors group">
-                              <div className="flex items-center gap-3 mb-4">
-                                  <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#FF4B4B] font-black text-lg shadow-sm group-hover:bg-[#FF4B4B]/10">C</div>
-                                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">유동성</h4>
-                              </div>
-                              <p className="text-[#FF4B4B] font-black mb-3 text-[15px]">"사람들이 많이 찾는 인기 주식인가?"</p>
-                              <p className="text-[15px] font-extrabold text-slate-600 dark:text-slate-400 leading-loose">
-                                  내가 사고 팔고 싶을 때 즉시 거래할 수 있도록, 최근 20일 동안 하루 평균 거래 대금이 50억 원을 넘는 메이저 종목들 사이에서만 트레이딩합니다.
+                          {/* Card 4 */}
+                          <div className="bg-slate-50 dark:bg-[#111827] border border-slate-100 dark:border-slate-800 p-6 rounded-[28px] shadow-sm hover:shadow-md transition-shadow group">
+                              <div className="text-3xl mb-3">🚀</div>
+                              <h4 className="font-black text-lg text-slate-900 dark:text-white mb-1">꾸준한 오르막길</h4>
+                              <p className="text-red-500 font-bold mb-3 text-[14px]">"오르막길을 안정적으로 걷나요?"</p>
+                              <p className="text-[14px] md:text-[15px] font-bold text-slate-600 dark:text-slate-400 leading-relaxed">
+                                  미끄럼틀 타듯 내려가는 주식은 안 사요. 꾸준히 오르는 주식을 사요. 단, 너무 높이 올라 숨찬 주식은 빼고요.
                               </p>
                           </div>
 
-                          <div className="bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:border-[#FF4B4B]/50 transition-colors group">
-                              <div className="flex items-center gap-3 mb-4">
-                                  <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#FF4B4B] font-black text-lg shadow-sm group-hover:bg-[#FF4B4B]/10">D</div>
-                                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">추세</h4>
-                              </div>
-                              <p className="text-[#FF4B4B] font-black mb-3 text-[15px]">"오르막길을 안정적으로 걷는가?"</p>
-                              <p className="text-[15px] font-extrabold text-slate-600 dark:text-slate-400 leading-loose">
-                                  20일선이 60일선 위에 있는 완벽한 정배열 기류 종목만 선별합니다. 동시에 종목별 변동성(ATR)에 맞춘 동적 이격도 제한(15~50%)을 두어 이미 너무 과열된 종목은 배제합니다.
+                          {/* Card 5 */}
+                          <div className="bg-slate-50 dark:bg-[#111827] border border-slate-100 dark:border-slate-800 p-6 rounded-[28px] shadow-sm hover:shadow-md transition-shadow group">
+                              <div className="text-3xl mb-3">💥</div>
+                              <h4 className="font-black text-lg text-slate-900 dark:text-white mb-1">천장 뚫기</h4>
+                              <p className="text-red-500 font-bold mb-3 text-[14px]">"최고가를 뚫을 준비가 됐나요?"</p>
+                              <p className="text-[14px] md:text-[15px] font-bold text-slate-600 dark:text-slate-400 leading-relaxed">
+                                  최근 3개월 동안 가장 비쌌던 가격 근처까지 다시 치고 올라온, 힘이 펄펄 넘치는 주식을 포착해요.
                               </p>
                           </div>
 
-                          <div className="bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:border-[#FF4B4B]/50 transition-colors group">
-                              <div className="flex items-center gap-3 mb-4">
-                                  <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#FF4B4B] font-black text-lg shadow-sm group-hover:bg-[#FF4B4B]/10">E</div>
-                                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">가격 돌파</h4>
-                              </div>
-                              <p className="text-[#FF4B4B] font-black mb-3 text-[15px]">"천장을 뚫을 준비가 되었는가?"</p>
-                              <p className="text-[15px] font-extrabold text-slate-600 dark:text-slate-400 leading-loose">
-                                  최근 3개월(60일) 최고가의 90% 이상 매물대를 2일 연속 뚫어내거나, 1일차라도 60일 평균 대비 2배 이상의 강력한 거래량이 터지면 즉각 포착합니다.
-                              </p>
-                          </div>
-
-                          <div className="bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:border-[#FF4B4B]/50 transition-colors group">
-                              <div className="flex items-center gap-3 mb-4">
-                                  <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#FF4B4B] font-black text-lg shadow-sm group-hover:bg-[#FF4B4B]/10">F</div>
-                                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">수급</h4>
-                              </div>
-                              <p className="text-[#FF4B4B] font-black mb-3 text-[15px]">"관중들이 우르르 몰려오는가?"</p>
-                              <p className="text-[15px] font-extrabold text-slate-600 dark:text-slate-400 leading-loose">
-                                  가격 상승을 뒷받침하는 강력한 자금 유입을 봅니다. 최근 5일 평균 및 당일 거래량이 60일 평균 대비 1.5배 이상 폭발한 종목만 선별합니다.
+                          {/* Card 6 */}
+                          <div className="bg-slate-50 dark:bg-[#111827] border border-slate-100 dark:border-slate-800 p-6 rounded-[28px] shadow-sm hover:shadow-md transition-shadow group">
+                              <div className="text-3xl mb-3">👥</div>
+                              <h4 className="font-black text-lg text-slate-900 dark:text-white mb-1">구름 관중</h4>
+                              <p className="text-red-500 font-bold mb-3 text-[14px]">"사람들이 우르르 몰려오나요?"</p>
+                              <p className="text-[14px] md:text-[15px] font-bold text-slate-600 dark:text-slate-400 leading-relaxed">
+                                  평소보다 거래량이 폭발하면서 사람들과 큰돈이 한 번에 몰려드는 결정적 순간을 노려요.
                               </p>
                           </div>
                       </div>
                   </div>
 
+                  {/* 생존 매도 섹션 */}
                   <div>
                       <div className="flex items-center gap-3 mb-6 px-2">
-                          <ShieldAlert className="text-[#3B82F6]" size={24} />
-                          <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">생존 매도 3대 원칙 (Exit Signals)</h3>
+                          <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-500">
+                              <ShieldAlert size={20} />
+                          </div>
+                          <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">팔 때 규칙 <span className="text-slate-400 text-lg font-bold">(Exit Signals)</span></h3>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                          <div className="bg-blue-50/50 dark:bg-[#151D2C] border border-blue-100 dark:border-slate-700/50 p-6 md:p-8 rounded-2xl shadow-inner group">
-                              <div className="flex items-center gap-3 mb-4">
-                                  <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1E293B] border border-blue-200 dark:border-slate-700 flex items-center justify-center text-[#3B82F6] font-black text-lg shadow-sm group-hover:bg-[#3B82F6]/10">1</div>
-                                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">동적 손절</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                          {/* Card 1 */}
+                          <div className="bg-blue-50/50 dark:bg-[#151D2C] border border-blue-100 dark:border-slate-700/50 p-6 rounded-[28px] shadow-sm">
+                              <div className="flex justify-between items-start mb-3">
+                                  <div className="text-3xl">🚨</div>
+                                  <span className="text-[12px] font-extrabold text-blue-500 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded-full">Trailing Stop</span>
                               </div>
-                              <p className="text-[#3B82F6] font-black mb-2 text-[15px]">Trailing Stop</p>
-                              <p className="text-[15px] font-extrabold text-slate-700 dark:text-slate-300 leading-loose">
-                                  주식의 성격(ATR)에 맞춰 유연한 손절선을 설정합니다. 특히 +15% 이상 수익권 진입 시 '이익 보호 모드'로 전환되어 추적 거리를 타이트하게 좁혀 번 돈을 강력히 지킵니다.
+                              <h4 className="font-black text-lg text-slate-900 dark:text-white mb-1">이익 지킴이</h4>
+                              <p className="text-[14px] md:text-[15px] font-bold text-slate-600 dark:text-slate-300 leading-relaxed mt-2">
+                                  수익이 나기 시작하면 방어선도 따라 올려요. 수익권에 진입하면 방어선을 더 바짝 당겨서 <strong>벌어둔 돈을 확실히 지켜냅니다.</strong>
                               </p>
                           </div>
 
-                          <div className="bg-blue-50/50 dark:bg-[#151D2C] border border-blue-100 dark:border-slate-700/50 p-6 md:p-8 rounded-2xl shadow-inner group">
-                              <div className="flex items-center gap-3 mb-4">
-                                  <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1E293B] border border-blue-200 dark:border-slate-700 flex items-center justify-center text-[#3B82F6] font-black text-lg shadow-sm group-hover:bg-[#3B82F6]/10">2</div>
-                                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">추세 붕괴</h4>
+                          {/* Card 2 */}
+                          <div className="bg-blue-50/50 dark:bg-[#151D2C] border border-blue-100 dark:border-slate-700/50 p-6 rounded-[28px] shadow-sm">
+                              <div className="flex justify-between items-start mb-3">
+                                  <div className="text-3xl">📉</div>
+                                  <span className="text-[12px] font-extrabold text-blue-500 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded-full">Trend Breakdown</span>
                               </div>
-                              <p className="text-[#3B82F6] font-black mb-2 text-[15px]">Trend Breakdown</p>
-                              <p className="text-[15px] font-extrabold text-slate-700 dark:text-slate-300 leading-loose">
-                                  주가 20일선 이탈, 단기 역배열(10일&lt;20일), 20일선 하락 전환 등 3대 징후를 감시합니다. 강세장/중립장에선 2개, 약세장에선 1개만 발생해도 추세 붕괴로 판단해 신속히 탈출합니다.
+                              <h4 className="font-black text-lg text-slate-900 dark:text-white mb-1">하락 신호 감지</h4>
+                              <p className="text-[14px] md:text-[15px] font-bold text-slate-600 dark:text-slate-300 leading-relaxed mt-2">
+                                  오르막길이 끝나고 내리막길이 시작될 것 같은 징후가 보이면, 미련을 갖지 않고 <strong>상승 엔진이 꺼지기 전에 즉시 탈출해요.</strong>
                               </p>
                           </div>
 
-                          <div className="bg-blue-50/50 dark:bg-[#151D2C] border border-blue-100 dark:border-slate-700/50 p-6 md:p-8 rounded-2xl shadow-inner group">
-                              <div className="flex items-center gap-3 mb-4">
-                                  <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1E293B] border border-blue-200 dark:border-slate-700 flex items-center justify-center text-[#3B82F6] font-black text-lg shadow-sm group-hover:bg-[#3B82F6]/10">3</div>
-                                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">모멘텀 소진 익절</h4>
+                          {/* Card 3 */}
+                          <div className="bg-blue-50/50 dark:bg-[#151D2C] border border-blue-100 dark:border-slate-700/50 p-6 rounded-[28px] shadow-sm">
+                              <div className="flex justify-between items-start mb-3">
+                                  <div className="text-3xl">💨</div>
+                                  <span className="text-[12px] font-extrabold text-blue-500 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded-full">Momentum Exhaustion</span>
                               </div>
-                              <p className="text-[#3B82F6] font-black mb-2 text-[15px]">Momentum Exhaustion</p>
-                              <p className="text-[15px] font-extrabold text-slate-700 dark:text-slate-300 leading-loose">
-                                  고정된 % 익절 기준을 폐지하여 무한대의 초과 수익을 추구합니다. 단, 수익권에서 단기 거래량이 급감하고 주가가 10일선을 깨면 모멘텀 소진으로 판단하여 전량 익절합니다.
+                              <h4 className="font-black text-lg text-slate-900 dark:text-white mb-1">에너지 고갈</h4>
+                              <p className="text-[14px] md:text-[15px] font-bold text-slate-600 dark:text-slate-300 leading-relaxed mt-2">
+                                  정해진 목표치는 없지만, 사람들이 더 이상 사지 않고 <strong>시장 열기가 푹 식어버리면 욕심내지 않고 쿨하게 짐을 쌉니다.</strong>
                               </p>
                           </div>
                       </div>
