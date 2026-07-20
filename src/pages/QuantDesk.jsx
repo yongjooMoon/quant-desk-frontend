@@ -471,7 +471,7 @@ export default function QuantDesk() {
                 <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-2 tracking-tight">KOSPI 대비 포트폴리오 성과 (Alpha)</h2>
                 <p className="text-[14px] font-extrabold text-slate-500 mb-6 tracking-tight">※ 매도(Exit)가 완료된 종목의 실현 수익률을 바탕으로 KOSPI 지수와 비교합니다.</p>
 
-                <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 md:p-6 rounded-2xl shadow-sm w-full mb-12 relative overflow-hidden">
+                <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 md:p-4 rounded-2xl shadow-sm w-full mb-12 relative overflow-hidden">
                     <div className="flex flex-col md:flex-row justify-between md:items-end mb-4 md:mb-5 relative z-10 border-b border-slate-200 dark:border-slate-800/80 pb-3">
                         <div>
                             <div className="flex items-baseline gap-4 mt-2">
