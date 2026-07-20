@@ -648,16 +648,6 @@ export default function QuantDesk() {
           {/* ===================== WHITEPAPER TAB ===================== */}
           {activeTab === "Whitepaper" && (
               <div className="animate-in fade-in duration-500 w-full max-w-4xl mx-auto pb-10">
-                  <div className="mb-12">
-                      <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white mb-4 tracking-tight flex items-center gap-3">
-                          <BookOpen className="text-blue-500" size={28} />
-                          Chase Momentum Algorithm Whitepaper
-                      </h2>
-                      <p className="text-[16px] md:text-[17px] font-extrabold text-slate-600 dark:text-slate-400 leading-relaxed">
-                          시장의 주도주를 포착하고 철저한 동적 리스크 관리(Dynamic Risk Management)로 계좌를 안정적으로 우상향시키는 정통 퀀트 추격매수 & 방어 전략 안내서입니다.
-                      </p>
-                  </div>
-
                   {/* 매수 진입 섹션 */}
                   <div className="mb-12">
                       <div 
