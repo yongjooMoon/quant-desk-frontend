@@ -1,7 +1,5 @@
-// src/pages/RealEstate.jsx
 import { Building2, Search, Download, RefreshCcw, Calendar } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-// 🌟 공통 API 훅 임포트
 import { useRenderApi } from '../hooks/useRenderApi';
 
 export default function RealEstate() {
@@ -13,7 +11,6 @@ export default function RealEstate() {
     '11620': '관악구', '11650': '서초구', '11680': '강남구', '11710': '송파구', '11740': '강동구'
   };
 
-  // 서울시 전체 법정동 하드코딩 데이터
   const dongMap = {
     '11680': ['개포동', '논현동', '대치동', '도곡동', '삼성동', '세곡동', '수서동', '신사동', '압구정동', '역삼동', '율현동', '일원동', '자곡동', '청담동'],
     '11740': ['강일동', '고덕동', '길동', '둔촌동', '명일동', '상일동', '성내동', '암사동', '천호동'],
@@ -42,7 +39,7 @@ export default function RealEstate() {
     '11260': ['망우동', '면목동', '묵동', '상봉동', '신내동', '중화동']
   };
 
-  const [guCode, setGuCode] = useState("11680"); // 기본값을 정렬 첫번째(강남구)로 변경
+  const [guCode, setGuCode] = useState("11680");
   const [dong, setDong] = useState("전체 (구 단위)");
 
   const now = new Date();
@@ -57,10 +54,13 @@ export default function RealEstate() {
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState("");
   const [error, setError] = useState("");
+  
+  // 🌟 다운로드 관련 상태
   const [downloadReady, setDownloadReady] = useState(false);
+  const [excelData, setExcelData] = useState(null); 
 
-  // 🌟 변경된 callApi를 훅에서 가져옵니다
-  const { ServerWakeupOverlay, callApi } = useRenderApi();
+  // 🌟 useRenderApi 훅 사용
+  const { callApi, ServerWakeupOverlay } = useRenderApi();
   const [isSleeping, setIsSleeping] = useState(false);
 
   const logEndRef = useRef(null);
@@ -73,15 +73,22 @@ export default function RealEstate() {
     setLoading(true);
     setError("");
     setDownloadReady(false);
+    setExcelData(null);
     setIsSleeping(false);
 
     const targetDong = dong.startsWith("전체") ? "전체" : dong;
     const initialLog = `🚀 부동산 데이터 대시보드 빌드 시작...\n🔗 자치구: ${guMap[guCode]} | 법정동: ${targetDong}\n📅 기간: ${startDate} ~ ${endDate}\n\n`;
-    
-    // callApi를 사용하므로 실시간 스트리밍 대신 안내 메시지 출력
     setLogs(initialLog + "데이터를 수집하고 엑셀 리포트를 생성 중입니다...\n(데이터 양에 따라 1~2분 정도 소요될 수 있습니다. 잠시만 기다려주세요.)\n");
 
-    const url = `/api/realestate/build-stream?gu_code=${guCode}&gu_name=${encodeURIComponent(guMap[guCode])}&dong=${encodeURIComponent(targetDong)}&start_date=${startDate}&end_date=${endDate}&filters=${encodeURIComponent(filters)}`;
+    const payload = {
+      api_key: "your_api_key_here", // ⚠️ 백엔드 API 키가 필요하다면 여기에 기입
+      district_code: guCode,
+      district_name: guMap[guCode],
+      target_dong: targetDong,
+      start_date: startDate,
+      end_date: endDate,
+      apt_filters: filters
+    };
 
     let isConnected = false;
     const sleepTimer = setTimeout(() => {
@@ -89,37 +96,88 @@ export default function RealEstate() {
     }, 3000);
 
     try {
-      // 🌟 새로 적용된 callApi 비동기 방식
-      await callApi(url);
+      // 🌟 스트리밍 처리 (SSE) -> fetch API 로 직접 스트림을 읽어오도록 수정
+      // callApi는 일반 JSON 응답을 기대하는 훅이므로, 스트리밍 처리를 위해서는 fetch를 직접 사용해야 합니다.
+      const response = await fetch("https://moon-bbh0.onrender.com/api/real-estate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) throw new Error(`서버 에러: ${response.status}`);
 
       isConnected = true;
       clearTimeout(sleepTimer);
       setIsSleeping(false);
 
-      setLogs(prev => prev + "\n✅ 데이터 처리가 성공적으로 완료되었습니다.\n\n하단의 다운로드 버튼을 눌러주세요!");
-      setDownloadReady(true);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n\n");
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const dataStr = line.substring(6).trim();
+            if (!dataStr) continue;
+
+            try {
+              const data = JSON.parse(dataStr);
+              
+              if (data.status === "log" || data.status === "progress") {
+                setLogs(prev => prev + data.message + "\n");
+              } 
+              else if (data.status === "error") {
+                setError(data.message);
+                setLoading(false);
+                return;
+              } 
+              else if (data.status === "success") {
+                setLogs(prev => prev + "\n✅ 데이터 추출 성공!\n\n하단의 다운로드 버튼을 눌러주세요!");
+                setExcelData({
+                  file_data: data.file_data,
+                  filename: data.filename
+                });
+                setDownloadReady(true);
+                setLoading(false);
+                return;
+              }
+            } catch (parseError) {
+              console.error("JSON 파싱 에러:", parseError, "원본 데이터:", dataStr);
+            }
+          }
+        }
+      }
     } catch (err) {
       isConnected = true;
       clearTimeout(sleepTimer);
       setIsSleeping(false);
-      
-      setError(err.message || "서버 에러가 발생했습니다. 백엔드 로그를 확인해 주세요.");
-    } finally {
+      setError(err.message || "서버 통신 중 오류가 발생했습니다.");
       setLoading(false);
     }
   };
 
   const handleDownload = () => {
-    window.location.href = "/api/realestate/download";
+    if (!excelData || !excelData.file_data) return;
+
+    const link = document.createElement("a");
+    link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${excelData.file_data}`;
+    link.download = excelData.filename || `부동산_실거래가_${guMap[guCode]}.xlsx`;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
     <div className="w-full px-0 py-0 transition-colors duration-300 relative font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif] pb-20">
 
-      {/* 🌟 통신 지연 시 띄워주는 서버 기상 오버레이 */}
       {isSleeping && <ServerWakeupOverlay />}
 
-      {/* 🌟 타이틀 섹션 (디자인 통일) */}
       <div className="mb-10">
         <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white flex items-center gap-3 tracking-tight mb-3">
           <Building2 className="text-[#3182F6]" size={36} />
@@ -130,9 +188,7 @@ export default function RealEstate() {
         </p>
       </div>
 
-      {/* 🌟 메인 폼 컨테이너 */}
       <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 p-8 md:p-10 rounded-3xl shadow-lg mb-10 w-full relative overflow-hidden">
-          {/* 장식용 블러 원형 */}
           <div className={`absolute top-[-50px] right-[-50px] w-64 h-64 bg-[#3182F6]/10 rounded-full blur-[80px] pointer-events-none`}></div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 relative z-10">
@@ -142,7 +198,6 @@ export default function RealEstate() {
                     value={guCode} onChange={e => {setGuCode(e.target.value); setDong("전체 (구 단위)");}}
                     className="w-full bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-2xl px-5 py-4 outline-none font-bold text-[16px] hover:border-blue-400 dark:hover:border-blue-500 transition-colors appearance-none cursor-pointer"
                   >
-                      {/* 🌟 자치구 이름(가나다) 기준으로 정렬 후 렌더링 */}
                       {Object.entries(guMap)
                         .sort((a, b) => a[1].localeCompare(b[1]))
                         .map(([code, name]) => (
@@ -157,7 +212,6 @@ export default function RealEstate() {
                     className="w-full bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-2xl px-5 py-4 outline-none font-bold text-[16px] hover:border-blue-400 dark:hover:border-blue-500 transition-colors appearance-none cursor-pointer"
                   >
                       <option>전체 (구 단위)</option>
-                      {/* 🌟 선택된 자치구의 동을 가나다순으로 정렬 */}
                       {[...(dongMap[guCode] || [])].sort().map(d => (
                           <option key={d} value={d}>{d}</option>
                       ))}
@@ -220,7 +274,6 @@ export default function RealEstate() {
           </div>
       </div>
 
-      {/* 🌟 터미널 로그 화면 */}
       {(logs || loading || error) && (
         <div className="bg-[#0B1120] border border-slate-800 p-5 rounded-3xl mb-10 font-mono text-[14px] shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-4">
             <div className="absolute top-0 left-0 w-full h-10 bg-[#1E293B] flex items-center px-5 border-b border-slate-700/80">
@@ -240,7 +293,6 @@ export default function RealEstate() {
         </div>
       )}
 
-      {/* 🌟 다운로드 완료 버튼 */}
       {downloadReady && !error && (
         <div className="p-10 rounded-3xl flex flex-col items-center justify-center text-center transition-all bg-[#00B464]/10 dark:bg-[#00B464]/5 border border-[#00B464]/30 dark:border-[#00B464]/20 animate-in zoom-in-95">
             <p className="mb-6 font-black text-[#00B464] text-[18px]">
