@@ -76,15 +76,15 @@ export default function RealEstate() {
     const initialLog = `🚀 부동산 데이터 대시보드 빌드 시작...\n🔗 자치구: ${guMap[guCode]} | 법정동: ${targetDong}\n📅 기간: ${startDate} ~ ${endDate}\n\n`;
     setLogs(initialLog);
 
-    // 🌟 요청하신 기존 GET 방식으로 원상복구
-    const url = `https://moon-bbh0.onrender.com/api/realestate/build-stream?gu_code=${guCode}&gu_name=${encodeURIComponent(guMap[guCode])}&dong=${encodeURIComponent(targetDong)}&start_date=${startDate}&end_date=${endDate}&filters=${encodeURIComponent(filters)}`;
+    // 🌟 URL 쿼리스트링 조합 (프론트에서 키 넘기지 않음)
+    const url = `/api/realestate/build-stream?gu_code=${guCode}&gu_name=${encodeURIComponent(guMap[guCode])}&dong=${encodeURIComponent(targetDong)}&start_date=${startDate}&end_date=${endDate}&filters=${encodeURIComponent(filters)}`;
 
     let isConnected = false;
     const sleepTimer = setTimeout(() => {
       if (!isConnected) setIsSleeping(true);
     }, 3000);
 
-    // 🌟 EventSource 사용 유지
+    // 🌟 원래대로 EventSource 사용
     const eventSource = new EventSource(url);
 
     eventSource.onmessage = (event) => {
@@ -96,7 +96,8 @@ export default function RealEstate() {
 
       const data = JSON.parse(event.data);
       if (data.status === "log" || data.status === "progress") {
-        setLogs(prev => prev + data.message + "\n");
+        // 🌟 핵심 원복: 백엔드에서 보내는 누적 텍스트를 initialLog에 덮어씌움 (중복 방지)
+        setLogs(initialLog + data.message + "\n");
       } else if (data.status === "error") {
         setError(data.message);
         setLoading(false);
@@ -109,7 +110,7 @@ export default function RealEstate() {
       }
     };
 
-    eventSource.onerror = () => {
+    eventSource.onerror = (e) => {
       isConnected = true;
       clearTimeout(sleepTimer);
       setIsSleeping(false);
