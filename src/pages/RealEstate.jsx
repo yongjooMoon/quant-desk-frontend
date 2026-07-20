@@ -133,8 +133,6 @@ window.location.href = "/api/realestate/download";
 const sortedGuEntries = Object.entries(guMap).sort((a, b) => a[1].localeCompare(b[1]));
 
 return (
-
-
   {/* 🌟 통신 지연 시 띄워주는 서버 기상 오버레이 */}
   {isSleeping && <ServerWakeupOverlay />}
 
@@ -270,7 +268,5 @@ return (
     </div>
   )}
 </div>
-
-
 );
 }
