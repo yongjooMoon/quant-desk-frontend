@@ -1,6 +1,6 @@
 import { Building2, Search, Download, RefreshCcw, Calendar } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import CryptoJS from 'crypto-js';
+import { useRenderApi } from '../hooks/useRenderApi';
 
 export default function RealEstate() {
   const guMap = {
@@ -54,10 +54,11 @@ export default function RealEstate() {
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState("");
   const [error, setError] = useState("");
-  
-  // 다운로드 관련 상태
   const [downloadReady, setDownloadReady] = useState(false);
-  const [excelData, setExcelData] = useState(null); 
+
+  // 🌟 오버레이만 사용하고 callApi는 쓰지 않음
+  const { ServerWakeupOverlay } = useRenderApi();
+  const [isSleeping, setIsSleeping] = useState(false);
 
   const logEndRef = useRef(null);
 
@@ -65,129 +66,69 @@ export default function RealEstate() {
     if (logEndRef.current) logEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  // 🌟 암호화된 API 키를 로컬 스토리지에서 복호화하여 가져오는 함수
-  const getDecryptedApiKey = () => {
-    const encryptedKey = localStorage.getItem('api_key');
-    if (!encryptedKey) return null;
-
-    try {
-      // ⚠️ 중요: 암호화할 때 사용했던 동일한 Secret Key를 사용해야 합니다.
-      const secretKey = process.env.REACT_APP_SECRET_KEY || "fallback_secret_key";
-      const bytes = CryptoJS.AES.decrypt(encryptedKey, secretKey);
-      const originalKey = bytes.toString(CryptoJS.enc.Utf8);
-      return originalKey;
-    } catch (err) {
-      console.error("API 키 복호화 실패:", err);
-      return null;
-    }
-  };
-
-  const handleBuild = async () => {
-    // 🌟 1. API 키 획득 및 검증
-    const apiKey = getDecryptedApiKey();
-    if (!apiKey) {
-      setError("API 키가 설정되지 않았거나 유효하지 않습니다. 메인 화면이나 설정에서 API 키를 먼저 등록해주세요.");
-      return;
-    }
-
+  const handleBuild = () => {
     setLoading(true);
     setError("");
     setDownloadReady(false);
-    setExcelData(null);
+    setIsSleeping(false);
 
     const targetDong = dong.startsWith("전체") ? "전체" : dong;
     const initialLog = `🚀 부동산 데이터 대시보드 빌드 시작...\n🔗 자치구: ${guMap[guCode]} | 법정동: ${targetDong}\n📅 기간: ${startDate} ~ ${endDate}\n\n`;
-    setLogs(initialLog + "데이터를 수집하고 엑셀 리포트를 생성 중입니다...\n(데이터 양에 따라 1~2분 정도 소요될 수 있습니다. 잠시만 기다려주세요.)\n");
+    setLogs(initialLog);
 
-    // 🌟 2. 백엔드(FastAPI)의 RealEstateRequest 모델 규격에 맞춘 Payload 생성
-    const payload = {
-      api_key: apiKey,
-      district_code: guCode,
-      district_name: guMap[guCode],
-      target_dong: targetDong,
-      start_date: startDate,
-      end_date: endDate,
-      apt_filters: filters
+    // 🌟 프론트엔드에서는 쿼리파라미터만 던지고 키 관리/암호화 등은 일절 신경쓰지 않습니다.
+    const url = `/api/realestate/build-stream?gu_code=${guCode}&gu_name=${encodeURIComponent(guMap[guCode])}&dong=${encodeURIComponent(targetDong)}&start_date=${startDate}&end_date=${endDate}&filters=${encodeURIComponent(filters)}`;
+
+    let isConnected = false;
+    const sleepTimer = setTimeout(() => {
+      if (!isConnected) setIsSleeping(true);
+    }, 3000);
+
+    // 🌟 완벽하게 호환되는 EventSource(GET 스트리밍)로 롤백
+    const eventSource = new EventSource(url);
+
+    eventSource.onmessage = (event) => {
+      if (!isConnected) {
+        isConnected = true;
+        clearTimeout(sleepTimer);
+        setIsSleeping(false);
+      }
+
+      const data = JSON.parse(event.data);
+      if (data.status === "log" || data.status === "progress") {
+        setLogs(prev => prev + data.message + "\n");
+      } else if (data.status === "error") {
+        setError(data.message);
+        setLoading(false);
+        eventSource.close();
+      } else if (data.status === "done") {
+        setLogs(prev => prev + "\n✅ " + data.message + "\n\n하단의 다운로드 버튼을 눌러주세요!");
+        setDownloadReady(true);
+        setLoading(false);
+        eventSource.close();
+      }
     };
 
-    try {
-      // 🌟 3. fetch API를 이용해 POST 방식으로 스트리밍 엔드포인트 호출
-      const response = await fetch("https://moon-bbh0.onrender.com/api/real-estate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+    eventSource.onerror = () => {
+      isConnected = true;
+      clearTimeout(sleepTimer);
+      setIsSleeping(false);
 
-      if (!response.ok) throw new Error(`서버 에러: ${response.status}`);
-
-      // 🌟 4. 스트림 데이터를 수신하며 실시간 로그 업데이트
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        // 청크 디코딩 후 라인 단위로 쪼개기 (SSE 규격의 \n\n)
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const dataStr = line.substring(6).trim();
-            if (!dataStr) continue;
-
-            try {
-              const data = JSON.parse(dataStr);
-              
-              if (data.status === "log" || data.status === "progress") {
-                // 일반 진행 로그
-                setLogs(prev => prev + data.message + "\n");
-              } 
-              else if (data.status === "error") {
-                // 에러 발생 시 처리 중단
-                setError(data.message);
-                setLoading(false);
-                return;
-              } 
-              else if (data.status === "success") {
-                // 성공적으로 완료되어 Base64 엑셀 데이터 수신
-                setLogs(prev => prev + "\n✅ 데이터 추출 성공!\n\n하단의 다운로드 버튼을 눌러주세요!");
-                setExcelData({
-                  file_data: data.file_data,
-                  filename: data.filename
-                });
-                setDownloadReady(true);
-                setLoading(false);
-                return;
-              }
-            } catch (parseError) {
-              console.error("JSON 파싱 에러:", parseError, "원본 데이터:", dataStr);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      setError(err.message || "서버 통신 중 오류가 발생했습니다.");
+      setError("서버 에러가 발생했습니다. 백엔드 로그를 확인해 주세요.");
       setLoading(false);
-    }
+      eventSource.close();
+    };
   };
 
   const handleDownload = () => {
-    // 🌟 서버로부터 받아둔 Base64 데이터를 엑셀 파일로 브라우저상에서 바로 다운로드
-    if (!excelData || !excelData.file_data) return;
-
-    const link = document.createElement("a");
-    link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${excelData.file_data}`;
-    link.download = excelData.filename || `부동산_실거래가_${guMap[guCode]}.xlsx`;
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 🌟 백엔드 메모리에 임시 저장된 엑셀을 다운로드하는 엔드포인트로 리다이렉트
+    window.location.href = "/api/realestate/download";
   };
 
   return (
     <div className="w-full px-0 py-0 transition-colors duration-300 relative font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif] pb-20">
+
+      {isSleeping && <ServerWakeupOverlay />}
 
       <div className="mb-10">
         <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white flex items-center gap-3 tracking-tight mb-3">
