@@ -77,7 +77,7 @@ export default function RealEstate() {
     setLogs(initialLog);
 
     // 🌟 URL 쿼리스트링 조합 (프론트에서 키 넘기지 않음)
-    const url = `/api/realestate/build-stream?gu_code=${guCode}&gu_name=${encodeURIComponent(guMap[guCode])}&dong=${encodeURIComponent(targetDong)}&start_date=${startDate}&end_date=${endDate}&filters=${encodeURIComponent(filters)}`;
+    const url = `https://moon-bbh0.onrender.com/api/realestate/build-stream?gu_code=${guCode}&gu_name=${encodeURIComponent(guMap[guCode])}&dong=${encodeURIComponent(targetDong)}&start_date=${startDate}&end_date=${endDate}&filters=${encodeURIComponent(filters)}`;
 
     let isConnected = false;
     const sleepTimer = setTimeout(() => {
