@@ -1,11 +1,120 @@
 // src/hooks/useRenderApi.jsx
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 // 🌟 BASE_URL을 훅 내부에 직접 정의
 const BASE_URL = "https://moon-bbh0.onrender.com";
 
+// ══════════════════════════════════════════
+// 🎮 대기화면 재미 요소 ① 탭 캔들 게임
+//   초록 캔들만 터치해서 "익절" — 잘못 누르면 "손절" 카운트
+// ══════════════════════════════════════════
+function CandleTapGame() {
+  const [candles, setCandles] = useState([]);
+  const [hits, setHits] = useState(0);
+  const [misses, setMisses] = useState(0);
+  const idRef = useRef(0);
+
+  useEffect(() => {
+    const spawnTimer = setInterval(() => {
+      setCandles(prev => {
+        if (prev.length >= 6) return prev; // 성능 보호: 동시 최대 6개
+        idRef.current += 1;
+        return [...prev, {
+          id: idRef.current,
+          up: Math.random() < 0.55, // 초록(익절) 쪽이 살짝 더 잘 나오게
+          x: 8 + Math.random() * 78,
+          h: 24 + Math.random() * 26,
+        }];
+      });
+    }, 650);
+    return () => clearInterval(spawnTimer);
+  }, []);
+
+  const removeCandle = (id) => setCandles(prev => prev.filter(c => c.id !== id));
+
+  const handleHit = (c) => {
+    removeCandle(c.id);
+    if (c.up) setHits(h => h + 1); else setMisses(m => m + 1);
+  };
+
+  const attempts = hits + misses;
+  const rate = attempts > 0 ? Math.round((hits / attempts) * 100) : null;
+
+  return (
+    <>
+      <div className="relative w-[260px] h-40 mb-4 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+        {candles.map(c => (
+          <button
+            key={c.id}
+            onClick={() => handleHit(c)}
+            aria-label={c.up ? "초록 캔들 (익절)" : "빨간 캔들 (손절)"}
+            className="absolute bottom-0 flex flex-col items-center px-2 py-1 -mx-2 -my-1"
+            style={{ left: `${c.x}%`, animation: 'candleRise 2.4s linear forwards' }}
+            onAnimationEnd={() => removeCandle(c.id)}
+          >
+            <div className={`w-[2px] h-2 ${c.up ? 'bg-emerald-400/70' : 'bg-rose-400/70'}`} />
+            <div className={`w-3 rounded-[2px] ${c.up ? 'bg-emerald-400' : 'bg-rose-400'}`} style={{ height: c.h }} />
+          </button>
+        ))}
+      </div>
+      <p className="text-[12px] font-bold text-slate-500 mb-1">🟢 초록 캔들만 터치해서 익절하세요</p>
+      <p className="text-[14px] font-black text-white mb-6">
+        {attempts === 0 ? '아직 기록 없음' : `승률 ${rate}%  (익절 ${hits} · 손절 ${misses})`}
+      </p>
+    </>
+  );
+}
+
+// ══════════════════════════════════════════
+// 🎮 대기화면 재미 요소 ② 카드 뒤집기 (퀀트 드립/명언)
+// ══════════════════════════════════════════
+const FUN_LINES = [
+  "무릎에 사서 어깨에 팔라던데, 제 무릎은 대체 어디 갔을까요.",
+  "손절은 습관이고 익절은 재능이라죠.",
+  "차트는 후행지표, 후회는 선행지표.",
+  "존버는 실력, 물타기는 재능.",
+  "오늘의 상한가는 어제의 손절러가 만든다.",
+  "떨어지는 칼날은 잡지 말라던데, 캔들은 왜 이렇게 예쁘게 떨어지나요.",
+  "분산투자란, 여러 종목에서 골고루 잃는 기술.",
+  "장기투자 합니다. 손절 타이밍을 놓쳤을 뿐이에요.",
+  "매수는 3초, 후회는 3개월.",
+  "이 서버도 물린 제 계좌처럼 회복하는 중입니다.",
+];
+
+function LineFlipCard() {
+  const [idx, setIdx] = useState(() => Math.floor(Math.random() * FUN_LINES.length));
+  const [flip, setFlip] = useState(false);
+
+  const next = () => {
+    setFlip(f => !f);
+    setTimeout(() => {
+      setIdx(prev => {
+        if (FUN_LINES.length <= 1) return prev;
+        let n = Math.floor(Math.random() * FUN_LINES.length);
+        while (n === prev) n = Math.floor(Math.random() * FUN_LINES.length);
+        return n;
+      });
+    }, 160);
+  };
+
+  return (
+    <>
+      <button
+        onClick={next}
+        className="w-[260px] min-h-[140px] mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex items-center justify-center text-center transition-transform duration-300 ease-out"
+        style={{ transform: flip ? 'rotateY(8deg) scale(0.97)' : 'rotateY(0deg) scale(1)' }}
+      >
+        <p className="text-[14px] font-bold text-slate-200 leading-relaxed">{FUN_LINES[idx]}</p>
+      </button>
+      <p className="text-[12px] font-bold text-slate-500 mb-6">🔄 카드를 눌러 다음 한마디 보기</p>
+    </>
+  );
+}
+
 export function useRenderApi() {
   const [isSleeping, setIsSleeping] = useState(false);
+  // 🎲 이번 대기화면에서 A(캔들 게임)/C(카드 뒤집기) 중 뭘 보여줄지 — sleep 진입 시 1번만 뽑음
+  const [funMode, setFunMode] = useState('candle');
   // 💡 컴포넌트가 언마운트되거나 재요청될 때 타이머를 안전하게 클리어하기 위해 useRef 사용
   const timerRef = useRef(null); 
 
@@ -22,6 +131,7 @@ export function useRenderApi() {
     if (!options.background) {
       timerRef.current = setTimeout(() => {
         if (!isResolved) {
+          setFunMode(Math.random() < 0.5 ? 'candle' : 'card');
           setIsSleeping(true);
         }
       }, 4000);
@@ -31,7 +141,6 @@ export function useRenderApi() {
 
     try {
       await new Promise(resolve => setTimeout(resolve, 10000));
-      
       // 💡 2. 실제 데이터 요청
       const response = await fetch(url, {
         ...options,
@@ -65,7 +174,9 @@ export function useRenderApi() {
     }
   }, []);
 
-  const ServerWakeupOverlay = () => {
+  // 🌟 useCallback으로 컴포넌트 identity를 고정 — 매 렌더마다 새로 만들어지면
+  //    캔들 게임의 점수 같은 내부 상태가 중간에 리셋되는 버그가 생길 수 있어서 방지.
+  const ServerWakeupOverlay = useCallback(() => {
     // 🌟 터치/클릭한 자리에 오로라 톤의 리플(파문)을 살짝 띄워주는 상태
     const [ripples, setRipples] = useState([]);
 
@@ -90,10 +201,10 @@ export function useRenderApi() {
     return (
       <div
         onPointerDown={handleRipple}
-        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#08090D] overflow-hidden animate-in fade-in duration-300 cursor-pointer"
+        className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#08090D] overflow-hidden animate-in fade-in duration-300"
       >
 
-         {/* 오로라 블롭 시그니처 모션을 위한 Keyframes */}
+         {/* 오로라 블롭 시그니처 모션 + 게임 요소 Keyframes */}
          <style>{`
             @keyframes auroraSpin {
                 to { transform: rotate(360deg); }
@@ -128,6 +239,12 @@ export function useRenderApi() {
                 0%   { transform: translate(-50%, -50%) scale(0); opacity: 0.55; }
                 100% { transform: translate(-50%, -50%) scale(22); opacity: 0; }
             }
+            @keyframes candleRise {
+                0%   { transform: translateY(0); opacity: 0; }
+                10%  { opacity: 1; }
+                88%  { opacity: 1; }
+                100% { transform: translateY(-150px); opacity: 0; }
+            }
          `}</style>
 
          {/* 🌟 터치/클릭 리플 — 정보(텍스트·진행바)를 가리지 않게 pointer-events-none, 은은한 잔상만 남김 */}
@@ -153,8 +270,8 @@ export function useRenderApi() {
             style={{ background: '#22D3EE', animation: 'driftB 11s ease-in-out infinite' }}
          />
 
-         {/* 시그니처: 모핑되는 오로라 블롭 */}
-         <div className="relative w-28 h-28 mb-9 flex items-center justify-center">
+         {/* 시그니처: 모핑되는 오로라 블롭 (게임 공간 확보를 위해 살짝 축소) */}
+         <div className="relative w-20 h-20 mb-5 flex items-center justify-center">
              <div
                 className="absolute w-full h-full rounded-full blur-2xl opacity-80"
                 style={{
@@ -163,7 +280,7 @@ export function useRenderApi() {
                 }}
              />
              <div
-                className="absolute w-16 h-16"
+                className="absolute w-12 h-12"
                 style={{
                   background: 'linear-gradient(135deg, #7C6CFF 0%, #3B82F6 55%, #22D3EE 100%)',
                   animation: 'blobMorph 4.2s ease-in-out infinite',
@@ -173,7 +290,7 @@ export function useRenderApi() {
          </div>
 
          <h2
-            className="text-[21px] md:text-[23px] font-bold tracking-tight mb-2 text-center bg-clip-text text-transparent"
+            className="text-[19px] md:text-[21px] font-bold tracking-tight mb-2 text-center bg-clip-text text-transparent"
             style={{
               backgroundImage: 'linear-gradient(90deg, #FFFFFF, #A5B4FC, #FFFFFF)',
               backgroundSize: '200% auto',
@@ -182,10 +299,12 @@ export function useRenderApi() {
          >
              서버를 깨우는 중이에요
          </h2>
-         <p className="text-[#7C8598] font-medium text-[14px] md:text-[15px] text-center px-6 leading-relaxed mb-7">
-             접속이 뜸했던 서버가 다시 살아나고 있어요<br/>
-             보통 20~30초 정도 걸려요
+         <p className="text-[#7C8598] font-medium text-[13px] md:text-[14px] text-center px-6 leading-relaxed mb-5">
+             보통 20~30초 정도 걸려요. 기다리는 동안 이거 한 판 어때요?
          </p>
+
+         {/* 🎮 랜덤으로 뽑힌 재미 요소 (탭 캔들 게임 or 카드 뒤집기) */}
+         {funMode === 'candle' ? <CandleTapGame /> : <LineFlipCard />}
 
          {/* 진행 바 */}
          <div className="w-[190px] h-[3px] rounded-full bg-white/[0.06] overflow-hidden">
@@ -199,7 +318,7 @@ export function useRenderApi() {
          </div>
       </div>
     );
-  };
+  }, [isSleeping, funMode]);
 
   return { callApi, ServerWakeupOverlay };
 }
