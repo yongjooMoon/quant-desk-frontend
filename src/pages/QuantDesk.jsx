@@ -7,19 +7,6 @@ import {
 import { AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ComposedChart, LineChart } from 'recharts';
 
 // -----------------------------------------------------------------------------
-// [MOCK API HOOK] 단일 파일 컴파일을 위해 외부 의존성(hook)을 Mocking 합니다.
-// -----------------------------------------------------------------------------
-const useRenderApi = () => {
-  return {
-    callApi: async (endpoint, options) => {
-      // 컴파일 환경에서 동작하도록 단순 모의(Mock) 데이터를 반환합니다.
-      return new Promise(resolve => setTimeout(() => resolve({ status: 'success', data: {} }), 300));
-    },
-    ServerWakeupOverlay: () => null
-  };
-};
-
-// -----------------------------------------------------------------------------
 // [TYPES & CONFIG] 향후 Supabase 연결을 위한 데이터 타입 및 설정
 // -----------------------------------------------------------------------------
 /*
@@ -94,6 +81,7 @@ const MOCK_MACRO_DATA = [
 // -----------------------------------------------------------------------------
 // [SUB-COMPONENTS] 컴포넌트 분리 원칙에 따른 하위 컴포넌트들
 // -----------------------------------------------------------------------------
+import { Info } from 'lucide-react';
 
 const RegimeInfoPopover = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
@@ -325,13 +313,13 @@ const MacroPage = () => {
   );
 };
 
+
 // -----------------------------------------------------------------------------
-// [MAIN COMPONENT]
+// [MAIN COMPONENT] 
 // -----------------------------------------------------------------------------
+
 export default function QuantDesk() {
-  // 🌟 변경점: Macro 탭을 추가하고 기본 탭으로 설정
   const [activeTab, setActiveTab] = useState("Macro");
-  
   const [data, setData] = useState({ holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null });
   const [kospiData, setKospiData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -728,7 +716,7 @@ export default function QuantDesk() {
         <div className="flex justify-center p-20 w-full"><RefreshCcw className="animate-spin text-blue-500" size={40} /></div>
       ) : (
         <div className="w-full">
-          
+
           {/* ===================== MACRO TAB ===================== */}
           {activeTab === "Macro" && (
             <MacroPage />
