@@ -217,14 +217,18 @@ const MacroChartModal = ({ indicator, onClose }) => {
   );
 };
 
-const MacroPage = () => {
+const MacroPage = ({ macroData }) => {
   const [selectedMacro, setSelectedMacro] = useState(null);
   const categories = ['Trend', 'Liquidity', 'Risk', 'Economy', 'Breadth'];
+  
+  // 백엔드에서 전달받은 데이터가 없으면 안전하게 빈 배열 처리 (데이터가 없을 때 에러 방지)
+  const safeData = macroData && macroData.length > 0 ? macroData : [];
+
   return (
     <div className="animate-in fade-in duration-300 w-full">
       <RegimeSummary />
       {categories.map(cat => {
-        const items = MOCK_MACRO_DATA.filter(d => d.category === cat);
+        const items = safeData.filter(d => d.category === cat);
         if(items.length === 0) return null;
         return <MacroSection key={cat} title={cat} items={items} onCardClick={setSelectedMacro} />
       })}
@@ -236,7 +240,7 @@ const MacroPage = () => {
 
 export default function QuantDesk() {
   const [activeTab, setActiveTab] = useState("Macro");
-  const [data, setData] = useState({ holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null });
+  const [data, setData] = useState({ holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null, macro: [] });
   const [kospiData, setKospiData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -642,7 +646,7 @@ export default function QuantDesk() {
 
           {/* ===================== MACRO TAB ===================== */}
           {activeTab === "Macro" && (
-            <MacroPage />
+            <MacroPage macroData={data.macro} />
           )}
 
           {/* ===================== PORTFOLIO TAB ===================== */}
