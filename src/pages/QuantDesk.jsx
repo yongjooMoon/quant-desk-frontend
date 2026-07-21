@@ -2,14 +2,240 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   RefreshCcw, X,
   TrendingUp, ShieldCheck, Droplets, Activity, Rocket, Zap,
-  Crosshair, TrendingDown, Flag, BookOpen, ShieldAlert, Target, ChevronRight, ChevronDown
+  Crosshair, TrendingDown, Flag, BookOpen, ShieldAlert, Target, ChevronRight, ChevronDown, Info
 } from 'lucide-react';
 import { AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ComposedChart, LineChart } from 'recharts';
 
 import { useRenderApi } from '../hooks/useRenderApi';
 
+// -----------------------------------------------------------------------------
+// [MACRO MOCK DATA & COMPONENTS] 향후 분리될 매크로 컴포넌트 및 데이터
+// -----------------------------------------------------------------------------
+const REGIME_CONFIG = {
+  "Strong Bull": { color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/50", hex: "#10B981", desc: "강한 상승 추세\n공격적인 투자 가능\n무한매수 적극 운용 가능" },
+  "Bull": { color: "text-[#00B464]", bg: "bg-[#00B464]/10", border: "border-[#00B464]/50", hex: "#00B464", desc: "상승 우세\n정상 투자 가능" },
+  "Neutral": { color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/50", hex: "#EAB308", desc: "방향성 부족\nVR 또는 분할매수 고려" },
+  "Bear": { color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/50", hex: "#F97316", desc: "방어 전략 권장\n현금 비중 확대 고려" },
+  "Crash": { color: "text-[#FF4B4B]", bg: "bg-[#FF4B4B]/10", border: "border-[#FF4B4B]/50", hex: "#FF4B4B", desc: "극단적인 Risk-Off\n신규 공격적 매수 자제" }
+};
+
+const MOCK_REGIME_SUMMARY = {
+  regime: "Bull",
+  score: 87,
+  positiveFactors: ["VIX 안정 하향 추세", "Credit Spread 지속 축소", "QQQ 강력한 상승 추세 유지"],
+  negativeFactors: ["DXY 단기 반등세", "Real Yield (10Y TIPS) 상승 압력"],
+  recentChange: "Neutral → Bull (7일 전)"
+};
+
+const genSparkline = (status) => {
+  let val = 100;
+  return Array.from({ length: 20 }, () => {
+    val += status === 'Bull' ? (Math.random() * 4 - 1) : status === 'Bear' ? (Math.random() * 4 - 3) : (Math.random() * 4 - 2);
+    return val;
+  });
+};
+
+const MOCK_MACRO_DATA = [
+  { id: '1', indicator: 'QQQ', name: 'QQQ', category: 'Trend', value: 452.15, change_percent: 1.25, status: 'Bull', sparkline: genSparkline('Bull') },
+  { id: '2', indicator: '50MA', name: '50일 이동평균', category: 'Trend', value: 435.20, change_percent: -0.15, status: 'Neutral', sparkline: genSparkline('Neutral') },
+  { id: '3', indicator: '200MA', name: '200일 이동평균', category: 'Trend', value: 398.50, change_percent: 0.85, status: 'Bull', sparkline: genSparkline('Bull') },
+  { id: '4', indicator: '200MA_SLOPE', name: '200MA Slope', category: 'Trend', value: 0.45, change_percent: 0.05, status: 'Bull', sparkline: genSparkline('Bull') },
+  { id: '5', indicator: 'TIPS10Y', name: '미국 실질금리 (10Y TIPS)', category: 'Liquidity', value: 2.15, change_percent: 4.5, status: 'Bear', sparkline: genSparkline('Bear') },
+  { id: '6', indicator: 'DXY', name: 'Dollar Index (DXY)', category: 'Liquidity', value: 104.3, change_percent: 0.12, status: 'Neutral', sparkline: genSparkline('Neutral') },
+  { id: '7', indicator: 'CREDIT_SPREAD', name: 'Credit Spread', category: 'Liquidity', value: 3.12, change_percent: -2.4, status: 'Bull', sparkline: genSparkline('Bull') },
+  { id: '8', indicator: 'VIX', name: 'VIX', category: 'Risk', value: 13.8, change_percent: -5.2, status: 'Bull', sparkline: genSparkline('Bull') },
+  { id: '9', indicator: 'FEAR_GREED', name: 'Fear & Greed', category: 'Risk', value: 72, change_percent: 2.1, status: 'Bull', sparkline: genSparkline('Bull') },
+  { id: '10', indicator: 'WTI', name: 'WTI', category: 'Risk', value: 82.5, change_percent: -0.5, status: 'Neutral', sparkline: genSparkline('Neutral') },
+  { id: '11', indicator: 'COPPER', name: 'Copper', category: 'Economy', value: 4.2, change_percent: 0.8, status: 'Neutral', sparkline: genSparkline('Neutral') },
+  { id: '12', indicator: 'YIELD_CURVE', name: 'Yield Curve (10Y-2Y)', category: 'Economy', value: -0.35, change_percent: 12.5, status: 'Bear', sparkline: genSparkline('Bear') },
+  { id: '13', indicator: 'ISM_PMI', name: 'ISM PMI', category: 'Economy', value: 50.2, change_percent: 0.4, status: 'Neutral', sparkline: genSparkline('Neutral') },
+  { id: '14', indicator: 'SP500_200MA', name: 'S&P500 200일선 위 비율', category: 'Breadth', value: 78.5, change_percent: 1.5, status: 'Bull', sparkline: genSparkline('Bull') },
+  { id: '15', indicator: 'AD_LINE', name: 'Advance Decline Line', category: 'Breadth', value: 15200, change_percent: 0.5, status: 'Bull', sparkline: genSparkline('Bull') },
+  { id: '16', indicator: 'NH_NL', name: 'New High / New Low', category: 'Breadth', value: 2.5, change_percent: -0.2, status: 'Neutral', sparkline: genSparkline('Neutral') }
+];
+
+const RegimeInfoPopover = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="absolute top-12 right-0 md:right-4 z-50 w-[280px] bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-4 animate-in fade-in zoom-in-95 duration-200">
+      <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100 dark:border-slate-700/50">
+        <h4 className="font-black text-slate-900 dark:text-white text-[15px]">Market Regime 가이드</h4>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={16}/></button>
+      </div>
+      <div className="space-y-3">
+        {Object.entries(REGIME_CONFIG).map(([key, conf]) => (
+          <div key={key} className="flex flex-col gap-1">
+            <span className={`font-black text-[13px] ${conf.color}`}>{key}</span>
+            <span className="text-[12px] font-bold text-slate-500 whitespace-pre-line leading-snug">{conf.desc}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const RegimeSummary = () => {
+  const [infoOpen, setInfoOpen] = useState(false);
+  const conf = REGIME_CONFIG[MOCK_REGIME_SUMMARY.regime];
+
+  return (
+    <div className="w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm mb-12 relative">
+      <div className="flex flex-col md:flex-row justify-between md:items-center border-b border-slate-100 dark:border-slate-800/80 pb-6 mb-6">
+        <div className="relative">
+          <div className="flex items-center gap-3 mb-2">
+            <h2 className="text-[15px] font-black text-slate-500 dark:text-slate-400">Current Market Regime</h2>
+            <button onClick={() => setInfoOpen(!infoOpen)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+              <Info size={18} />
+            </button>
+            <RegimeInfoPopover isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
+          </div>
+          <h1 className={`text-5xl md:text-6xl font-black tracking-tighter ${conf.color}`}>
+            {MOCK_REGIME_SUMMARY.regime}
+          </h1>
+        </div>
+        <div className="mt-6 md:mt-0 flex flex-col md:items-end">
+          <p className="text-[13px] font-extrabold text-slate-500 mb-1">Regime Score</p>
+          <div className="flex items-baseline gap-2">
+            <span className={`text-4xl md:text-5xl font-black ${conf.color}`}>{MOCK_REGIME_SUMMARY.score}</span>
+            <span className="text-xl font-black text-slate-400">/ 100</span>
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+        <div className="p-4 bg-slate-50 dark:bg-[#1E293B]/50 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
+          <h4 className="text-[13px] font-black text-[#FF4B4B] mb-3 flex items-center gap-2"><TrendingUp size={16}/> Positive Factors</h4>
+          <ul className="space-y-2">
+            {MOCK_REGIME_SUMMARY.positiveFactors.map((f, i) => (
+              <li key={i} className="text-[13px] font-extrabold text-slate-600 dark:text-slate-300 flex items-start gap-2">
+                <span className="text-[#FF4B4B] mt-0.5">•</span> {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="p-4 bg-slate-50 dark:bg-[#1E293B]/50 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
+          <h4 className="text-[13px] font-black text-[#3B82F6] mb-3 flex items-center gap-2"><TrendingDown size={16}/> Negative Factors</h4>
+          <ul className="space-y-2">
+            {MOCK_REGIME_SUMMARY.negativeFactors.map((f, i) => (
+              <li key={i} className="text-[13px] font-extrabold text-slate-600 dark:text-slate-300 flex items-start gap-2">
+                <span className="text-[#3B82F6] mt-0.5">•</span> {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="p-4 flex flex-col justify-center bg-slate-50 dark:bg-[#1E293B]/50 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
+           <h4 className="text-[13px] font-black text-slate-500 mb-2">Recent Regime Change</h4>
+           <p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{MOCK_REGIME_SUMMARY.recentChange}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MacroCard = ({ item, onClick }) => {
+  const isPos = item.change_percent >= 0;
+  const statusColors = { Bull: 'text-[#FF4B4B] bg-[#FF4B4B]/10 border-[#FF4B4B]/30', Neutral: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/30', Bear: 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/30' };
+  const sparkColor = item.status === 'Bull' ? '#FF4B4B' : item.status === 'Bear' ? '#3B82F6' : '#94A3B8';
+  const chartData = item.sparkline.map((val, i) => ({ index: i, value: val }));
+  return (
+    <div onClick={() => onClick(item)} className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md dark:hover:shadow-[0_4px_20px_rgba(255,255,255,0.03)] hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-pointer group flex flex-col justify-between h-40">
+      <div className="flex justify-between items-start mb-2">
+        <h3 className="text-[13px] md:text-[14px] font-extrabold text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors truncate pr-2">{item.name}</h3>
+        <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${statusColors[item.status]} shrink-0`}>{item.status}</span>
+      </div>
+      <div className="flex justify-between items-end">
+        <div>
+          <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tighter mb-1">{item.value.toLocaleString()}</p>
+          <p className={`text-[12px] md:text-[13px] font-black ${isPos ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{isPos ? '▲' : '▼'} {Math.abs(item.change_percent).toFixed(2)}%</p>
+        </div>
+        <div className="w-20 h-12">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}><Line type="monotone" dataKey="value" stroke={sparkColor} strokeWidth={2} dot={false} isAnimationActive={false} /></LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MacroSection = ({ title, items, onCardClick }) => (
+  <div className="mb-10">
+    <h3 className="text-xl font-black text-slate-900 dark:text-white mb-4 pl-1">{title}</h3>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {items.map(item => <MacroCard key={item.id} item={item} onClick={onCardClick} />)}
+    </div>
+  </div>
+);
+
+const MacroChartModal = ({ indicator, onClose }) => {
+  const [range, setRange] = useState('1Y');
+  const mockHistory = useMemo(() => {
+    let days = range === '1M' ? 30 : range === '3M' ? 90 : range === '1Y' ? 250 : range === '3Y' ? 750 : 1250;
+    let data = [];
+    let val = indicator.value;
+    for(let i = days; i >= 0; i--) {
+       let d = new Date(); d.setDate(d.getDate() - i);
+       val = val * (1 + (Math.random() * 0.04 - 0.02));
+       data.push({ date: d.toISOString().substring(0, 10), value: val });
+    }
+    return data;
+  }, [indicator, range]);
+  const sparkColor = indicator.status === 'Bull' ? '#FF4B4B' : indicator.status === 'Bear' ? '#3B82F6' : '#94A3B8';
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="flex justify-between items-center p-5 md:p-6 border-b border-slate-100 dark:border-slate-800/80">
+          <div><h3 className="text-2xl font-black text-slate-900 dark:text-white mb-1">{indicator.name}</h3><p className="text-[13px] font-extrabold text-slate-500">{indicator.category} Indicator</p></div>
+          <button onClick={onClose} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors cursor-pointer"><X size={20}/></button>
+        </div>
+        <div className="p-6 md:p-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
+             <div>
+                <p className="text-4xl font-black text-slate-900 dark:text-white mb-2">{indicator.value.toLocaleString()}</p>
+                <span className={`text-[14px] font-black px-2.5 py-1 rounded-lg border ${indicator.change_percent >= 0 ? 'text-[#FF4B4B] bg-[#FF4B4B]/10 border-[#FF4B4B]/30' : 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/30'}`}>{indicator.change_percent >= 0 ? '▲' : '▼'} {Math.abs(indicator.change_percent).toFixed(2)}%</span>
+             </div>
+             <div className="flex gap-2">
+                {['1M', '3M', '1Y', '3Y', '5Y'].map(r => (
+                  <button key={r} onClick={() => setRange(r)} className={`text-[12px] font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer border shadow-sm ${range === r ? 'bg-slate-800 border-slate-800 text-white dark:bg-slate-200 dark:border-slate-200 dark:text-slate-900' : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}>{r}</button>
+                ))}
+             </div>
+          </div>
+          <div className="w-full h-[300px] md:h-[400px]">
+             <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={mockHistory} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                    <defs><linearGradient id="colorInd" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={sparkColor} stopOpacity={0.3}/><stop offset="95%" stopColor={sparkColor} stopOpacity={0}/></linearGradient></defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
+                    <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''}/>
+                    <YAxis domain={['auto', 'auto']} tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(v) => v.toFixed(1)} />
+                    <Tooltip contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900'}} itemStyle={{color: sparkColor}} labelStyle={{color: '#94A3B8', marginBottom: '4px'}} formatter={(value) => [value.toFixed(2), "Value"]} />
+                    <Area type="monotone" dataKey="value" stroke={sparkColor} strokeWidth={2.5} fillOpacity={1} fill="url(#colorInd)" activeDot={{r: 6, fill: sparkColor, strokeWidth: 0}} />
+                </AreaChart>
+             </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MacroPage = () => {
+  const [selectedMacro, setSelectedMacro] = useState(null);
+  const categories = ['Trend', 'Liquidity', 'Risk', 'Economy', 'Breadth'];
+  return (
+    <div className="animate-in fade-in duration-300 w-full">
+      <RegimeSummary />
+      {categories.map(cat => {
+        const items = MOCK_MACRO_DATA.filter(d => d.category === cat);
+        if(items.length === 0) return null;
+        return <MacroSection key={cat} title={cat} items={items} onCardClick={setSelectedMacro} />
+      })}
+      {selectedMacro && <MacroChartModal indicator={selectedMacro} onClose={() => setSelectedMacro(null)} />}
+    </div>
+  );
+};
+// -----------------------------------------------------------------------------
+
 export default function QuantDesk() {
-  const [activeTab, setActiveTab] = useState("Portfolio");
+  const [activeTab, setActiveTab] = useState("Macro");
   const [data, setData] = useState({ holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null });
   const [kospiData, setKospiData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -395,7 +621,8 @@ export default function QuantDesk() {
       </div>
 
       <div className="flex gap-3 md:gap-5 border-b border-slate-200 dark:border-slate-800 mb-8 overflow-x-auto whitespace-nowrap hide-scrollbar pb-0 select-none">
-        {[{id: "Portfolio", label: `Portfolio (${holdings.length})`},
+        {[{id: "Macro", label: "Macro"},
+          {id: "Portfolio", label: `Portfolio (${holdings.length})`},
           {id: "Watchlist", label: `Watchlist (${filWatchlist.length})`},
           {id: "History", label: "History"},
           {id: "Whitepaper", label: "Explain"}].map(t => (
@@ -412,6 +639,11 @@ export default function QuantDesk() {
         <div className="flex justify-center p-20 w-full"><RefreshCcw className="animate-spin text-blue-500" size={40} /></div>
       ) : (
         <div className="w-full">
+
+          {/* ===================== MACRO TAB ===================== */}
+          {activeTab === "Macro" && (
+            <MacroPage />
+          )}
 
           {/* ===================== PORTFOLIO TAB ===================== */}
           {activeTab === "Portfolio" && (
