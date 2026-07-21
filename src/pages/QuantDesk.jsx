@@ -168,17 +168,17 @@ const MacroSection = ({ title, items, onCardClick }) => (
 
 const MacroChartModal = ({ indicator, onClose }) => {
   const [range, setRange] = useState('1Y');
-  const mockHistory = useMemo(() => {
-    let days = range === '1M' ? 30 : range === '3M' ? 90 : range === '1Y' ? 250 : range === '3Y' ? 750 : 1250;
-    let data = [];
-    let val = indicator.value;
-    for(let i = days; i >= 0; i--) {
-       let d = new Date(); d.setDate(d.getDate() - i);
-       val = val * (1 + (Math.random() * 0.04 - 0.02));
-       data.push({ date: d.toISOString().substring(0, 10), value: val });
-    }
-    return data;
+  
+  // 💡 수정: 가짜 Math.random() 데이터를 지우고, DB에서 올라온 진짜 5년치(indicator.history)를 자릅니다.
+  const chartData = useMemo(() => {
+    const hist = indicator.history || [];
+    if (hist.length === 0) return [];
+    
+    // 거래일(Trading Days) 기준으로 자름 (1M=20일, 3M=60일, 1Y=252일, 3Y=756일, 5Y=1260일)
+    let days = range === '1M' ? 20 : range === '3M' ? 60 : range === '1Y' ? 252 : range === '3Y' ? 756 : 1260;
+    return hist.slice(Math.max(hist.length - days, 0));
   }, [indicator, range]);
+
   const sparkColor = indicator.status === 'Bull' ? '#FF4B4B' : indicator.status === 'Bear' ? '#3B82F6' : '#94A3B8';
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
@@ -201,7 +201,8 @@ const MacroChartModal = ({ indicator, onClose }) => {
           </div>
           <div className="w-full h-[300px] md:h-[400px]">
              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={mockHistory} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                {/* 💡 수정: data 속성에 새롭게 추출한 chartData 삽입 */}
+                <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                     <defs><linearGradient id="colorInd" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={sparkColor} stopOpacity={0.3}/><stop offset="95%" stopColor={sparkColor} stopOpacity={0}/></linearGradient></defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
                     <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''}/>
