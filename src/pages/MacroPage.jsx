@@ -185,7 +185,7 @@ const FearGreedGauge = ({ value }) => {
   return (
     <div className="flex flex-col items-center justify-center w-full mt-4 md:mt-6">
       {/* 1. 반원 게이지 영역 (크기 복구 및 가독성 향상) */}
-      <div className="relative w-full max-w-[300px] md:max-w-[360px] aspect-[2/1] flex justify-center items-end overflow-visible select-none">
+      <div className="relative w-full max-w-[360px] md:max-w-[420px] aspect-[2/1] flex justify-center items-end overflow-visible select-none">
         <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
           {/* 분할 도넛 세그먼트 그리기 */}
           {FEAR_GREED_ZONES.map((zone) => {
@@ -247,7 +247,7 @@ const FearGreedGauge = ({ value }) => {
 
         {/* 중앙 하단 수치 */}
         <div className="absolute -bottom-2 w-full flex flex-col items-center justify-end z-10 bg-white dark:bg-[#0B1120] px-6 rounded-t-full">
-          <p className="text-4xl md:text-5xl font-black tracking-tighter" style={{ color: activeZone.color }}>
+          <p className="text-5xl md:text-6xl font-black tracking-tighter" style={{ color: activeZone.color }}>
             {Math.round(value)}
           </p>
         </div>
@@ -333,9 +333,9 @@ const FearGreedCard = ({ item }) => {
       </div>
 
       {/* 오른쪽: 작동하는 기능성 탭 패널 */}
-      <div className="lg:w-80 flex flex-col justify-start bg-slate-50 dark:bg-[#111827]/50 rounded-2xl p-5 border border-slate-100 dark:border-slate-800/50">
+      <div className="lg:w-[340px] flex flex-col justify-center bg-slate-50 dark:bg-[#111827]/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800/50">
         {/* 탭 토글 버튼 */}
-        <div className="flex bg-slate-200 dark:bg-[#1E293B] p-1 rounded-full mb-6 relative z-10 w-full max-w-[200px] mx-auto md:mx-0">
+        <div className="flex bg-slate-200 dark:bg-[#1E293B] p-1 rounded-full mb-3 relative z-10 w-full max-w-[200px] mx-auto">
           <button 
             onClick={() => setTab('overview')} 
             className={`flex-1 px-4 py-1.5 rounded-full text-[12px] font-black transition-all ${tab === 'overview' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
