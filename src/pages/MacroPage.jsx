@@ -5,7 +5,8 @@ import {
   CartesianGrid, LineChart,
 } from 'recharts';
 
-// 로컬 환경 적용 시 아래 import 주석을 해제하고 임시 mock 함수(useRenderApi)를 삭제하세요.
+// 미리보기 환경 컴파일 에러 방지용 임시 Mock 훅입니다.
+// 로컬 환경에 적용하실 때는 아래 Mock 코드를 지우고 주석 처리된 import 문을 사용해주세요.
 import { useRenderApi } from '../hooks/useRenderApi';
 
 // =============================================================================
@@ -31,13 +32,13 @@ const SECTIONS = [
 const CHART_RED = '#FF4B4B'; 
 
 // ---------------------------------------------------------------------------
-// 1. Status 계산 유틸리티 함수 (API에 의존하지 않고 React에서 순수 계산)
+// 1. Status 계산 유틸리티 함수
 // ---------------------------------------------------------------------------
 const getVixStatus = (value) => {
   if (value < 15) return 'Strong Bull';
-  if (value <= 20) return 'Bull'; // 15~20
-  if (value <= 30) return 'Neutral'; // 20~30
-  if (value <= 40) return 'Bear'; // 30~40
+  if (value <= 20) return 'Bull';
+  if (value <= 30) return 'Neutral';
+  if (value <= 40) return 'Bear';
   return 'Crash';
 };
 
@@ -61,7 +62,7 @@ const getWtiStatus = (value) => {
   if (value < 70) return 'Bull';
   if (value <= 85) return 'Neutral';
   if (value <= 100) return 'Bear';
-  return 'Warning'; // Crash 대신 Warning 사용 (점수 환산 시 Crash와 동일 취급)
+  return 'Warning';
 };
 
 const getFearGreedStatus = (value) => {
@@ -98,16 +99,15 @@ const STATUS_POINTS = {
 };
 
 const calculateRegimeScore = (byIndicator) => {
-  if (Object.keys(byIndicator).length === 0) return { score: 60, regime: 'Neutral' }; // Default fallback
+  if (Object.keys(byIndicator).length === 0) return { score: 60, regime: 'Neutral' };
 
   const getPts = (indKey) => {
     const status = byIndicator[indKey]?.calcStatus || 'Neutral';
     return STATUS_POINTS[status] !== undefined ? STATUS_POINTS[status] : 60;
   };
 
-  // 가중치 적용: QQQ 40%, VIX 20%, Real Yield 15%, Credit Spread 15%, WTI 5%, F&G 5%
   let score = 0;
-  score += getPts('QQQ_PRICE') * 0.40; // QQQ Trend 상태 점수
+  score += getPts('QQQ_PRICE') * 0.40;
   score += getPts('VIX') * 0.20;
   score += getPts('REAL_YIELD_10Y') * 0.15;
   score += getPts('CREDIT_SPREAD') * 0.15;
@@ -116,7 +116,6 @@ const calculateRegimeScore = (byIndicator) => {
 
   const finalScore = Math.round(score);
 
-  // 점수에 따른 Regime 상태 결정
   let regime = 'Neutral';
   if (finalScore >= 85) regime = 'Strong Bull';
   else if (finalScore >= 70) regime = 'Bull';
@@ -142,6 +141,156 @@ const getStatusStyle = (status) => {
     default: return { label: status || 'Neutral', text: 'text-slate-500', bg: 'bg-slate-500/10', border: 'border-slate-500/30' };
   }
 };
+
+// ---------------------------------------------------------------------------
+// 3. CNN Style Fear & Greed Gauge (수학적 렌더링 완벽 구현)
+// ---------------------------------------------------------------------------
+const getCartesian = (cx, cy, radius, angle) => {
+  // SVG 좌표계에서 0도는 9시 방향(Left), 180도는 3시 방향(Right)으로 매핑
+  const rad = (180 - angle) * Math.PI / 180;
+  return {
+    x: cx + radius * Math.cos(rad),
+    y: cy - radius * Math.sin(rad) // SVG는 Y축이 아래로 증가
+  };
+};
+
+const getDonutSlice = (cx, cy, innerRadius, outerRadius, startAngle, endAngle) => {
+  const p1 = getCartesian(cx, cy, outerRadius, startAngle);
+  const p2 = getCartesian(cx, cy, outerRadius, endAngle);
+  const p3 = getCartesian(cx, cy, innerRadius, endAngle);
+  const p4 = getCartesian(cx, cy, innerRadius, startAngle);
+
+  // 시계방향(1), 반시계방향(0)
+  return `
+    M ${p1.x} ${p1.y}
+    A ${outerRadius} ${outerRadius} 0 0 1 ${p2.x} ${p2.y}
+    L ${p3.x} ${p3.y}
+    A ${innerRadius} ${innerRadius} 0 0 0 ${p4.x} ${p4.y}
+    Z
+  `;
+};
+
+const FEAR_GREED_ZONES = [
+  { id: 'ext-fear', label: 'EXTREME FEAR', min: 0, max: 25, color: '#FF4B4B', start: 0, end: 36 },
+  { id: 'fear', label: 'FEAR', min: 25, max: 45, color: '#F97316', start: 36, end: 72 },
+  { id: 'neutral', label: 'NEUTRAL', min: 45, max: 55, color: '#EAB308', start: 72, end: 108 },
+  { id: 'greed', label: 'GREED', min: 55, max: 75, color: '#00B464', start: 108, end: 144 },
+  { id: 'ext-greed', label: 'EXTREME GREED', min: 75, max: 100, color: '#10B981', start: 144, end: 180 }
+];
+
+const FearGreedGauge = ({ value, size = 'sm', statusLabel }) => {
+  const isLg = size === 'lg';
+  const cx = 100;
+  const cy = 100;
+  const outerR = 90;
+  const innerR = 50;
+  
+  const clampedValue = Math.max(0, Math.min(100, value));
+  // 0~100 값을 0도~180도로 변환 (바늘 회전용)
+  const needleAngle = (clampedValue / 100) * 180;
+  
+  // 현재 활성화된 구역 찾기
+  const activeZone = FEAR_GREED_ZONES.find(z => clampedValue >= z.min && clampedValue <= z.max) || FEAR_GREED_ZONES[FEAR_GREED_ZONES.length-1];
+
+  const dims = isLg 
+    ? { w: 'w-72 md:w-96', h: 'h-40 md:h-52', valueClass: 'text-4xl md:text-5xl', labelClass: 'text-[14px]' } 
+    : { w: 'w-full max-w-[280px]', h: 'h-28 md:h-32', valueClass: 'text-2xl', labelClass: 'text-[11px]' };
+
+  return (
+    <div className={`relative ${dims.w} ${dims.h} flex justify-center items-end mx-auto overflow-visible select-none`}>
+      <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
+        {/* 1. 5개 분할 도넛 세그먼트 그리기 */}
+        {FEAR_GREED_ZONES.map((zone) => {
+          const isActive = activeZone.id === zone.id;
+          const slicePath = getDonutSlice(cx, cy, innerR, outerR, zone.start, zone.end);
+          // 텍스트 회전 각도 (구간의 중간)
+          const midAngle = (zone.start + zone.end) / 2;
+          // SVG 텍스트 회전을 위해 중심점(100,100)을 기준으로 회전
+          // 텍스트 위치 반경
+          const textRadius = 70; 
+          const textPos = getCartesian(cx, cy, textRadius, midAngle);
+          
+          return (
+            <g key={zone.id}>
+              {/* 배경/테두리 패스 */}
+              <path 
+                d={slicePath}
+                fill={isActive ? `${zone.color}22` : '#F1F5F9'}
+                stroke={isActive ? zone.color : 'white'}
+                strokeWidth={isActive ? "2" : "1"}
+                className={isActive ? '' : 'dark:fill-[#334155] dark:stroke-[#1E293B] transition-all duration-300'}
+              />
+              {/* 구간 라벨 텍스트 */}
+              <text 
+                x={textPos.x} 
+                y={textPos.y}
+                fill={isActive ? zone.color : '#94A3B8'}
+                fontSize={isLg ? "6.5" : "7.5"}
+                fontWeight="900"
+                textAnchor="middle"
+                dominantBaseline="middle"
+                // 텍스트가 호(arc)를 따라 자연스럽게 기울어지도록 변환
+                // 90도를 빼서 텍스트의 밑단이 중심을 향하도록 함
+                transform={`rotate(${midAngle - 90}, ${textPos.x}, ${textPos.y})`}
+                className={isActive ? '' : 'dark:fill-[#64748B]'}
+                style={{ letterSpacing: '0.5px' }}
+              >
+                {zone.label}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* 2. 내부 점선 트랙 (Dotted Line) */}
+        <path 
+          d="M 30 100 A 70 70 0 0 1 170 100" 
+          fill="none" 
+          stroke="#CBD5E1" 
+          strokeWidth="1.5" 
+          strokeDasharray="2 8" 
+          strokeLinecap="round"
+          className="dark:stroke-[#475569]"
+        />
+
+        {/* 눈금 숫자 (0, 25, 50, 75, 100) */}
+        {[0, 25, 50, 75, 100].map(tick => {
+          const angle = (tick / 100) * 180;
+          const pos = getCartesian(cx, cy, 38, angle);
+          return (
+            <text key={tick} x={pos.x} y={pos.y} fill="#94A3B8" fontSize="6" fontWeight="bold" textAnchor="middle" dominantBaseline="middle" className="dark:fill-[#64748B]">
+              {tick}
+            </text>
+          );
+        })}
+        
+        {/* 3. 바늘 (Needle) */}
+        {/* 기준점은 (100,100). 좌측(0도)을 기준으로 그림판자처럼 배치 후 rotate로 돌림 */}
+        <g 
+          style={{ transformOrigin: '100px 100px', transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+        >
+          {/* 바늘 몸통 */}
+          <polygon 
+            points="96,100 104,100 100,30" 
+            fill="#1E293B" 
+            className="dark:fill-white"
+          />
+        </g>
+        
+        {/* 바늘 중심축 원 */}
+        <circle cx="100" cy="100" r="10" fill="white" className="dark:fill-[#0B1120]"/>
+        <circle cx="100" cy="100" r="8" fill="#1E293B" className="dark:fill-white"/>
+      </svg>
+
+      {/* 4. 중앙 하단 텍스트 영역 */}
+      <div className="absolute -bottom-2 w-full flex flex-col items-center justify-end z-10 bg-white dark:bg-[#111827] px-6 rounded-t-full shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+        <p className={`${dims.valueClass} font-black tracking-tighter`} style={{ color: activeZone.color }}>
+          {Math.round(value)}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 
 // ---------------------------------------------------------------------------
 // Components
@@ -171,14 +320,13 @@ const RegimeSummary = ({ regimeData }) => {
   const { score, regime } = regimeData;
   const conf = REGIME_CONFIG[regime] || REGIME_CONFIG.Neutral;
 
-  // 불필요한 Positive/Negative 요소 모두 제거. 4가지 핵심 요소만 남김.
   return (
     <div className="w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm mb-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
         <div className="relative">
           <div className="flex items-center gap-3 mb-2">
             <h2 className="text-[15px] font-black text-slate-500 dark:text-slate-400">Current Market Regime</h2>
-            <button onClick={() => setInfoOpen(!infoOpen)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+            <button onClick={() => setInfoOpen(!infoOpen)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer">
               <Info size={18} />
             </button>
             <RegimePopover isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
@@ -201,7 +349,6 @@ const RegimeSummary = ({ regimeData }) => {
               <ShieldCheck size={14} className="text-slate-400" /> Confidence
             </p>
             <div className="flex items-baseline gap-2">
-              {/* Confidence는 별도 로직이 없으므로 일단 100% 고정 (변경 요청 없었음) */}
               <span className="text-4xl md:text-5xl font-black text-slate-700 dark:text-slate-300">100</span>
               <span className="text-xl font-black text-slate-400">%</span>
             </div>
@@ -213,90 +360,21 @@ const RegimeSummary = ({ regimeData }) => {
 };
 
 // ---------------------------------------------------------------------------
-// CNN Style Fear & Greed Gauge (바늘 추가 및 정확한 SVG 렌더링)
-// ---------------------------------------------------------------------------
-const FearGreedGauge = ({ value, size = 'sm', statusLabel }) => {
-  const isLg = size === 'lg';
-  const dims = isLg 
-    ? { w: 'w-64 md:w-80', h: 'h-36 md:h-44', valueClass: 'text-4xl md:text-5xl mb-2', labelClass: 'text-[14px]' } 
-    : { w: 'w-full', h: 'h-24', valueClass: 'text-2xl mb-0.5', labelClass: 'text-[10px]' };
-  
-  // 0~100 값을 기반으로 0도 ~ 180도 각도로 변환 (SVG 반원 기준)
-  // 값이 작을수록 (공포) 바늘은 좌측(0도 부근), 값이 클수록 (탐욕) 우측(180도 부근)
-  const clampedValue = Math.max(0, Math.min(100, value));
-  const rotation = (clampedValue / 100) * 180;
-
-  // 바늘(Needle) Polygon 꼭짓점 계산
-  // 중심점은 (100, 100). 바늘 길이는 75. 두께를 위해 양옆으로 오프셋.
-  const needlePath = "M 96,100 L 104,100 L 100,25 Z";
-
-  return (
-    <div className={`relative ${dims.w} ${dims.h} flex justify-center items-end mx-auto overflow-hidden`}>
-      <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0">
-        <defs>
-          {/* CNN 스타일 5단계 색상 그라데이션. 
-              부드러운 그라데이션 대신 Hard Stop을 주어 5개의 명확한 Zone을 만듭니다. */}
-          <linearGradient id="cnnGaugeGradient" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#FF4B4B" />
-            <stop offset="25%" stopColor="#FF4B4B" />
-            <stop offset="25%" stopColor="#F97316" />
-            <stop offset="45%" stopColor="#F97316" />
-            <stop offset="45%" stopColor="#EAB308" />
-            <stop offset="55%" stopColor="#EAB308" />
-            <stop offset="55%" stopColor="#00B464" />
-            <stop offset="75%" stopColor="#00B464" />
-            <stop offset="75%" stopColor="#10B981" />
-            <stop offset="100%" stopColor="#10B981" />
-          </linearGradient>
-        </defs>
-
-        {/* 배경 트랙 (그라데이션 색상 적용) */}
-        <path 
-          d="M 20 100 A 80 80 0 0 1 180 100" 
-          fill="none" 
-          stroke="url(#cnnGaugeGradient)" 
-          strokeWidth="18" 
-          strokeLinecap="butt" 
-        />
-        
-        {/* 바늘 (Needle) - 좌측 상단(0,0)을 기준으로 하므로 중심점(100,100)에서 회전 */}
-        <polygon 
-          points="96,100 104,100 100,25" 
-          fill="currentColor" 
-          className="text-slate-700 dark:text-slate-200 transition-transform duration-1000 ease-out"
-          style={{ transformOrigin: '100px 100px', transform: `rotate(${rotation - 90}deg)` }}
-        />
-        <circle cx="100" cy="100" r="8" fill="currentColor" className="text-slate-700 dark:text-slate-200" />
-      </svg>
-
-      <div className="absolute bottom-0 w-full flex flex-col items-center justify-end z-10 translate-y-2">
-        <p className={`${dims.valueClass} font-black tracking-tighter text-slate-900 dark:text-white`}>
-          {Math.round(value)}
-        </p>
-        <p className={`${dims.labelClass} font-extrabold text-slate-500 uppercase tracking-widest`}>
-          {statusLabel}
-        </p>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// MacroCard — 미니 차트 (Sparkline) 1개월 데이터 표출 픽스
+// MacroCard — 미니 차트 (Sparkline) 1개월 데이터
 // ---------------------------------------------------------------------------
 const MacroCard = ({ item, onClick }) => {
   const isGauge = item.indicator === 'FEAR_GREED';
   const isPos = item.change_percent >= 0;
   const statusStyle = getStatusStyle(item.calcStatus);
   
-  // Sparkline 픽스: 과거->최신 오름차순 정렬 후 최근 20일(1개월) 슬라이싱
+  // 과거->최신 오름차순 정렬 후 최근 20일(1개월) 슬라이싱
   const sortedHist = [...(item.history || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
   const chartData = sortedHist.slice(-20).map((h, i) => ({ index: i, value: h.value }));
 
   return (
     <div
       onClick={() => onClick(item)}
-      className={`bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between ${isGauge ? 'col-span-1 sm:col-span-2 lg:col-span-4 h-auto py-8' : 'h-40'}`}
+      className={`bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between ${isGauge ? 'col-span-1 sm:col-span-2 lg:col-span-4 h-auto py-8 mb-6' : 'h-40'}`}
     >
       <div className="flex justify-between items-start mb-2">
         <h3 className="text-[13px] md:text-[14px] font-extrabold text-slate-500 dark:text-slate-400 truncate pr-2">
@@ -308,7 +386,7 @@ const MacroCard = ({ item, onClick }) => {
       </div>
 
       {isGauge ? (
-        <div className="mt-4">
+        <div className="mt-4 pb-4">
           <FearGreedGauge value={item.value} size="lg" statusLabel={item.calcStatus} />
         </div>
       ) : (
@@ -323,7 +401,6 @@ const MacroCard = ({ item, onClick }) => {
           </div>
           <div className="w-20 h-12">
             <ResponsiveContainer width="100%" height="100%">
-              {/* YAxis domain 픽스: dataMin, dataMax를 주어 미니 차트가 평행선이 되지 않고 움직임이 보이도록 수정 */}
               <LineChart data={chartData} margin={{ top: 2, bottom: 2 }}>
                 <YAxis domain={['dataMin', 'dataMax']} hide />
                 <Line type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2.5} dot={false} isAnimationActive={false} />
@@ -346,7 +423,7 @@ const MacroSection = ({ title, items, onCardClick }) => (
 );
 
 // ---------------------------------------------------------------------------
-// MacroChartModal — 3Y, 5Y 차트 랜더링 버그 완벽 픽스
+// MacroChartModal — 3Y, 5Y 차트 랜더링 버그 완벽 해결
 // ---------------------------------------------------------------------------
 const RANGE_TRADING_DAYS = { '1M': 20, '3M': 60, '1Y': 252, '3Y': 756, '5Y': 1260 };
 
@@ -355,15 +432,10 @@ const MacroChartModal = ({ item, onClose }) => {
   const isGauge = item.indicator === 'FEAR_GREED';
   const isPos = item.change_percent >= 0;
 
-  // 3Y, 5Y 차트가 평행선이 되거나 안보이던 문제 수정 (슬라이싱 및 YAxis 스케일 강제)
   const chartData = useMemo(() => {
     if (!item.history || item.history.length === 0) return [];
-    
-    // 1. 반드시 가장 과거 데이터가 앞쪽에 오도록 정렬 (x축 버그 방지)
     const sortedHist = [...item.history].sort((a, b) => new Date(a.date) - new Date(b.date));
     const days = RANGE_TRADING_DAYS[range] || 252;
-    
-    // 2. 최신 기준으로 요청 기간(days)만큼만 잘라내기
     return sortedHist.slice(-days);
   }, [item.history, range]);
 
@@ -384,7 +456,7 @@ const MacroChartModal = ({ item, onClose }) => {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
             <div className="flex items-center gap-6">
               {isGauge ? (
-                <div className="flex items-center justify-center w-full min-w-[250px]">
+                <div className="flex items-center justify-center w-full min-w-[300px]">
                   <FearGreedGauge value={item.value} size="lg" statusLabel={item.calcStatus} />
                 </div>
               ) : (
@@ -415,7 +487,8 @@ const MacroChartModal = ({ item, onClose }) => {
 
           {!isGauge && (
             <div className="w-full h-[300px] md:h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
+              {/* 💡 Recharts 버그 해결의 핵심: key={range} 부여로 차트 강제 재생성 */}
+              <ResponsiveContainer width="100%" height="100%" key={range}>
                 <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorMacroModal" x1="0" y1="0" x2="0" y2="1">
@@ -425,7 +498,6 @@ const MacroChartModal = ({ item, onClose }) => {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
                   <XAxis dataKey="date" tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '800' }} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''} />
-                  {/* YAxis domain 픽스: 3Y, 5Y 등 긴 기간 조회 시 스케일링이 안되어 평행선이 뜨는 문제 완벽 해결 */}
                   <YAxis domain={['dataMin', 'dataMax']} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '800' }} tickLine={false} axisLine={false} tickFormatter={(v) => v.toFixed(1)} />
                   <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900' }} itemStyle={{ color: CHART_RED }} labelStyle={{ color: '#94A3B8', marginBottom: '4px' }} formatter={(value) => [value.toFixed(2), 'Value']} />
                   <Area type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2.5} fillOpacity={1} fill="url(#colorMacroModal)" activeDot={{ r: 6, fill: CHART_RED, strokeWidth: 0 }} isAnimationActive={false} />
@@ -471,12 +543,10 @@ const MacroPage = () => {
     fetchMacroData();
   }, [callApi]);
 
-  // API 데이터를 기반으로 Status 및 Regime 계산
   const { byIndicator, regimeData } = useMemo(() => {
     const map = {};
     macroData.forEach(item => { map[item.indicator] = item; });
 
-    // 1. 각 지표별로 React 내부 함수를 통해 Status 강제 덮어쓰기 계산
     Object.keys(map).forEach(key => {
       const item = map[key];
       const val = item.value;
@@ -512,11 +582,10 @@ const MacroPage = () => {
           break;
         default:
           calcStatus = 'Neutral';
-      }
+        }
       item.calcStatus = calcStatus;
     });
 
-    // 2. 환산된 Status들을 기반으로 Regime Score 자동 합산
     const computedRegime = calculateRegimeScore(map);
 
     return { byIndicator: map, regimeData: computedRegime };
@@ -544,7 +613,6 @@ const MacroPage = () => {
 
   return (
     <div className="animate-in fade-in duration-300 w-full">
-      {/* 3. 불필요한 데이터를 제거하고 계산된 Regime 점수를 전달 */}
       <RegimeSummary regimeData={regimeData} />
 
       {SECTIONS.map(section => {
