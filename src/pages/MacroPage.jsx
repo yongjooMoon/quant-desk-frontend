@@ -5,6 +5,10 @@ import {
   CartesianGrid, LineChart,
 } from 'recharts';
 
+// 실제 프로젝트 환경에 적용하실 때는 아래 Mock 부분을 삭제하시고, 
+// 주석 처리된 import 문을 활성화하여 사용해 주세요.
+import { useRenderApi } from '../hooks/useRenderApi';
+
 // =============================================================================
 // Macro Dashboard (API 연동 완료)
 // =============================================================================
@@ -304,6 +308,7 @@ const MacroChartModal = ({ item, onClose }) => {
 
 const MacroPage = ({ regimeSummary }) => {
   const [selectedMacro, setSelectedMacro] = useState(null);
+  const { callApi } = useRenderApi();
   
   // API 상태 관리
   const [macroData, setMacroData] = useState([]);
@@ -315,15 +320,12 @@ const MacroPage = ({ regimeSummary }) => {
     const fetchMacroData = async () => {
       try {
         setLoading(true);
-        // vite proxy 설정 등에 따라 /api/macro 가 될 수도 있습니다.
-        // standalone 실행 시 전체 주소가 필요할 수 있으므로 환경에 맞게 조정하세요.
-        const response = await fetch('/api/macro');
-        const result = await response.json();
+        const result = await callApi('/api/macro');
         
-        if (result.status === 'success') {
+        if (result && result.status === 'success') {
           setMacroData(result.data);
         } else {
-          setError(result.message || '데이터를 불러오는 데 실패했습니다.');
+          setError(result?.message || '데이터를 불러오는 데 실패했습니다.');
         }
       } catch (err) {
         setError('서버 연결에 실패했습니다.');
@@ -333,7 +335,7 @@ const MacroPage = ({ regimeSummary }) => {
     };
 
     fetchMacroData();
-  }, []);
+  }, [callApi]);
 
   const byIndicator = useMemo(() => {
     const map = {};
