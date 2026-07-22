@@ -158,13 +158,19 @@ const getDonutSlice = (cx, cy, innerRadius, outerRadius, startAngle, endAngle) =
   return `M ${p1.x} ${p1.y} A ${outerRadius} ${outerRadius} 0 0 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${innerRadius} ${innerRadius} 0 0 0 ${p4.x} ${p4.y} Z`;
 };
 
-// CNN 실제 구간 기준 각도 매핑
+// 점수(0~100)를 각도(0~180도)로 변환하는 유틸리티 함수
+const scoreToAngle = (score) => {
+  return (score / 100) * 180;
+};
+
+// CNN 실제 구간 기준 설정 (하드코딩 각도 제거, 점수 기반 선형 계산용)
+// 오직 min, max 점수 구간만 존재하며, 각도는 렌더링 시점에 자동 계산됨.
 const FEAR_GREED_ZONES = [
-  { id: 'ext-fear', label: 'EXTREME\nFEAR', min: 0, max: 25, color: '#FF4B4B', start: 0, end: 45 },
-  { id: 'fear', label: 'FEAR', min: 25, max: 45, color: '#F97316', start: 45, end: 81 },
-  { id: 'neutral', label: 'NEUTRAL', min: 45, max: 55, color: '#EAB308', start: 81, end: 99 },
-  { id: 'greed', label: 'GREED', min: 55, max: 75, color: '#84CC16', start: 99, end: 135 },
-  { id: 'ext-greed', label: 'EXTREME\nGREED', min: 75, max: 100, color: '#10B981', start: 135, end: 180 }
+  { id: 'ext-fear', label: 'EXTREME\nFEAR', min: 0, max: 25, color: '#FF4B4B' },
+  { id: 'fear', label: 'FEAR', min: 25, max: 45, color: '#F97316' },
+  { id: 'neutral', label: 'NEUTRAL', min: 45, max: 55, color: '#EAB308' },
+  { id: 'greed', label: 'GREED', min: 55, max: 75, color: '#84CC16' },
+  { id: 'ext-greed', label: 'EXTREME\nGREED', min: 75, max: 100, color: '#10B981' }
 ];
 
 const FearGreedGauge = ({ value }) => {
@@ -174,8 +180,8 @@ const FearGreedGauge = ({ value }) => {
   const innerR = 55;
   
   const clampedValue = Math.max(0, Math.min(100, value));
-  // 0 -> 0도(왼쪽 끝), 100 -> 180도(오른쪽 끝)
-  const needleAngle = (clampedValue / 100) * 180;
+  // 바늘 각도 자동 계산 (0점 -> 0도, 50점 -> 90도, 100점 -> 180도)
+  const needleAngle = scoreToAngle(clampedValue);
   
   const activeZone = FEAR_GREED_ZONES.find(z => clampedValue >= z.min && clampedValue <= z.max) || FEAR_GREED_ZONES[FEAR_GREED_ZONES.length-1];
 
@@ -185,9 +191,14 @@ const FearGreedGauge = ({ value }) => {
         {/* 1. 5개 분할 도넛 세그먼트 그리기 */}
         {FEAR_GREED_ZONES.map((zone) => {
           const isActive = activeZone.id === zone.id;
-          const slicePath = getDonutSlice(cx, cy, innerR, outerR, zone.start, zone.end);
           
-          const midAngle = (zone.start + zone.end) / 2;
+          // 렌더링 시점에 점수를 기반으로 시작/종료 각도를 선형적으로 자동 계산
+          const startAngle = scoreToAngle(zone.min);
+          const endAngle = scoreToAngle(zone.max);
+          
+          const slicePath = getDonutSlice(cx, cy, innerR, outerR, startAngle, endAngle);
+          
+          const midAngle = (startAngle + endAngle) / 2;
           const textRadius = 75; 
           const textPos = getCartesian(cx, cy, textRadius, midAngle);
           const labelLines = zone.label.split('\n');
@@ -195,31 +206,30 @@ const FearGreedGauge = ({ value }) => {
           return (
             <g key={zone.id}>
               {/* 배경/테두리 패스 */}
-              {/* 비활성화 상태일 때는 라이트/다크모드 대응 Tailwind 클래스 적용 */}
               <path 
                 d={slicePath}
                 className={isActive ? '' : 'fill-slate-100 stroke-slate-200 dark:fill-[#1E293B] dark:stroke-[#0F172A]'}
                 style={isActive ? { fill: `${zone.color}33`, stroke: zone.color, strokeWidth: "2" } : { strokeWidth: "1" }}
               />
               {/* 구간 라벨 텍스트 */}
-              {/* 💡 수정됨: x, y 속성을 <text> 태그에 명시하여 글자가 0,0으로 날아가는 현상 해결 */}
               <text 
                 x={textPos.x}
                 y={textPos.y}
-                fontSize="9"
+                // 구간이 좁은 영역(NEUTRAL 등)은 폰트 크기를 살짝 줄여 겹침 현상 방지
+                fontSize={zone.id === 'neutral' ? "7" : "8"}
                 fontWeight="900"
                 textAnchor="middle"
                 dominantBaseline="middle"
                 // 중앙 원점을 바라보도록 글자 회전
                 transform={`rotate(${90 - midAngle}, ${textPos.x}, ${textPos.y})`}
-                style={{ letterSpacing: '0.5px' }}
+                style={{ letterSpacing: '-0.3px' }} // 자간을 줄여 글자 겹침 최소화
                 className={isActive ? '' : 'fill-slate-400 dark:fill-slate-500'}
               >
                 {labelLines.map((line, i) => (
                   <tspan 
                     key={i} 
                     x={textPos.x} 
-                    dy={i === 0 ? (labelLines.length > 1 ? '-0.4em' : '0') : '1.1em'}
+                    dy={i === 0 ? (labelLines.length > 1 ? '-0.5em' : '0.1em') : '1.1em'}
                     style={isActive ? { fill: zone.color } : {}}
                   >
                     {line}
