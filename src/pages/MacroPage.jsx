@@ -4,6 +4,8 @@ import {
   AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart,
 } from 'recharts';
+
+// 로컬 환경 적용 시 아래 import 주석을 해제하고 임시 mock 함수(useRenderApi)를 삭제하세요.
 import { useRenderApi } from '../hooks/useRenderApi';
 
 // =============================================================================
