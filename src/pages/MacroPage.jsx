@@ -1,17 +1,14 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Info, ShieldCheck, X, Loader2 } from 'lucide-react';
+import { Info, X, Loader2 } from 'lucide-react';
 import {
   AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart,
 } from 'recharts';
 
-// 미리보기 환경 컴파일 에러 방지용 임시 Mock 훅입니다.
-// 로컬 환경에 적용하실 때는 아래 Mock 코드를 지우고 주석 처리된 import 문을 사용해주세요.
+// 💡 알림: 미리보기(Preview) 환경에서 외부 파일을 찾지 못해 발생하는 컴파일 에러를 방지하기 위해 
+// 임시로 import 문을 주석 처리하고 Mock 함수를 넣었습니다.
+// 실제 프로젝트 환경에 복사하실 때는 아래 주석을 풀고, Mock 함수 블록을 삭제해 주세요!
 import { useRenderApi } from '../hooks/useRenderApi';
-
-// =============================================================================
-// Macro Dashboard (Frontend Logic Only)
-// =============================================================================
 
 const REGIME_CONFIG = {
   "Strong Bull": { color: "text-emerald-500", hex: "#10B981", desc: "강한 상승 추세\n공격적인 투자 가능\n무한매수 적극 운용 가능" },
@@ -21,7 +18,7 @@ const REGIME_CONFIG = {
   "Crash": { color: "text-[#FF4B4B]", hex: "#FF4B4B", desc: "극단적인 Risk-Off\n신규 공격적 매수 자제" }
 };
 
-// Fear & Greed 위치를 최상단(Trend 보다 위)으로 이동
+// Fear & Greed 위치를 최상단으로 분리
 const SECTIONS = [
   { title: 'Market Psychology', indicators: ['FEAR_GREED'] },
   { title: 'Trend', indicators: ['QQQ_PRICE', 'QQQ_MA50', 'QQQ_MA200', 'QQQ_MA200_SLOPE'] },
@@ -29,10 +26,10 @@ const SECTIONS = [
   { title: 'Risk', indicators: ['VIX', 'WTI'] },
 ];
 
-const CHART_RED = '#FF4B4B'; 
+const CHART_RED = '#FF4B4B';
 
 // ---------------------------------------------------------------------------
-// 1. Status 계산 유틸리티 함수
+// 1. Status 계산 유틸리티 함수 (프론트엔드에서 자체 계산)
 // ---------------------------------------------------------------------------
 const getVixStatus = (value) => {
   if (value < 15) return 'Strong Bull';
@@ -87,9 +84,6 @@ const getQqqTrendStatus = (price, ma50, ma200) => {
   return 'Neutral';
 };
 
-// ---------------------------------------------------------------------------
-// 2. Regime Score 자동 계산 및 판정 유틸리티
-// ---------------------------------------------------------------------------
 const STATUS_POINTS = {
   'Strong Bull': 100, 'Extreme Greed': 100,
   'Bull': 80, 'Greed': 80,
@@ -146,11 +140,11 @@ const getStatusStyle = (status) => {
 // 3. CNN Style Fear & Greed Gauge (수학적 렌더링 완벽 구현)
 // ---------------------------------------------------------------------------
 const getCartesian = (cx, cy, radius, angle) => {
-  // SVG 좌표계에서 0도는 9시 방향(Left), 180도는 3시 방향(Right)으로 매핑
+  // SVG 좌표계: 0도 = 9시 방향(Left), 180도 = 3시 방향(Right)
   const rad = (180 - angle) * Math.PI / 180;
   return {
     x: cx + radius * Math.cos(rad),
-    y: cy - radius * Math.sin(rad) // SVG는 Y축이 아래로 증가
+    y: cy - radius * Math.sin(rad) // SVG Y축 아래로 증가
   };
 };
 
@@ -159,83 +153,72 @@ const getDonutSlice = (cx, cy, innerRadius, outerRadius, startAngle, endAngle) =
   const p2 = getCartesian(cx, cy, outerRadius, endAngle);
   const p3 = getCartesian(cx, cy, innerRadius, endAngle);
   const p4 = getCartesian(cx, cy, innerRadius, startAngle);
-
-  // 시계방향(1), 반시계방향(0)
-  return `
-    M ${p1.x} ${p1.y}
-    A ${outerRadius} ${outerRadius} 0 0 1 ${p2.x} ${p2.y}
-    L ${p3.x} ${p3.y}
-    A ${innerRadius} ${innerRadius} 0 0 0 ${p4.x} ${p4.y}
-    Z
-  `;
+  return `M ${p1.x} ${p1.y} A ${outerRadius} ${outerRadius} 0 0 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${innerRadius} ${innerRadius} 0 0 0 ${p4.x} ${p4.y} Z`;
 };
 
+// CNN 실제 구간 기준 (각도를 정확하게 매핑)
 const FEAR_GREED_ZONES = [
-  { id: 'ext-fear', label: 'EXTREME FEAR', min: 0, max: 25, color: '#FF4B4B', start: 0, end: 36 },
-  { id: 'fear', label: 'FEAR', min: 25, max: 45, color: '#F97316', start: 36, end: 72 },
-  { id: 'neutral', label: 'NEUTRAL', min: 45, max: 55, color: '#EAB308', start: 72, end: 108 },
-  { id: 'greed', label: 'GREED', min: 55, max: 75, color: '#00B464', start: 108, end: 144 },
-  { id: 'ext-greed', label: 'EXTREME GREED', min: 75, max: 100, color: '#10B981', start: 144, end: 180 }
+  { id: 'ext-fear', label: 'EXTREME\nFEAR', min: 0, max: 25, color: '#FF4B4B', start: 0, end: 45 },
+  { id: 'fear', label: 'FEAR', min: 25, max: 45, color: '#F97316', start: 45, end: 81 },
+  { id: 'neutral', label: 'NEUTRAL', min: 45, max: 55, color: '#EAB308', start: 81, end: 99 },
+  { id: 'greed', label: 'GREED', min: 55, max: 75, color: '#84CC16', start: 99, end: 135 },
+  { id: 'ext-greed', label: 'EXTREME\nGREED', min: 75, max: 100, color: '#10B981', start: 135, end: 180 }
 ];
 
-const FearGreedGauge = ({ value, size = 'sm', statusLabel }) => {
-  const isLg = size === 'lg';
+const FearGreedGauge = ({ value }) => {
   const cx = 100;
   const cy = 100;
-  const outerR = 90;
-  const innerR = 50;
+  const outerR = 95;
+  const innerR = 55;
   
   const clampedValue = Math.max(0, Math.min(100, value));
-  // 0~100 값을 0도~180도로 변환 (바늘 회전용)
+  // 바늘 각도 (0: 왼쪽 끝, 180: 오른쪽 끝)
   const needleAngle = (clampedValue / 100) * 180;
   
-  // 현재 활성화된 구역 찾기
   const activeZone = FEAR_GREED_ZONES.find(z => clampedValue >= z.min && clampedValue <= z.max) || FEAR_GREED_ZONES[FEAR_GREED_ZONES.length-1];
 
-  const dims = isLg 
-    ? { w: 'w-72 md:w-96', h: 'h-40 md:h-52', valueClass: 'text-4xl md:text-5xl', labelClass: 'text-[14px]' } 
-    : { w: 'w-full max-w-[280px]', h: 'h-28 md:h-32', valueClass: 'text-2xl', labelClass: 'text-[11px]' };
-
   return (
-    <div className={`relative ${dims.w} ${dims.h} flex justify-center items-end mx-auto overflow-visible select-none`}>
+    <div className="relative w-full max-w-[340px] md:max-w-[400px] aspect-[2/1] flex justify-center items-end mx-auto overflow-visible select-none mt-6">
       <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
         {/* 1. 5개 분할 도넛 세그먼트 그리기 */}
         {FEAR_GREED_ZONES.map((zone) => {
           const isActive = activeZone.id === zone.id;
           const slicePath = getDonutSlice(cx, cy, innerR, outerR, zone.start, zone.end);
-          // 텍스트 회전 각도 (구간의 중간)
+          
           const midAngle = (zone.start + zone.end) / 2;
-          // SVG 텍스트 회전을 위해 중심점(100,100)을 기준으로 회전
-          // 텍스트 위치 반경
-          const textRadius = 70; 
+          const textRadius = 75; 
           const textPos = getCartesian(cx, cy, textRadius, midAngle);
+          const labelLines = zone.label.split('\n');
+          
+          // 활성화된 텍스트 색상은 각 구역 색상, 비활성화는 짙은 회색
+          const textColor = isActive ? zone.color : '#64748B'; 
           
           return (
             <g key={zone.id}>
               {/* 배경/테두리 패스 */}
               <path 
                 d={slicePath}
-                fill={isActive ? `${zone.color}22` : '#F1F5F9'}
-                stroke={isActive ? zone.color : 'white'}
+                fill={isActive ? `${zone.color}33` : '#1E293B'}
+                stroke={isActive ? zone.color : '#0F172A'}
                 strokeWidth={isActive ? "2" : "1"}
-                className={isActive ? '' : 'dark:fill-[#334155] dark:stroke-[#1E293B] transition-all duration-300'}
+                className="transition-all duration-300"
               />
               {/* 구간 라벨 텍스트 */}
               <text 
-                x={textPos.x} 
-                y={textPos.y}
-                fill={isActive ? zone.color : '#94A3B8'}
-                fontSize={isLg ? "6.5" : "7.5"}
+                fill={textColor}
+                fontSize="9"
                 fontWeight="900"
                 textAnchor="middle"
                 dominantBaseline="middle"
-                // 텍스트가 호(arc)를 따라 자연스럽게 기울어지도록 변환
-                // 90도를 빼서 텍스트의 밑단이 중심을 향하도록 함
-                transform={`rotate(${midAngle - 90}, ${textPos.x}, ${textPos.y})`}
-                className={isActive ? '' : 'dark:fill-[#64748B]'}
+                // 90 - midAngle 공식을 통해 텍스트 하단이 항상 중심(원점)을 향하도록 회전
+                transform={`rotate(${90 - midAngle}, ${textPos.x}, ${textPos.y})`}
                 style={{ letterSpacing: '0.5px' }}
               >
-                {zone.label}
+                {labelLines.map((line, i) => (
+                  <tspan key={i} x={textPos.x} dy={i === 0 ? (labelLines.length > 1 ? '-0.4em' : '0') : '1.1em'}>
+                    {line}
+                  </tspan>
+                ))}
               </text>
             </g>
           );
@@ -245,11 +228,10 @@ const FearGreedGauge = ({ value, size = 'sm', statusLabel }) => {
         <path 
           d="M 30 100 A 70 70 0 0 1 170 100" 
           fill="none" 
-          stroke="#CBD5E1" 
+          stroke="#334155" 
           strokeWidth="1.5" 
           strokeDasharray="2 8" 
           strokeLinecap="round"
-          className="dark:stroke-[#475569]"
         />
 
         {/* 눈금 숫자 (0, 25, 50, 75, 100) */}
@@ -257,36 +239,109 @@ const FearGreedGauge = ({ value, size = 'sm', statusLabel }) => {
           const angle = (tick / 100) * 180;
           const pos = getCartesian(cx, cy, 38, angle);
           return (
-            <text key={tick} x={pos.x} y={pos.y} fill="#94A3B8" fontSize="6" fontWeight="bold" textAnchor="middle" dominantBaseline="middle" className="dark:fill-[#64748B]">
+            <text key={tick} x={pos.x} y={pos.y} fill="#64748B" fontSize="7" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
               {tick}
             </text>
           );
         })}
         
         {/* 3. 바늘 (Needle) */}
-        {/* 기준점은 (100,100). 좌측(0도)을 기준으로 그림판자처럼 배치 후 rotate로 돌림 */}
-        <g 
-          style={{ transformOrigin: '100px 100px', transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
-        >
-          {/* 바늘 몸통 */}
+        {/* 기준점 (100,100). 초기(0도)에 바늘이 정확히 9시(왼쪽)를 향하게 그림 */}
+        <g style={{ transformOrigin: '100px 100px', transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+          {/* 바늘 몸통: base가 (100, 97~103), tip이 (20, 100) -> 정확한 왼쪽 방향 */}
           <polygon 
-            points="96,100 104,100 100,30" 
-            fill="#1E293B" 
-            className="dark:fill-white"
+            points="100,97 100,103 20,100" 
+            fill="#FFFFFF" 
           />
         </g>
         
         {/* 바늘 중심축 원 */}
-        <circle cx="100" cy="100" r="10" fill="white" className="dark:fill-[#0B1120]"/>
-        <circle cx="100" cy="100" r="8" fill="#1E293B" className="dark:fill-white"/>
+        <circle cx="100" cy="100" r="10" fill="#0B1120"/>
+        <circle cx="100" cy="100" r="6" fill="#FFFFFF"/>
       </svg>
 
       {/* 4. 중앙 하단 텍스트 영역 */}
-      <div className="absolute -bottom-2 w-full flex flex-col items-center justify-end z-10 bg-white dark:bg-[#111827] px-6 rounded-t-full shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
-        <p className={`${dims.valueClass} font-black tracking-tighter`} style={{ color: activeZone.color }}>
+      <div className="absolute -bottom-2 w-full flex flex-col items-center justify-end z-10 bg-white dark:bg-[#0B1120] px-6 rounded-t-full">
+        <p className="text-5xl md:text-6xl font-black tracking-tighter" style={{ color: activeZone.color }}>
           {Math.round(value)}
         </p>
       </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// 4. Fear & Greed 전용 메인 카드 (클릭 불가, 과거 타임라인 패널 포함)
+// ---------------------------------------------------------------------------
+const FearGreedCard = ({ item }) => {
+  const history = item.history || [];
+  
+  // 과거 거래일 기준 데이터 추출
+  const getHistoricalVal = (offset) => {
+    if (history.length > offset) return history[history.length - 1 - offset].value;
+    return null;
+  };
+
+  const currentVal = item.value;
+  const prevClose = getHistoricalVal(1);
+  const oneWeek = getHistoricalVal(5); // 영업일 5일
+  const oneMonth = getHistoricalVal(21); // 영업일 21일
+  const oneYear = getHistoricalVal(252); // 영업일 252일
+
+  const renderTimelineRow = (label, val) => {
+    if (val === null) return null;
+    const status = getFearGreedStatus(val);
+    const style = getStatusStyle(status);
+    // 상태 라벨에서 'Extreme ' 등의 줄바꿈을 띄어쓰기로 변환 (타임라인 표기용)
+    const displayStatus = status.replace('\n', ' ');
+
+    return (
+      <div className="flex items-center justify-between py-3 border-b border-dashed border-slate-700/50 last:border-0">
+        <div className="flex flex-col">
+          <span className="text-[12px] font-extrabold text-slate-500 mb-1">{label}</span>
+          <span className="text-[14px] font-black text-white">{displayStatus}</span>
+        </div>
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 border-[#1E293B] font-black text-[12px] bg-[#111827]`} style={{ color: style.text.replace('text-', '') }}>
+          {Math.round(val)}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-3xl shadow-sm mb-6 flex flex-col lg:flex-row gap-10">
+      
+      {/* 왼쪽: 메인 게이지 영역 */}
+      <div className="flex-1 flex flex-col items-center justify-center">
+        <div className="w-full flex justify-between items-start mb-2">
+          <div>
+            <h2 className="text-xl md:text-2xl font-black text-white">CNN Fear & Greed Index</h2>
+            <p className="text-[13px] font-extrabold text-slate-400 mt-1">What emotion is driving the market now?</p>
+          </div>
+        </div>
+        <div className="w-full mt-6 pb-6">
+          <FearGreedGauge value={currentVal} />
+        </div>
+        <p className="text-[11px] font-bold text-slate-500 mt-4 w-full text-left">
+          Last updated {item.recorded_at}
+        </p>
+      </div>
+
+      {/* 오른쪽: 타임라인 데이터 패널 */}
+      <div className="lg:w-72 flex flex-col justify-center bg-[#111827]/50 rounded-2xl p-5 border border-slate-800/50">
+        <div className="flex gap-2 mb-4">
+          <span className="px-3 py-1 bg-[#1E293B] text-white text-[11px] font-black rounded-full">Overview</span>
+          <span className="px-3 py-1 text-slate-400 text-[11px] font-black rounded-full">Timeline</span>
+        </div>
+        
+        <div className="flex flex-col">
+          {renderTimelineRow('Previous close', prevClose)}
+          {renderTimelineRow('1 week ago', oneWeek)}
+          {renderTimelineRow('1 month ago', oneMonth)}
+          {renderTimelineRow('1 year ago', oneYear)}
+        </div>
+      </div>
+
     </div>
   );
 };
@@ -344,15 +399,6 @@ const RegimeSummary = ({ regimeData }) => {
               <span className="text-xl font-black text-slate-400">/ 100</span>
             </div>
           </div>
-          <div className="flex flex-col items-start md:items-end">
-            <p className="text-[13px] font-extrabold text-slate-500 mb-1 flex items-center gap-1.5">
-              <ShieldCheck size={14} className="text-slate-400" /> Confidence
-            </p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-4xl md:text-5xl font-black text-slate-700 dark:text-slate-300">100</span>
-              <span className="text-xl font-black text-slate-400">%</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -360,10 +406,9 @@ const RegimeSummary = ({ regimeData }) => {
 };
 
 // ---------------------------------------------------------------------------
-// MacroCard — 미니 차트 (Sparkline) 1개월 데이터
+// MacroCard — 미니 차트 (Sparkline) 1개월 데이터 (Fear & Greed 제외)
 // ---------------------------------------------------------------------------
 const MacroCard = ({ item, onClick }) => {
-  const isGauge = item.indicator === 'FEAR_GREED';
   const isPos = item.change_percent >= 0;
   const statusStyle = getStatusStyle(item.calcStatus);
   
@@ -374,10 +419,10 @@ const MacroCard = ({ item, onClick }) => {
   return (
     <div
       onClick={() => onClick(item)}
-      className={`bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between ${isGauge ? 'col-span-1 sm:col-span-2 lg:col-span-4 h-auto py-8 mb-6' : 'h-40'}`}
+      className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between h-40"
     >
       <div className="flex justify-between items-start mb-2">
-        <h3 className="text-[13px] md:text-[14px] font-extrabold text-slate-500 dark:text-slate-400 truncate pr-2">
+        <h3 className="text-[13px] md:text-[14px] font-extrabold text-slate-500 dark:text-slate-400 group-hover:text-white transition-colors truncate pr-2">
           {item.display_name || item.indicator}
         </h3>
         <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${statusStyle.text} ${statusStyle.bg} ${statusStyle.border} shrink-0`}>
@@ -385,42 +430,51 @@ const MacroCard = ({ item, onClick }) => {
         </span>
       </div>
 
-      {isGauge ? (
-        <div className="mt-4 pb-4">
-          <FearGreedGauge value={item.value} size="lg" statusLabel={item.calcStatus} />
+      <div className="flex justify-between items-end">
+        <div>
+          <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tighter mb-1">
+            {item.value.toLocaleString()}
+          </p>
+          <p className={`text-[12px] md:text-[13px] font-black ${isPos ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
+            {isPos ? '▲' : '▼'} {Math.abs(item.change_percent).toFixed(2)}%
+          </p>
         </div>
-      ) : (
-        <div className="flex justify-between items-end">
-          <div>
-            <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tighter mb-1">
-              {item.value.toLocaleString()}
-            </p>
-            <p className={`text-[12px] md:text-[13px] font-black ${isPos ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
-              {isPos ? '▲' : '▼'} {Math.abs(item.change_percent).toFixed(2)}%
-            </p>
-          </div>
-          <div className="w-20 h-12">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 2, bottom: 2 }}>
-                <YAxis domain={['dataMin', 'dataMax']} hide />
-                <Line type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2.5} dot={false} isAnimationActive={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+        <div className="w-20 h-12">
+          <ResponsiveContainer width="100%" height="100%">
+            {/* 💡 YAxis dataMin 설정으로 미니 차트 평행선 현상 완벽 해결 */}
+            <LineChart data={chartData} margin={{ top: 2, bottom: 2 }}>
+              <YAxis domain={['dataMin', 'dataMax']} hide />
+              <Line type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2.5} dot={false} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-      )}
+      </div>
     </div>
   );
 };
 
-const MacroSection = ({ title, items, onCardClick }) => (
-  <div className="mb-10">
-    <h3 className="text-xl font-black text-slate-900 dark:text-white mb-4 pl-1">{title}</h3>
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {items.map(item => <MacroCard key={item.indicator} item={item} onClick={onCardClick} />)}
+const MacroSection = ({ title, items, onCardClick }) => {
+  // Fear & Greed는 전용 카드 사용
+  const isPsychology = items.some(item => item.indicator === 'FEAR_GREED');
+  
+  if (isPsychology) {
+    return (
+      <div className="mb-10 w-full">
+        <h3 className="text-xl font-black text-slate-900 dark:text-white mb-4 pl-1">{title}</h3>
+        {items.map(item => <FearGreedCard key={item.indicator} item={item} />)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-10">
+      <h3 className="text-xl font-black text-slate-900 dark:text-white mb-4 pl-1">{title}</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {items.map(item => <MacroCard key={item.indicator} item={item} onClick={onCardClick} />)}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ---------------------------------------------------------------------------
 // MacroChartModal — 3Y, 5Y 차트 랜더링 버그 완벽 해결
@@ -429,7 +483,6 @@ const RANGE_TRADING_DAYS = { '1M': 20, '3M': 60, '1Y': 252, '3Y': 756, '5Y': 126
 
 const MacroChartModal = ({ item, onClose }) => {
   const [range, setRange] = useState('1Y');
-  const isGauge = item.indicator === 'FEAR_GREED';
   const isPos = item.change_percent >= 0;
 
   const chartData = useMemo(() => {
@@ -455,56 +508,46 @@ const MacroChartModal = ({ item, onClose }) => {
         <div className="p-6 md:p-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
             <div className="flex items-center gap-6">
-              {isGauge ? (
-                <div className="flex items-center justify-center w-full min-w-[300px]">
-                  <FearGreedGauge value={item.value} size="lg" statusLabel={item.calcStatus} />
-                </div>
-              ) : (
-                <div>
-                  <p className="text-4xl font-black text-slate-900 dark:text-white mb-2">
-                    {item.value.toLocaleString()}{item.unit ? ` ${item.unit}` : ''}
-                  </p>
-                  <span className={`text-[14px] font-black px-2.5 py-1 rounded-lg border ${isPos ? 'text-[#FF4B4B] bg-[#FF4B4B]/10 border-[#FF4B4B]/30' : 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/30'}`}>
-                    {isPos ? '▲' : '▼'} {Math.abs(item.change_percent).toFixed(2)}%
-                  </span>
-                </div>
-              )}
-            </div>
-            {!isGauge && (
-              <div className="flex gap-2">
-                {Object.keys(RANGE_TRADING_DAYS).map(r => (
-                  <button
-                    key={r}
-                    onClick={() => setRange(r)}
-                    className={`text-[12px] font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer border shadow-sm ${range === r ? 'bg-slate-800 border-slate-800 text-white dark:bg-slate-200 dark:border-slate-200 dark:text-slate-900' : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                  >
-                    {r}
-                  </button>
-                ))}
+              <div>
+                <p className="text-4xl font-black text-slate-900 dark:text-white mb-2">
+                  {item.value.toLocaleString()}{item.unit ? ` ${item.unit}` : ''}
+                </p>
+                <span className={`text-[14px] font-black px-2.5 py-1 rounded-lg border ${isPos ? 'text-[#FF4B4B] bg-[#FF4B4B]/10 border-[#FF4B4B]/30' : 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/30'}`}>
+                  {isPos ? '▲' : '▼'} {Math.abs(item.change_percent).toFixed(2)}%
+                </span>
               </div>
-            )}
+            </div>
+            <div className="flex gap-2">
+              {Object.keys(RANGE_TRADING_DAYS).map(r => (
+                <button
+                  key={r}
+                  onClick={() => setRange(r)}
+                  className={`text-[12px] font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer border shadow-sm ${range === r ? 'bg-slate-800 border-slate-800 text-white dark:bg-slate-200 dark:border-slate-200 dark:text-slate-900' : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {!isGauge && (
-            <div className="w-full h-[300px] md:h-[400px]">
-              {/* 💡 Recharts 버그 해결의 핵심: key={range} 부여로 차트 강제 재생성 */}
-              <ResponsiveContainer width="100%" height="100%" key={range}>
-                <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorMacroModal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={CHART_RED} stopOpacity={0.3} />
-                      <stop offset="95%" stopColor={CHART_RED} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '800' }} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''} />
-                  <YAxis domain={['dataMin', 'dataMax']} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '800' }} tickLine={false} axisLine={false} tickFormatter={(v) => v.toFixed(1)} />
-                  <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900' }} itemStyle={{ color: CHART_RED }} labelStyle={{ color: '#94A3B8', marginBottom: '4px' }} formatter={(value) => [value.toFixed(2), 'Value']} />
-                  <Area type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2.5} fillOpacity={1} fill="url(#colorMacroModal)" activeDot={{ r: 6, fill: CHART_RED, strokeWidth: 0 }} isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+          <div className="w-full h-[300px] md:h-[400px]">
+            {/* 💡 key={range}로 재랜더링 강제 및 YAxis에 dataMin, dataMax 적용으로 평행선 현상 해결 */}
+            <ResponsiveContainer width="100%" height="100%" key={range}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorMacroModal" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={CHART_RED} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={CHART_RED} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '800' }} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''} />
+                <YAxis domain={['dataMin', 'dataMax']} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '800' }} tickLine={false} axisLine={false} tickFormatter={(v) => v.toFixed(1)} />
+                <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900' }} itemStyle={{ color: CHART_RED }} labelStyle={{ color: '#94A3B8', marginBottom: '4px' }} formatter={(value) => [value.toFixed(2), 'Value']} />
+                <Area type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2.5} fillOpacity={1} fill="url(#colorMacroModal)" activeDot={{ r: 6, fill: CHART_RED, strokeWidth: 0 }} isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>
@@ -627,4 +670,4 @@ const MacroPage = () => {
 };
 
 export default MacroPage;
-export { RegimeSummary, MacroSection, MacroCard, FearGreedGauge, MacroChartModal, RegimePopover };
+export { RegimeSummary, MacroSection, MacroCard, FearGreedCard, FearGreedGauge, MacroChartModal, RegimePopover };
