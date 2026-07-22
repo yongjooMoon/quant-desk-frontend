@@ -4,6 +4,7 @@ import {
   AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart,
 } from 'recharts';
+
 import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
@@ -182,9 +183,9 @@ const FearGreedGauge = ({ value }) => {
   const activeZone = FEAR_GREED_ZONES.find(z => clampedValue >= z.min && clampedValue <= z.max) || FEAR_GREED_ZONES[FEAR_GREED_ZONES.length-1];
 
   return (
-    <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-10 w-full mt-4 md:mt-6">
-      {/* 1. 반원 게이지 영역 (글자 제거됨) */}
-      <div className="relative w-full max-w-[280px] md:max-w-[320px] aspect-[2/1] flex justify-center items-end overflow-visible select-none">
+    <div className="flex flex-col items-center justify-center w-full mt-4 md:mt-6">
+      {/* 1. 반원 게이지 영역 (크기 복구 및 가독성 향상) */}
+      <div className="relative w-full max-w-[300px] md:max-w-[360px] aspect-[2/1] flex justify-center items-end overflow-visible select-none">
         <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
           {/* 분할 도넛 세그먼트 그리기 */}
           {FEAR_GREED_ZONES.map((zone) => {
@@ -252,21 +253,16 @@ const FearGreedGauge = ({ value }) => {
         </div>
       </div>
 
-      {/* 2. 우측 점수 기준 범례 (Legend) */}
-      <div className="flex flex-col gap-2.5 bg-slate-50 dark:bg-[#1E293B]/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+      {/* 2. 하단 가로 배치 점수 기준 범례 (Legend) */}
+      <div className="flex flex-wrap justify-center gap-x-5 gap-y-2.5 mt-8 md:mt-10 px-2 w-full max-w-[500px]">
         {FEAR_GREED_ZONES.map((zone) => {
           const isActive = activeZone.id === zone.id;
           return (
-            <div key={zone.id} className={`flex items-center gap-3 transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-40 grayscale-[50%]'}`}>
-              <span className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: zone.color }}></span>
-              <div className="flex flex-col">
-                <span className="text-[11px] font-black text-slate-800 dark:text-slate-200">
-                  {zone.label.replace('\n', ' ')}
-                </span>
-                <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500">
-                  {zone.min} - {zone.max}
-                </span>
-              </div>
+            <div key={zone.id} className={`flex items-center gap-1.5 transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-40 grayscale-[50%]'}`}>
+              <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: zone.color }}></span>
+              <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                {zone.label.replace('\n', ' ')} <span className="font-bold text-slate-400 dark:text-slate-500">({zone.min}-{zone.max})</span>
+              </span>
             </div>
           );
         })}
