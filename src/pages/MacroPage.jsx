@@ -275,7 +275,6 @@ const FearGreedGauge = ({ value }) => {
 // 4. Fear & Greed 전용 카드 (탭 기능 구현 포함)
 // ---------------------------------------------------------------------------
 const FearGreedCard = ({ item }) => {
-  const [tab, setTab] = useState('overview'); // 'overview' | 'timeline'
   const history = item.history || [];
   
   // 과거 거래일 기준 데이터 추출
@@ -288,7 +287,6 @@ const FearGreedCard = ({ item }) => {
   const prevClose = getHistoricalVal(1);
   const oneWeek = getHistoricalVal(5); // 영업일 5일
   const oneMonth = getHistoricalVal(21); // 영업일 21일
-  const oneYear = getHistoricalVal(252); // 영업일 252일
 
   const renderTimelineRow = (label, val) => {
     if (val === null) return null;
@@ -297,7 +295,7 @@ const FearGreedCard = ({ item }) => {
     const displayStatus = status.replace('\n', ' ');
 
     return (
-      <div className="flex items-center justify-between py-3 border-b border-dashed border-slate-200 dark:border-slate-700/50 last:border-0">
+      <div className="flex items-center justify-between py-3.5 border-b border-dashed border-slate-200 dark:border-slate-700/50 last:border-0">
         <div className="flex flex-col">
           <span className="text-[12px] font-extrabold text-slate-500 mb-1">{label}</span>
           <span className="text-[14px] font-black text-slate-900 dark:text-white">{displayStatus}</span>
@@ -308,12 +306,6 @@ const FearGreedCard = ({ item }) => {
       </div>
     );
   };
-
-  // 타임라인 탭에서 보여줄 1년치 차트 데이터
-  const chartData = useMemo(() => {
-    const sorted = [...history].sort((a, b) => new Date(a.date) - new Date(b.date));
-    return sorted.slice(-252);
-  }, [history]);
 
   return (
     <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-3xl shadow-sm mb-6 flex flex-col lg:flex-row gap-10">
@@ -332,53 +324,12 @@ const FearGreedCard = ({ item }) => {
         </p>
       </div>
 
-      {/* 오른쪽: 작동하는 기능성 탭 패널 (모바일 대응 레이아웃 적용) */}
-      <div className="w-full lg:w-[340px] flex flex-col justify-center bg-slate-50 dark:bg-[#111827]/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800/50">
-        {/* 탭 토글 버튼 */}
-        <div className="flex bg-slate-200 dark:bg-[#1E293B] p-1 rounded-full mb-4 relative z-10 w-full max-w-[200px] mx-auto">
-          <button 
-            onClick={() => setTab('overview')} 
-            className={`flex-1 px-4 py-1.5 rounded-full text-[12px] font-black transition-all ${tab === 'overview' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-          >
-            Overview
-          </button>
-          <button 
-            onClick={() => setTab('timeline')} 
-            className={`flex-1 px-4 py-1.5 rounded-full text-[12px] font-black transition-all ${tab === 'timeline' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-          >
-            Timeline
-          </button>
-        </div>
-        
-        {/* 내용 영역 (모바일 축소 방지 min-h 적용) */}
-        <div className="flex flex-col flex-1 w-full min-h-[220px] relative">
-          {tab === 'overview' ? (
-            <div className="flex flex-col animate-in fade-in duration-300 h-full justify-center">
-              {renderTimelineRow('Previous close', prevClose)}
-              {renderTimelineRow('1 week ago', oneWeek)}
-              {renderTimelineRow('1 month ago', oneMonth)}
-              {renderTimelineRow('1 year ago', oneYear)}
-            </div>
-          ) : (
-            <div className="w-full h-full min-h-[220px] animate-in fade-in duration-300 flex flex-col">
-              <span className="text-[11px] font-black text-slate-400 mb-2">1 Year Trend</span>
-              <div className="flex-1 w-full h-full min-h-[180px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="fgGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <YAxis domain={[0, 100]} tick={{ fill: '#94A3B8', fontSize: 10, fontWeight: '800' }} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900' }} itemStyle={{ color: '#8b5cf6' }} labelStyle={{ display: 'none' }} formatter={(value) => [Math.round(value), 'Index']} />
-                    <Area type="monotone" dataKey="value" stroke="#8b5cf6" strokeWidth={2.5} fillOpacity={1} fill="url(#fgGradient)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
+      {/* 오른쪽: 작동하는 정보 요약 패널 (3줄 고정) */}
+      <div className="w-full lg:w-[340px] flex flex-col justify-center bg-slate-50 dark:bg-[#111827]/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800/50 h-auto self-center">
+        <div className="flex flex-col w-full">
+          {renderTimelineRow('Previous close', prevClose)}
+          {renderTimelineRow('1 week ago', oneWeek)}
+          {renderTimelineRow('1 month ago', oneMonth)}
         </div>
       </div>
 
