@@ -4,10 +4,6 @@ import {
   AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart,
 } from 'recharts';
-
-// 💡 알림: 미리보기(Preview) 환경에서 외부 파일을 찾지 못해 발생하는 컴파일 에러를 방지하기 위해 
-// 임시로 import 문을 주석 처리하고 Mock 함수를 넣었습니다.
-// 실제 프로젝트 환경에 복사하실 때는 아래 주석을 풀고, Mock 함수 블록을 삭제해 주세요!
 import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
@@ -186,101 +182,94 @@ const FearGreedGauge = ({ value }) => {
   const activeZone = FEAR_GREED_ZONES.find(z => clampedValue >= z.min && clampedValue <= z.max) || FEAR_GREED_ZONES[FEAR_GREED_ZONES.length-1];
 
   return (
-    <div className="relative w-full max-w-[340px] md:max-w-[420px] aspect-[2/1] flex justify-center items-end mx-auto overflow-visible select-none mt-4 md:mt-6">
-      <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
-        {/* 1. 5개 분할 도넛 세그먼트 그리기 */}
+    <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-10 w-full mt-4 md:mt-6">
+      {/* 1. 반원 게이지 영역 (글자 제거됨) */}
+      <div className="relative w-full max-w-[280px] md:max-w-[320px] aspect-[2/1] flex justify-center items-end overflow-visible select-none">
+        <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
+          {/* 분할 도넛 세그먼트 그리기 */}
+          {FEAR_GREED_ZONES.map((zone) => {
+            const isActive = activeZone.id === zone.id;
+            
+            // 렌더링 시점에 점수를 기반으로 시작/종료 각도를 선형적으로 자동 계산
+            const startAngle = scoreToAngle(zone.min);
+            const endAngle = scoreToAngle(zone.max);
+            
+            const slicePath = getDonutSlice(cx, cy, innerR, outerR, startAngle, endAngle);
+            
+            return (
+              <g key={zone.id}>
+                {/* 배경/테두리 패스 */}
+                <path 
+                  d={slicePath}
+                  className={isActive ? '' : 'fill-slate-100 stroke-slate-200 dark:fill-[#1E293B] dark:stroke-[#0F172A]'}
+                  style={isActive ? { fill: `${zone.color}33`, stroke: zone.color, strokeWidth: "2" } : { strokeWidth: "1" }}
+                />
+              </g>
+            );
+          })}
+
+          {/* 내부 점선 트랙 */}
+          <path 
+            d="M 30 100 A 70 70 0 0 1 170 100" 
+            fill="none" 
+            className="stroke-slate-300 dark:stroke-slate-700"
+            strokeWidth="1.5" 
+            strokeDasharray="2 8" 
+            strokeLinecap="round"
+          />
+
+          {/* 눈금 숫자 (0, 25, 50, 75, 100) */}
+          {[0, 25, 50, 75, 100].map(tick => {
+            const angle = (tick / 100) * 180;
+            const pos = getCartesian(cx, cy, 38, angle);
+            return (
+              <text key={tick} x={pos.x} y={pos.y} className="fill-slate-400 dark:fill-slate-500" fontSize="7" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
+                {tick}
+              </text>
+            );
+          })}
+          
+          {/* 바늘 (Needle) */}
+          {/* 9시 방향(왼쪽)을 0도 기준으로 하여 회전하도록 기하학적 형태 교정 */}
+          <g style={{ transformOrigin: '100px 100px', transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+            {/* 바늘의 베이스는 100,100 중심부근, 팁은 30,100 (내부 점선을 넘어 게이지 컬러영역을 가리킴) */}
+            <polygon 
+              points="100,96 100,104 30,100" 
+              className="fill-slate-800 dark:fill-white"
+            />
+          </g>
+          
+          {/* 바늘 중심축 원 */}
+          <circle cx="100" cy="100" r="10" className="fill-slate-800 dark:fill-white"/>
+          <circle cx="100" cy="100" r="4" className="fill-white dark:fill-[#0B1120]"/>
+        </svg>
+
+        {/* 중앙 하단 수치 */}
+        <div className="absolute -bottom-2 w-full flex flex-col items-center justify-end z-10 bg-white dark:bg-[#0B1120] px-6 rounded-t-full">
+          <p className="text-4xl md:text-5xl font-black tracking-tighter" style={{ color: activeZone.color }}>
+            {Math.round(value)}
+          </p>
+        </div>
+      </div>
+
+      {/* 2. 우측 점수 기준 범례 (Legend) */}
+      <div className="flex flex-col gap-2.5 bg-slate-50 dark:bg-[#1E293B]/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
         {FEAR_GREED_ZONES.map((zone) => {
           const isActive = activeZone.id === zone.id;
-          
-          // 렌더링 시점에 점수를 기반으로 시작/종료 각도를 선형적으로 자동 계산
-          const startAngle = scoreToAngle(zone.min);
-          const endAngle = scoreToAngle(zone.max);
-          
-          const slicePath = getDonutSlice(cx, cy, innerR, outerR, startAngle, endAngle);
-          
-          const midAngle = (startAngle + endAngle) / 2;
-          const textRadius = 75; 
-          const textPos = getCartesian(cx, cy, textRadius, midAngle);
-          const labelLines = zone.label.split('\n');
-          
           return (
-            <g key={zone.id}>
-              {/* 배경/테두리 패스 */}
-              <path 
-                d={slicePath}
-                className={isActive ? '' : 'fill-slate-100 stroke-slate-200 dark:fill-[#1E293B] dark:stroke-[#0F172A]'}
-                style={isActive ? { fill: `${zone.color}33`, stroke: zone.color, strokeWidth: "2" } : { strokeWidth: "1" }}
-              />
-              {/* 구간 라벨 텍스트 */}
-              <text 
-                x={textPos.x}
-                y={textPos.y}
-                // 구간이 좁은 영역(NEUTRAL 등)은 폰트 크기를 살짝 줄여 겹침 현상 방지
-                fontSize={zone.id === 'neutral' ? "7" : "8"}
-                fontWeight="900"
-                textAnchor="middle"
-                dominantBaseline="middle"
-                // 중앙 원점을 바라보도록 글자 회전
-                transform={`rotate(${90 - midAngle}, ${textPos.x}, ${textPos.y})`}
-                style={{ letterSpacing: '-0.3px' }} // 자간을 줄여 글자 겹침 최소화
-                className={isActive ? '' : 'fill-slate-400 dark:fill-slate-500'}
-              >
-                {labelLines.map((line, i) => (
-                  <tspan 
-                    key={i} 
-                    x={textPos.x} 
-                    dy={i === 0 ? (labelLines.length > 1 ? '-0.5em' : '0.1em') : '1.1em'}
-                    style={isActive ? { fill: zone.color } : {}}
-                  >
-                    {line}
-                  </tspan>
-                ))}
-              </text>
-            </g>
+            <div key={zone.id} className={`flex items-center gap-3 transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-40 grayscale-[50%]'}`}>
+              <span className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: zone.color }}></span>
+              <div className="flex flex-col">
+                <span className="text-[11px] font-black text-slate-800 dark:text-slate-200">
+                  {zone.label.replace('\n', ' ')}
+                </span>
+                <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500">
+                  {zone.min} - {zone.max}
+                </span>
+              </div>
+            </div>
           );
         })}
-
-        {/* 2. 내부 점선 트랙 */}
-        <path 
-          d="M 30 100 A 70 70 0 0 1 170 100" 
-          fill="none" 
-          className="stroke-slate-300 dark:stroke-slate-700"
-          strokeWidth="1.5" 
-          strokeDasharray="2 8" 
-          strokeLinecap="round"
-        />
-
-        {/* 눈금 숫자 (0, 25, 50, 75, 100) */}
-        {[0, 25, 50, 75, 100].map(tick => {
-          const angle = (tick / 100) * 180;
-          const pos = getCartesian(cx, cy, 38, angle);
-          return (
-            <text key={tick} x={pos.x} y={pos.y} className="fill-slate-400 dark:fill-slate-500" fontSize="7" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
-              {tick}
-            </text>
-          );
-        })}
-        
-        {/* 3. 바늘 (Needle) */}
-        {/* 💡 수정됨: 9시 방향(왼쪽)을 0도 기준으로 하여 회전하도록 기하학적 형태 교정 */}
-        <g style={{ transformOrigin: '100px 100px', transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
-          {/* 바늘의 베이스는 100,100 중심부근, 팁은 30,100 (내부 점선을 넘어 게이지 컬러영역을 가리킴) */}
-          <polygon 
-            points="100,96 100,104 30,100" 
-            className="fill-slate-800 dark:fill-white"
-          />
-        </g>
-        
-        {/* 바늘 중심축 원 */}
-        <circle cx="100" cy="100" r="10" className="fill-slate-800 dark:fill-white"/>
-        <circle cx="100" cy="100" r="4" className="fill-white dark:fill-[#0B1120]"/>
-      </svg>
-
-      {/* 4. 중앙 하단 수치 */}
-      <div className="absolute -bottom-2 w-full flex flex-col items-center justify-end z-10 bg-white dark:bg-[#0B1120] px-6 rounded-t-full">
-        <p className="text-5xl md:text-6xl font-black tracking-tighter" style={{ color: activeZone.color }}>
-          {Math.round(value)}
-        </p>
       </div>
     </div>
   );
