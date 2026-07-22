@@ -1,40 +1,12 @@
-import { useMemo, useState } from 'react';
-import { Info, TrendingUp, TrendingDown, ShieldCheck, X } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Info, TrendingUp, TrendingDown, ShieldCheck, X, Loader2 } from 'lucide-react';
 import {
   AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart,
 } from 'recharts';
 
 // =============================================================================
-// Macro Dashboard
-// -----------------------------------------------------------------------------
-// Supabase의 `macro_market_data` 롱포맷 테이블을 그대로 반영한 컴포넌트 구조.
-// 이번 단계는 UI/컴포넌트 구조만 구현하며, 기존 API 호출 로직(useRenderApi,
-// data.macro)은 전혀 건드리지 않는다. macroData/regimeSummary가 비어있거나
-// undefined이면 MOCK 데이터로 자연스럽게 대체된다.
-//
-// 향후 API 연동 시 각 지표 아이템은 아래 shape을 따르면 된다 (DB 컬럼명과 동일):
-//   {
-//     indicator: 'QQQ_PRICE',        // macro_market_data.indicator
-//     display_name: 'QQQ',           // macro_market_data.display_name
-//     source: 'yahoo_finance',       // macro_market_data.source
-//     value: 452.15,                 // macro_market_data.value
-//     unit: 'USD',                   // macro_market_data.unit
-//     signal: 'bullish',             // macro_market_data.signal ('bullish' | 'neutral' | 'bearish')
-//     recorded_at: '2026-07-21',     // macro_market_data.recorded_at
-//     change_percent: 1.25,          // (프론트 계산용, DB 컬럼 아님 - 최근 2개 row 비교로 산출 예정)
-//     history: [{ date, value }, …], // (차트 모달용 시계열 - 기간별 range 쿼리로 대체될 예정)
-//   }
-//
-// Regime Summary는 아래 shape을 기대한다 (별도 regime 판정 테이블/로직 연동 예정):
-//   {
-//     regime: 'Bull',                // 'Strong Bull' | 'Bull' | 'Neutral' | 'Bear' | 'Crash'
-//     score: 87,                     // 0~100
-//     confidence: 82,                // 0~100
-//     last_updated: '2026-07-21',
-//     positive_factors: [...],
-//     negative_factors: [...],
-//   }
+// Macro Dashboard (API 연동 완료)
 // =============================================================================
 
 const REGIME_CONFIG = {
@@ -45,15 +17,12 @@ const REGIME_CONFIG = {
   "Crash": { color: "text-[#FF4B4B]", bg: "bg-[#FF4B4B]/10", border: "border-[#FF4B4B]/50", hex: "#FF4B4B", desc: "극단적인 Risk-Off\n신규 공격적 매수 자제" }
 };
 
-// signal(bullish/neutral/bearish) → 색상 매핑. 기존 프로젝트 색상 컨벤션 유지
-// (상승=레드 #FF4B4B, 하락=블루 #3B82F6, 중립=옐로우) — KOSPI 포트폴리오 탭과 동일.
 const SIGNAL_CONFIG = {
   bullish: { label: 'Bullish', text: 'text-[#FF4B4B]', bg: 'bg-[#FF4B4B]/10', border: 'border-[#FF4B4B]/30', hex: '#FF4B4B' },
   neutral: { label: 'Neutral', text: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', hex: '#94A3B8' },
   bearish: { label: 'Bearish', text: 'text-[#3B82F6]', bg: 'bg-[#3B82F6]/10', border: 'border-[#3B82F6]/30', hex: '#3B82F6' },
 };
 
-// indicator 코드 → 화면 표시 정보. DB의 indicator 컬럼 값과 1:1 매칭.
 const INDICATOR_META = {
   QQQ_PRICE: { display_name: 'QQQ', unit: 'USD' },
   QQQ_MA50: { display_name: '50일 이동평균', unit: 'USD' },
@@ -66,8 +35,6 @@ const INDICATOR_META = {
   FEAR_GREED: { display_name: 'CNN Fear & Greed', unit: 'index' },
 };
 
-// Section 구성 순서 및 각 섹션에 포함되는 indicator 목록.
-// (요청 화면 구성: ① Regime Summary ② Trend ③ Liquidity ④ Risk ⑤ Market Psychology)
 const SECTIONS = [
   { title: 'Trend', indicators: ['QQQ_PRICE', 'QQQ_MA50', 'QQQ_MA200', 'QQQ_MA200_SLOPE'] },
   { title: 'Liquidity', indicators: ['REAL_YIELD_10Y', 'CREDIT_SPREAD'] },
@@ -75,64 +42,16 @@ const SECTIONS = [
   { title: 'Market Psychology', indicators: ['FEAR_GREED'] },
 ];
 
-// ---------------------------------------------------------------------------
-// Mock 데이터 (API 연동 전까지 사용). 실제 데이터가 내려오면 그대로 대체된다.
-// ---------------------------------------------------------------------------
-const genMockHistory = (base, volatility, bias, days = 1260) => {
-  const out = [];
-  let val = base;
-  const today = new Date();
-  for (let i = days - 1; i >= 0; i--) {
-    val += (Math.random() - 0.5 + bias) * volatility;
-    val = Math.max(val, base * 0.4);
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    out.push({ date: d.toISOString().substring(0, 10), value: Number(val.toFixed(2)) });
-  }
-  return out;
-};
-
-const buildMockItem = (indicator, signal, base, volatility, bias) => {
-  const history = genMockHistory(base, volatility, bias);
-  const last = history[history.length - 1].value;
-  const prev = history[history.length - 2].value;
-  return {
-    indicator,
-    display_name: INDICATOR_META[indicator].display_name,
-    source: 'yahoo_finance',
-    value: last,
-    unit: INDICATOR_META[indicator].unit,
-    signal,
-    recorded_at: history[history.length - 1].date,
-    change_percent: prev ? ((last - prev) / prev) * 100 : 0,
-    history,
-  };
-};
-
-const MOCK_MACRO_DATA = [
-  buildMockItem('QQQ_PRICE', 'bullish', 452.15, 3, 0.15),
-  buildMockItem('QQQ_MA50', 'neutral', 435.20, 1.2, 0.05),
-  buildMockItem('QQQ_MA200', 'bullish', 398.50, 0.8, 0.08),
-  buildMockItem('QQQ_MA200_SLOPE', 'bullish', 0.45, 0.05, 0.02),
-  buildMockItem('REAL_YIELD_10Y', 'bearish', 2.15, 0.03, -0.02),
-  buildMockItem('CREDIT_SPREAD', 'bullish', 3.12, 0.05, -0.03),
-  buildMockItem('VIX', 'bullish', 13.8, 0.6, -0.1),
-  buildMockItem('WTI', 'neutral', 82.5, 0.9, 0),
-  buildMockItem('FEAR_GREED', 'bullish', 72, 1.5, 0.05),
-];
-
+// Regime 데이터는 아직 API가 없으므로 임시로 유지합니다.
 const MOCK_REGIME_SUMMARY = {
   regime: 'Bull',
   score: 87,
   confidence: 82,
-  last_updated: '2026-07-21',
+  last_updated: new Date().toISOString().substring(0, 10),
   positive_factors: ['VIX 안정 하향 추세', 'Credit Spread 지속 축소', 'QQQ 강력한 상승 추세 유지'],
   negative_factors: ['DXY 단기 반등세', 'Real Yield (10Y TIPS) 상승 압력'],
 };
 
-// ---------------------------------------------------------------------------
-// RegimePopover — Regime 단계별 설명 팝오버
-// ---------------------------------------------------------------------------
 const RegimePopover = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
   return (
@@ -153,9 +72,6 @@ const RegimePopover = ({ isOpen, onClose }) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// RegimeSummary — 페이지 최상단 Regime 요약 패널
-// ---------------------------------------------------------------------------
 const RegimeSummary = ({ summary }) => {
   const [infoOpen, setInfoOpen] = useState(false);
   const s = summary || MOCK_REGIME_SUMMARY;
@@ -224,9 +140,6 @@ const RegimeSummary = ({ summary }) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// FearGreedGauge — 반원형 게이지 (Report 모달의 기존 스코어 게이지 패턴 재사용)
-// ---------------------------------------------------------------------------
 const FEAR_GREED_STOPS = [
   { max: 25, label: 'Extreme Fear', hex: '#3B82F6' },
   { max: 45, label: 'Fear', hex: '#60A5FA' },
@@ -263,9 +176,6 @@ const FearGreedGauge = ({ value, size = 'sm' }) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// MacroCard — 공용 지표 카드 (FEAR_GREED는 게이지, 그 외는 스파크라인)
-// ---------------------------------------------------------------------------
 const MacroCard = ({ item, onClick }) => {
   const isGauge = item.indicator === 'FEAR_GREED';
   const isPos = item.change_percent >= 0;
@@ -306,9 +216,6 @@ const MacroCard = ({ item, onClick }) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// MacroSection — 카테고리별 카드 그리드
-// ---------------------------------------------------------------------------
 const MacroSection = ({ title, items, onCardClick }) => (
   <div className="mb-10">
     <h3 className="text-xl font-black text-slate-900 dark:text-white mb-4 pl-1">{title}</h3>
@@ -318,9 +225,6 @@ const MacroSection = ({ title, items, onCardClick }) => (
   </div>
 );
 
-// ---------------------------------------------------------------------------
-// MacroChartModal — 카드 클릭 시 기간별(1M/3M/1Y/3Y/5Y) 상세 차트 팝업
-// ---------------------------------------------------------------------------
 const RANGE_TRADING_DAYS = { '1M': 20, '3M': 60, '1Y': 252, '3Y': 756, '5Y': 1260 };
 
 const MacroChartModal = ({ item, onClose }) => {
@@ -398,20 +302,68 @@ const MacroChartModal = ({ item, onClose }) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// MacroPage — 전체 조립. QuantDesk의 Macro 탭에서 <MacroPage macroData={data.macro} /> 로 호출.
-// ---------------------------------------------------------------------------
-const MacroPage = ({ macroData, regimeSummary }) => {
+const MacroPage = ({ regimeSummary }) => {
   const [selectedMacro, setSelectedMacro] = useState(null);
+  
+  // API 상태 관리
+  const [macroData, setMacroData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // 백엔드에서 전달받은 데이터가 없으면 MOCK으로 안전하게 대체 (API 연동 전 단계)
-  const safeData = macroData && macroData.length > 0 ? macroData : MOCK_MACRO_DATA;
+  // 컴포넌트 마운트 시 새로 만든 API 호출
+  useEffect(() => {
+    const fetchMacroData = async () => {
+      try {
+        setLoading(true);
+        // vite proxy 설정 등에 따라 /api/macro 가 될 수도 있습니다.
+        // standalone 실행 시 전체 주소가 필요할 수 있으므로 환경에 맞게 조정하세요.
+        const response = await fetch('/api/macro');
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+          setMacroData(result.data);
+        } else {
+          setError(result.message || '데이터를 불러오는 데 실패했습니다.');
+        }
+      } catch (err) {
+        setError('서버 연결에 실패했습니다.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMacroData();
+  }, []);
+
   const byIndicator = useMemo(() => {
     const map = {};
-    safeData.forEach(item => { map[item.indicator] = item; });
+    macroData.forEach(item => { map[item.indicator] = item; });
     return map;
-  }, [safeData]);
+  }, [macroData]);
 
+  // 로딩 상태 렌더링
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 w-full text-slate-500 animate-in fade-in">
+        <Loader2 size={48} className="animate-spin text-slate-400 mb-4" />
+        <p className="text-[14px] font-extrabold">매크로 데이터를 분석 중입니다...</p>
+      </div>
+    );
+  }
+
+  // 에러 상태 렌더링
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96 w-full animate-in fade-in">
+        <div className="bg-red-50 dark:bg-red-500/10 text-red-500 border border-red-200 dark:border-red-500/30 p-6 rounded-2xl max-w-md text-center shadow-sm">
+          <p className="font-black text-[15px] mb-2">데이터 연동 오류</p>
+          <p className="text-[13px] font-bold opacity-80">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 정상 렌더링
   return (
     <div className="animate-in fade-in duration-300 w-full">
       <RegimeSummary summary={regimeSummary} />
