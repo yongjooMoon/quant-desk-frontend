@@ -308,13 +308,12 @@ const FearGreedCard = ({ item }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-3xl shadow-sm mb-6 flex flex-col lg:flex-row gap-10">
+    <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-600 p-6 md:p-8 rounded-3xl shadow-sm mb-6 flex flex-col lg:flex-row gap-10">
       
       {/* 왼쪽: 메인 게이지 영역 */}
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="w-full flex flex-col items-start mb-2">
-          <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">CNN Fear & Greed Index</h2>
-          <p className="text-[13px] font-extrabold text-slate-500 mt-1">What emotion is driving the market now?</p>
+          <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">Fear & Greed Index</h2>
         </div>
         <div className="w-full mt-6 pb-6">
           <FearGreedGauge value={currentVal} />
