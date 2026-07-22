@@ -4,13 +4,10 @@ import {
   AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart,
 } from 'recharts';
-
-// 실제 프로젝트 환경에 적용하실 때는 아래 Mock 부분을 삭제하시고, 
-// 주석 처리된 import 문을 활성화하여 사용해 주세요.
 import { useRenderApi } from '../hooks/useRenderApi';
 
 // =============================================================================
-// Macro Dashboard (API 연동 완료)
+// Macro Dashboard (Frontend Logic Only)
 // =============================================================================
 
 const REGIME_CONFIG = {
@@ -19,12 +16,6 @@ const REGIME_CONFIG = {
   "Neutral": { color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/50", hex: "#EAB308", desc: "방향성 부족\nVR 또는 분할매수 고려" },
   "Bear": { color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/50", hex: "#F97316", desc: "방어 전략 권장\n현금 비중 확대 고려" },
   "Crash": { color: "text-[#FF4B4B]", bg: "bg-[#FF4B4B]/10", border: "border-[#FF4B4B]/50", hex: "#FF4B4B", desc: "극단적인 Risk-Off\n신규 공격적 매수 자제" }
-};
-
-const SIGNAL_CONFIG = {
-  bullish: { label: 'Bullish', text: 'text-[#FF4B4B]', bg: 'bg-[#FF4B4B]/10', border: 'border-[#FF4B4B]/30', hex: '#FF4B4B' },
-  neutral: { label: 'Neutral', text: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', hex: '#94A3B8' },
-  bearish: { label: 'Bearish', text: 'text-[#3B82F6]', bg: 'bg-[#3B82F6]/10', border: 'border-[#3B82F6]/30', hex: '#3B82F6' },
 };
 
 const INDICATOR_META = {
@@ -46,7 +37,6 @@ const SECTIONS = [
   { title: 'Market Psychology', indicators: ['FEAR_GREED'] },
 ];
 
-// Regime 데이터는 아직 API가 없으므로 임시로 유지합니다.
 const MOCK_REGIME_SUMMARY = {
   regime: 'Bull',
   score: 87,
@@ -56,6 +46,90 @@ const MOCK_REGIME_SUMMARY = {
   negative_factors: ['DXY 단기 반등세', 'Real Yield (10Y TIPS) 상승 압력'],
 };
 
+const CHART_RED = '#FF4B4B'; // 모든 차트에 일괄 적용될 기본 빨간색 계열 테마
+
+// ---------------------------------------------------------------------------
+// 1. Status 계산 방식 변경 (React 내부 직접 계산 로직)
+// ---------------------------------------------------------------------------
+const getVixStatus = (value) => {
+  if (value < 15) return 'Strong Bull';
+  if (value < 20) return 'Bull';
+  if (value < 30) return 'Neutral';
+  if (value < 40) return 'Bear';
+  return 'Crash';
+};
+
+const getRealYieldStatus = (value) => {
+  if (value < 1.0) return 'Strong Bull';
+  if (value < 1.5) return 'Bull';
+  if (value < 2.0) return 'Neutral';
+  if (value < 2.5) return 'Bear';
+  return 'Crash';
+};
+
+const getCreditSpreadStatus = (value) => {
+  if (value < 1.2) return 'Strong Bull';
+  if (value < 1.8) return 'Bull';
+  if (value < 2.5) return 'Neutral';
+  if (value < 4.0) return 'Bear';
+  return 'Crash';
+};
+
+const getWtiStatus = (value) => {
+  if (value < 70) return 'Bull';
+  if (value < 85) return 'Neutral';
+  if (value < 100) return 'Bear';
+  return 'Warning';
+};
+
+const getFearGreedStatus = (value) => {
+  if (value <= 25) return 'Extreme Fear';
+  if (value <= 45) return 'Fear';
+  if (value <= 55) return 'Neutral';
+  if (value <= 75) return 'Greed';
+  return 'Extreme Greed';
+};
+
+const getSlopeStatus = (value) => {
+  if (value > 0.01) return 'Bull';
+  if (value < -0.01) return 'Bear';
+  return 'Neutral'; // 0 부근 (Neutral 범위 지정)
+};
+
+const getQqqTrendStatus = (price, ma50, ma200) => {
+  if (price > ma200 && ma50 > ma200) return 'Strong Bull';
+  if (price > ma200) return 'Bull';
+  if (price < ma200 && ma50 < ma200) return 'Crash';
+  if (price < ma200) return 'Bear';
+  return 'Neutral';
+};
+
+// 도출된 Status 값을 바탕으로 카드/뱃지의 시각적 스타일을 맵핑합니다.
+const getStatusStyle = (status) => {
+  switch (status) {
+    case 'Strong Bull':
+    case 'Extreme Greed':
+      return { label: status, text: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', hex: '#10B981' };
+    case 'Bull':
+    case 'Greed':
+      return { label: status, text: 'text-[#00B464]', bg: 'bg-[#00B464]/10', border: 'border-[#00B464]/30', hex: '#00B464' };
+    case 'Neutral':
+      return { label: status, text: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', hex: '#EAB308' };
+    case 'Bear':
+    case 'Fear':
+      return { label: status, text: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-orange-500/30', hex: '#F97316' };
+    case 'Crash':
+    case 'Warning':
+    case 'Extreme Fear':
+      return { label: status, text: 'text-[#FF4B4B]', bg: 'bg-[#FF4B4B]/10', border: 'border-[#FF4B4B]/30', hex: '#FF4B4B' };
+    default:
+      return { label: status || 'Neutral', text: 'text-slate-500', bg: 'bg-slate-500/10', border: 'border-slate-500/30', hex: '#94A3B8' };
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Components
+// ---------------------------------------------------------------------------
 const RegimePopover = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
   return (
@@ -145,11 +219,11 @@ const RegimeSummary = ({ summary }) => {
 };
 
 const FEAR_GREED_STOPS = [
-  { max: 25, label: 'Extreme Fear', hex: '#3B82F6' },
-  { max: 45, label: 'Fear', hex: '#60A5FA' },
-  { max: 55, label: 'Neutral', hex: '#EAB308' },
-  { max: 75, label: 'Greed', hex: '#FB923C' },
-  { max: 100, label: 'Extreme Greed', hex: '#FF4B4B' },
+  { max: 25, label: 'Extreme Fear', hex: '#FF4B4B' }, // 극한 공포: 빨강
+  { max: 45, label: 'Fear', hex: '#F97316' },        // 공포: 주황
+  { max: 55, label: 'Neutral', hex: '#EAB308' },     // 중립: 노랑
+  { max: 75, label: 'Greed', hex: '#00B464' },       // 탐욕: 초록
+  { max: 100, label: 'Extreme Greed', hex: '#10B981' } // 극한 탐욕: 에메랄드
 ];
 
 const getFearGreedStop = (value) => FEAR_GREED_STOPS.find(s => value <= s.max) || FEAR_GREED_STOPS[FEAR_GREED_STOPS.length - 1];
@@ -183,7 +257,9 @@ const FearGreedGauge = ({ value, size = 'sm' }) => {
 const MacroCard = ({ item, onClick }) => {
   const isGauge = item.indicator === 'FEAR_GREED';
   const isPos = item.change_percent >= 0;
-  const signalConf = SIGNAL_CONFIG[item.signal] || SIGNAL_CONFIG.neutral;
+  
+  // API의 signal을 무시하고, React에서 직접 계산한 calcStatus 기반으로 스타일 적용
+  const statusStyle = getStatusStyle(item.calcStatus);
   const chartData = (item.history || []).slice(-20).map((h, i) => ({ index: i, value: h.value }));
 
   return (
@@ -193,7 +269,9 @@ const MacroCard = ({ item, onClick }) => {
     >
       <div className="flex justify-between items-start mb-2">
         <h3 className="text-[13px] md:text-[14px] font-extrabold text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors truncate pr-2">{item.display_name}</h3>
-        <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${signalConf.text} ${signalConf.bg} ${signalConf.border} shrink-0`}>{signalConf.label}</span>
+        <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${statusStyle.text} ${statusStyle.bg} ${statusStyle.border} shrink-0`}>
+          {statusStyle.label}
+        </span>
       </div>
 
       {isGauge ? (
@@ -210,7 +288,8 @@ const MacroCard = ({ item, onClick }) => {
           <div className="w-20 h-12">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
-                <Line type="monotone" dataKey="value" stroke={signalConf.hex} strokeWidth={2} dot={false} isAnimationActive={false} />
+                {/* 2. Chart 색상 변경: 모든 스파크라인을 빨간색 계열(CHART_RED)로 강제 지정 */}
+                <Line type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2} dot={false} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -234,14 +313,19 @@ const RANGE_TRADING_DAYS = { '1M': 20, '3M': 60, '1Y': 252, '3Y': 756, '5Y': 126
 const MacroChartModal = ({ item, onClose }) => {
   const [range, setRange] = useState('1Y');
   const isGauge = item.indicator === 'FEAR_GREED';
-  const signalConf = SIGNAL_CONFIG[item.signal] || SIGNAL_CONFIG.neutral;
+  const statusStyle = getStatusStyle(item.calcStatus);
 
+  // 3. 기간 버튼 동작 수정 (3Y/5Y 데이터 필터링 오류 픽스)
   const chartData = useMemo(() => {
-    const hist = item.history || [];
-    if (hist.length === 0) return [];
+    if (!item.history || item.history.length === 0) return [];
+    
+    // 원본 데이터의 정렬 상태와 무관하게, 항상 날짜 오름차순(과거->최신)으로 완벽하게 정렬된 새 배열을 만듭니다.
+    const sortedHist = [...item.history].sort((a, b) => new Date(a.date) - new Date(b.date));
+    
     const days = RANGE_TRADING_DAYS[range] || 252;
-    return hist.slice(Math.max(hist.length - days, 0));
-  }, [item, range]);
+    // 오름차순 배열에서 뒤에서부터 N일(days)만큼을 잘라내어 가장 최신 기간의 데이터를 가져옵니다.
+    return sortedHist.slice(-days);
+  }, [item.history, range]);
 
   const isPos = item.change_percent >= 0;
 
@@ -287,16 +371,18 @@ const MacroChartModal = ({ item, onClose }) => {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                 <defs>
+                  {/* 2. Chart 색상 변경: 모든 Area Gradient 톤을 빨간색 계열(CHART_RED)로 강제 지정 */}
                   <linearGradient id="colorMacroInd" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={signalConf.hex} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={signalConf.hex} stopOpacity={0} />
+                    <stop offset="5%" stopColor={CHART_RED} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={CHART_RED} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
                 <XAxis dataKey="date" tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '800' }} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''} />
                 <YAxis domain={['auto', 'auto']} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '800' }} tickLine={false} axisLine={false} tickFormatter={(v) => v.toFixed(1)} />
-                <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900' }} itemStyle={{ color: signalConf.hex }} labelStyle={{ color: '#94A3B8', marginBottom: '4px' }} formatter={(value) => [value.toFixed(2), 'Value']} />
-                <Area type="monotone" dataKey="value" stroke={signalConf.hex} strokeWidth={2.5} fillOpacity={1} fill="url(#colorMacroInd)" activeDot={{ r: 6, fill: signalConf.hex, strokeWidth: 0 }} />
+                <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900' }} itemStyle={{ color: CHART_RED }} labelStyle={{ color: '#94A3B8', marginBottom: '4px' }} formatter={(value) => [value.toFixed(2), 'Value']} />
+                {/* 2. Chart 색상 변경: Area 선 색상과 dot를 빨간색(CHART_RED)으로 강제 적용 */}
+                <Area type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2.5} fillOpacity={1} fill="url(#colorMacroInd)" activeDot={{ r: 6, fill: CHART_RED, strokeWidth: 0 }} isAnimationActive={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -306,16 +392,17 @@ const MacroChartModal = ({ item, onClose }) => {
   );
 };
 
+// ---------------------------------------------------------------------------
+// MacroPage — 메인 조립
+// ---------------------------------------------------------------------------
 const MacroPage = ({ regimeSummary }) => {
   const [selectedMacro, setSelectedMacro] = useState(null);
   const { callApi } = useRenderApi();
   
-  // API 상태 관리
   const [macroData, setMacroData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 컴포넌트 마운트 시 새로 만든 API 호출
   useEffect(() => {
     const fetchMacroData = async () => {
       try {
@@ -340,10 +427,52 @@ const MacroPage = ({ regimeSummary }) => {
   const byIndicator = useMemo(() => {
     const map = {};
     macroData.forEach(item => { map[item.indicator] = item; });
+
+    // 1. Status 계산을 React 내부에서 Value 기반으로 오버라이드하여 주입합니다.
+    Object.keys(map).forEach(key => {
+      const item = map[key];
+      const val = item.value;
+      let calcStatus = 'Neutral';
+
+      switch (key) {
+        case 'QQQ_PRICE':
+          const ma50 = map['QQQ_MA50']?.value || val;
+          const ma200 = map['QQQ_MA200']?.value || val;
+          calcStatus = getQqqTrendStatus(val, ma50, ma200);
+          break;
+        case 'QQQ_MA200_SLOPE':
+          calcStatus = getSlopeStatus(val);
+          break;
+        case 'VIX':
+          calcStatus = getVixStatus(val);
+          break;
+        case 'REAL_YIELD_10Y':
+          calcStatus = getRealYieldStatus(val);
+          break;
+        case 'CREDIT_SPREAD':
+          calcStatus = getCreditSpreadStatus(val);
+          break;
+        case 'WTI':
+          calcStatus = getWtiStatus(val);
+          break;
+        case 'FEAR_GREED':
+          calcStatus = getFearGreedStatus(val);
+          break;
+        case 'QQQ_MA50':
+        case 'QQQ_MA200':
+          calcStatus = 'Neutral'; // 이 둘은 기준치가 없으므로 Neutral로 폴백
+          break;
+        default:
+          calcStatus = 'Neutral';
+      }
+      
+      // API에서 내려온 signal 컬럼을 무시하고 직접 계산한 값으로 덮어씁니다.
+      item.calcStatus = calcStatus;
+    });
+
     return map;
   }, [macroData]);
 
-  // 로딩 상태 렌더링
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 w-full text-slate-500 animate-in fade-in">
@@ -353,7 +482,6 @@ const MacroPage = ({ regimeSummary }) => {
     );
   }
 
-  // 에러 상태 렌더링
   if (error) {
     return (
       <div className="flex items-center justify-center h-96 w-full animate-in fade-in">
@@ -365,7 +493,6 @@ const MacroPage = ({ regimeSummary }) => {
     );
   }
 
-  // 정상 렌더링
   return (
     <div className="animate-in fade-in duration-300 w-full">
       <RegimeSummary summary={regimeSummary} />
