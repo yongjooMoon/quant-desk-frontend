@@ -308,7 +308,7 @@ const FearGreedCard = ({ item }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-600 p-6 md:p-8 rounded-3xl shadow-sm mb-6 flex flex-col lg:flex-row gap-10">
+    <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-600 p-4 md:p-6 rounded-3xl shadow-sm mb-6 flex flex-col lg:flex-row gap-10">
       
       {/* 왼쪽: 메인 게이지 영역 */}
       <div className="flex-1 flex flex-col items-center justify-center">
