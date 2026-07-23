@@ -1,11 +1,26 @@
 import React, { useMemo, useState } from 'react';
-import { Info, Loader2, X } from 'lucide-react';
+import { Info, X } from 'lucide-react';
 import {
   AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart,
 } from 'recharts';
 
 // =========================================================================
+// 파일 전역에서 쓰는 keyframe 애니메이션 (별도 CSS 파일 없이 컴포넌트 내부 <style>로 주입)
+// =========================================================================
+const GlobalStyle = () => (
+  <style>{`
+    @keyframes flashFade { 0% { opacity: 0.35; } 100% { opacity: 0; } }
+    @keyframes bounceScale { 0% { transform: scale(1); } 30% { transform: scale(1.06); } 100% { transform: scale(1); } }
+    @keyframes drawArc { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+    @keyframes ambientDrift {
+      0%   { transform: translate(0px, 0px); }
+      33%  { transform: translate(14px, 10px); }
+      66%  { transform: translate(-10px, 16px); }
+      100% { transform: translate(0px, 0px); }
+    }
+  `}</style>
+);
 
 const REGIME_CONFIG = {
   "Strong Bull": { color: "text-emerald-500", hex: "#10B981", desc: "강한 상승 추세\n공격적인 투자 가능\n무한매수 적극 운용 가능" },
@@ -358,7 +373,7 @@ const RegimePopover = ({ isOpen, onClose }) => {
   );
 };
 
-// RegimeSummary 내부에서만 쓰는 반원형 Gauge — 별도 파일/컴포넌트로 분리하지 않고 inline SVG로 직접 렌더링
+// RegimeSummary — Ambient 배경 + LIVE dot + Regime Gauge(glow, draw-in) + 전환 시 flash/bounce 추가
 const RegimeSummary = ({ regimeData }) => {
   const [infoOpen, setInfoOpen] = useState(false);
   const { score, regime } = regimeData;
@@ -368,21 +383,133 @@ const RegimeSummary = ({ regimeData }) => {
   const gaugeCx = 100, gaugeCy = 96, gaugeOuterR = 92, gaugeInnerR = 62;
   const needleAngle = scoreToAngle(score);
   const activeZone = REGIME_ZONES.find(z => score >= z.min && score <= z.max) || REGIME_ZONES[2];
+  const progressArc = getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 8, needleAngle);
+  const progressStart = getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 8, 0);
 
   return (
-    <div className="w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm mb-12">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+    <div className="relative overflow-hidden w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm mb-12">
+
+      {/* 1. Ambient 배경: dot-grid + regime 색상 blurred blob (아주 느리게 drift) */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+        <defs>
+          <pattern id="regimeDotGrid" width="18" height="18" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="1" r="1" className="fill-slate-300 dark:fill-slate-700" opacity="0.35" />
+          </pattern>
+          <filter id="regimeBlobBlur" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="40" />
+          </filter>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#regimeDotGrid)" />
+        <circle
+          cx="85%"
+          cy="30%"
+          r="120"
+          fill={conf.hex}
+          opacity="0.12"
+          filter="url(#regimeBlobBlur)"
+          style={{ animation: 'ambientDrift 16s ease-in-out infinite' }}
+        />
+      </svg>
+
+      {/* 7. Regime 전환 시 배경 flash (regime이 바뀔 때만 remount되어 애니메이션 재생) */}
+      <div
+        key={`flash-${regime}`}
+        className="absolute inset-0 rounded-3xl pointer-events-none"
+        style={{ background: conf.hex, animation: 'flashFade 0.8s ease-out forwards' }}
+      />
+
+      <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
 
         <div className="flex items-center gap-4 md:gap-6">
+          {/* 3. Regime Gauge — glow + draw-in progress arc */}
+          <div className="w-28 h-16 md:w-32 md:h-20 shrink-0">
+            <svg viewBox="0 0 200 118" className="w-full h-full overflow-visible">
+              <defs>
+                <filter id="regimeNeedleShadow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="1.1" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                  <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodOpacity="0.35" />
+                </filter>
+              </defs>
+
+              {REGIME_ZONES.map(zone => {
+                const isActive = activeZone.id === zone.id;
+                const d = getDonutSlice(gaugeCx, gaugeCy, gaugeInnerR, gaugeOuterR, scoreToAngle(zone.min), scoreToAngle(zone.max));
+                return (
+                  <path
+                    key={zone.id}
+                    d={d}
+                    className={!isActive ? 'fill-slate-100 stroke-slate-200 dark:fill-[#1E293B] dark:stroke-[#0F172A]' : ''}
+                    style={isActive ? { fill: `${zone.color}30`, stroke: zone.color, strokeWidth: 2 } : { strokeWidth: 1 }}
+                  />
+                );
+              })}
+
+              <path
+                d={`M ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 0).x} ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 0).y} A ${gaugeOuterR + 4} ${gaugeOuterR + 4} 0 0 1 ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 180).x} ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 180).y}`}
+                fill="none"
+                className="stroke-slate-200 dark:stroke-slate-700"
+                strokeWidth="1"
+                strokeDasharray="1 6"
+                strokeLinecap="round"
+              />
+
+              {/* score가 바뀔 때마다 다시 그려지는 progress arc (draw-in) */}
+              <path
+                key={`arc-${score}`}
+                d={`M ${progressStart.x} ${progressStart.y} A ${gaugeOuterR + 8} ${gaugeOuterR + 8} 0 0 1 ${progressArc.x} ${progressArc.y}`}
+                fill="none"
+                stroke={activeZone.color}
+                strokeWidth="3"
+                strokeLinecap="round"
+                pathLength={1}
+                strokeDasharray="1"
+                style={{ strokeDashoffset: 1, animation: 'drawArc 1.2s ease-out forwards' }}
+              />
+
+              <g
+                style={{ transformOrigin: `${gaugeCx}px ${gaugeCy}px`, transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                filter="url(#regimeNeedleShadow)"
+              >
+                <polygon
+                  points={`${gaugeCx},${gaugeCy - 4} ${gaugeCx},${gaugeCy + 4} ${gaugeCx - gaugeInnerR + 4},${gaugeCy}`}
+                  className="fill-slate-800 dark:fill-white"
+                />
+              </g>
+              <circle cx={gaugeCx} cy={gaugeCy} r="8" className="fill-slate-800 dark:fill-white" />
+              <circle cx={gaugeCx} cy={gaugeCy} r="3" className="fill-white dark:fill-[#0B1120]" />
+            </svg>
+          </div>
+
           <div className="relative">
             <div className="flex items-center gap-3 mb-2">
               <h2 className="text-[15px] font-black text-slate-500 dark:text-slate-400">Current Market Regime</h2>
+
+              {/* 2. LIVE pulse dot */}
+              <span className="flex items-center gap-1.5">
+                <svg width="14" height="14" viewBox="0 0 14 14">
+                  <circle cx="7" cy="7" r="3" fill="#10B981" />
+                  <circle cx="7" cy="7" r="3" fill="none" stroke="#10B981" strokeWidth="1.5">
+                    <animate attributeName="r" values="3;7;3" dur="2s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite" />
+                  </circle>
+                </svg>
+                <span className="text-[10px] font-black text-emerald-500 tracking-wider">LIVE</span>
+              </span>
+
               <button onClick={() => setInfoOpen(!infoOpen)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer">
                 <Info size={18} />
               </button>
               <RegimePopover isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
             </div>
-            <h1 className={`text-5xl md:text-6xl font-black tracking-tighter ${conf.color}`}>
+            <h1
+              key={`title-${regime}`}
+              className={`text-5xl md:text-6xl font-black tracking-tighter ${conf.color}`}
+              style={{ animation: 'bounceScale 0.5s ease-out', display: 'inline-block' }}
+            >
               {regime}
             </h1>
           </div>
@@ -433,7 +560,7 @@ const renderCardIcon = (indicator) => {
 };
 
 // ---------------------------------------------------------------------------
-// MacroCard — 미니 차트 평행선 현상 해결 적용 + 카드 아이콘(있는 경우) + Sparkline 색상만 개선
+// MacroCard — 아이콘 hover glow + Sparkline draw-in/pulse ring 추가
 // ---------------------------------------------------------------------------
 const MacroCard = ({ item, onClick }) => {
   const isPos = item.change_percent >= 0;
@@ -444,6 +571,7 @@ const MacroCard = ({ item, onClick }) => {
   // 날짜순 오름차순 정렬 후 최근 20일(1개월)만 슬라이싱
   const sortedHist = [...(item.history || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
   const chartData = sortedHist.slice(-20).map((h, i) => ({ index: i, value: h.value }));
+  const lastIndex = chartData.length - 1;
 
   return (
     <div
@@ -452,7 +580,16 @@ const MacroCard = ({ item, onClick }) => {
     >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-1.5 min-w-0 pr-2">
-          {icon && <span className="shrink-0">{icon}</span>}
+          {icon && (
+            <span className="relative shrink-0">
+              {/* 4. hover 시 아이콘 뒤로 은은한 glow */}
+              <span
+                className="absolute inset-0 rounded-full blur-md opacity-0 group-hover:opacity-30 transition-opacity duration-500"
+                style={{ background: sparkColor }}
+              />
+              <span className="relative">{icon}</span>
+            </span>
+          )}
           <h3 className="text-[13px] md:text-[14px] font-extrabold text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-colors truncate">
             {item.display_name || item.indicator}
           </h3>
@@ -475,7 +612,29 @@ const MacroCard = ({ item, onClick }) => {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 2, bottom: 2 }}>
               <YAxis domain={['dataMin', 'dataMax']} hide />
-              <Line type="monotone" dataKey="value" stroke={sparkColor} strokeWidth={2.5} dot={false} isAnimationActive={false} />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke={sparkColor}
+                strokeWidth={2.5}
+                dot={(dotProps) => {
+                  const { cx, cy, index, key } = dotProps;
+                  if (index !== lastIndex) return <React.Fragment key={key} />;
+                  // 5. 마지막 포인트 pulse ring
+                  return (
+                    <g key={key}>
+                      <circle cx={cx} cy={cy} r={2.5} fill={sparkColor} />
+                      <circle cx={cx} cy={cy} r={2.5} fill="none" stroke={sparkColor} strokeWidth="1.5">
+                        <animate attributeName="r" values="2.5;7;2.5" dur="1.8s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0.6;0;0.6" dur="1.8s" repeatCount="indefinite" />
+                      </circle>
+                    </g>
+                  );
+                }}
+                isAnimationActive={true}
+                animationDuration={800}
+                animationEasing="ease-out"
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -584,6 +743,28 @@ const MacroChartModal = ({ item, onClose }) => {
 };
 
 // ---------------------------------------------------------------------------
+// 로딩 상태 — SVG shimmer, row별로 delay를 다르게 줘서 순차적으로 반짝이도록
+// ---------------------------------------------------------------------------
+const ShimmerRow = ({ index }) => {
+  const gradId = `shimmerGrad-${index}`;
+  const delay = `${index * 0.15}s`;
+  return (
+    <svg viewBox="0 0 300 16" className="w-full h-4 text-slate-400 dark:text-slate-500" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.08" />
+          <stop offset="50%" stopColor="currentColor" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0.08" />
+          <animateTransform attributeName="gradientTransform" type="translate" from="-1 0" to="1 0" dur="1.4s" begin={delay} repeatCount="indefinite" />
+        </linearGradient>
+      </defs>
+      <rect x="0" y="2" width="300" height="12" rx="6" fill="currentColor" opacity="0.08" />
+      <rect x="0" y="2" width="300" height="12" rx="6" fill={`url(#${gradId})`} />
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // 부모로부터 macroData를 Props로 받아 매핑
 // ---------------------------------------------------------------------------
 const MacroPage = ({ macroData }) => {
@@ -639,18 +820,22 @@ const MacroPage = ({ macroData }) => {
     return { byIndicator: map, regimeData: computedRegime };
   }, [macroData]);
 
-  // 매크로 데이터가 아직 불러와지지 않았거나 비어있을 경우 안전 처리
+  // 매크로 데이터가 아직 불러와지지 않았거나 비어있을 경우 — SVG shimmer
   if (!macroData || macroData.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 w-full text-slate-500 animate-in fade-in">
-        <Loader2 size={48} className="animate-spin text-slate-400 mb-4" />
+      <div className="flex flex-col items-center justify-center h-96 w-full text-slate-500 animate-in fade-in gap-6 px-4">
+        <GlobalStyle />
         <p className="text-[14px] font-extrabold">매크로 데이터를 분석 중입니다...</p>
+        <div className="w-full max-w-md flex flex-col gap-3">
+          {[0, 1, 2, 3].map(i => <ShimmerRow key={i} index={i} />)}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="animate-in fade-in duration-300 w-full">
+      <GlobalStyle />
       <RegimeSummary regimeData={regimeData} />
 
       {SECTIONS.map(section => {
