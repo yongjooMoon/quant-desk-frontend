@@ -708,3 +708,5 @@ const MacroPage = ({ macroData }) => {
     </div>
   );
 };
+
+export default MacroPage;
