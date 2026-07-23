@@ -710,3 +710,4 @@ const MacroPage = ({ macroData }) => {
 };
 
 export default MacroPage;
+export { RegimeSummary, MacroSection, MacroCard, FearGreedCard, FearGreedGauge, MacroChartModal, RegimePopover };
