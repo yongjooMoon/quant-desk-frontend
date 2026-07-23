@@ -387,36 +387,40 @@ const RegimeSummary = ({ regimeData }) => {
   const progressStart = getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 8, 0);
 
   return (
-    <div className="relative overflow-hidden w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm mb-12">
+    // FIX: 최상단 래퍼에서 overflow-hidden 제거하여 팝업이 잘리지 않게 처리합니다.
+    <div className="relative w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm mb-12">
 
-      {/* 1. Ambient 배경: dot-grid + regime 색상 blurred blob (아주 느리게 drift) */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-        <defs>
-          <pattern id="regimeDotGrid" width="18" height="18" patternUnits="userSpaceOnUse">
-            <circle cx="1" cy="1" r="1" className="fill-slate-300 dark:fill-slate-700" opacity="0.35" />
-          </pattern>
-          <filter id="regimeBlobBlur" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="40" />
-          </filter>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#regimeDotGrid)" />
-        <circle
-          cx="85%"
-          cy="30%"
-          r="120"
-          fill={conf.hex}
-          opacity="0.12"
-          filter="url(#regimeBlobBlur)"
-          style={{ animation: 'ambientDrift 16s ease-in-out infinite' }}
+      {/* 배경 요소들이 코너를 벗어나지 않게 막아주는 전용 overflow-hidden 래퍼 */}
+      <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+        {/* 1. Ambient 배경: dot-grid + regime 색상 blurred blob (아주 느리게 drift) */}
+        <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+          <defs>
+            <pattern id="regimeDotGrid" width="18" height="18" patternUnits="userSpaceOnUse">
+              <circle cx="1" cy="1" r="1" className="fill-slate-300 dark:fill-slate-700" opacity="0.35" />
+            </pattern>
+            <filter id="regimeBlobBlur" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="40" />
+            </filter>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#regimeDotGrid)" />
+          <circle
+            cx="85%"
+            cy="30%"
+            r="120"
+            fill={conf.hex}
+            opacity="0.12"
+            filter="url(#regimeBlobBlur)"
+            style={{ animation: 'ambientDrift 16s ease-in-out infinite' }}
+          />
+        </svg>
+
+        {/* 7. Regime 전환 시 배경 flash (regime이 바뀔 때만 remount되어 애니메이션 재생) */}
+        <div
+          key={`flash-${regime}`}
+          className="absolute inset-0"
+          style={{ background: conf.hex, animation: 'flashFade 0.8s ease-out forwards' }}
         />
-      </svg>
-
-      {/* 7. Regime 전환 시 배경 flash (regime이 바뀔 때만 remount되어 애니메이션 재생) */}
-      <div
-        key={`flash-${regime}`}
-        className="absolute inset-0 rounded-3xl pointer-events-none"
-        style={{ background: conf.hex, animation: 'flashFade 0.8s ease-out forwards' }}
-      />
+      </div>
 
       <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
 
@@ -503,6 +507,7 @@ const RegimeSummary = ({ regimeData }) => {
               <button onClick={() => setInfoOpen(!infoOpen)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer">
                 <Info size={18} />
               </button>
+              {/* 여기에 있는 팝업 컴포넌트가 더 이상 부모에 의해 잘리지 않습니다 */}
               <RegimePopover isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
             </div>
             <h1
