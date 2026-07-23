@@ -557,27 +557,6 @@ const MacroPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchMacroData = async () => {
-      try {
-        setLoading(true);
-        const result = await callApi('/api/macro');
-        
-        if (result && result.status === 'success') {
-          setMacroData(result.data);
-        } else {
-          setError(result?.message || '데이터를 불러오는 데 실패했습니다.');
-        }
-      } catch (err) {
-        setError('서버 연결에 실패했습니다.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMacroData();
-  }, [callApi]);
-
   const { byIndicator, regimeData } = useMemo(() => {
     const map = {};
     macroData.forEach(item => { map[item.indicator] = item; });
