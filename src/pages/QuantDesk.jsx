@@ -5,15 +5,16 @@ import {
   Crosshair, TrendingDown, Flag, BookOpen, ShieldAlert, Target, ChevronRight, ChevronDown, Info
 } from 'lucide-react';
 import { AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ComposedChart, LineChart } from 'recharts';
-
 import { useRenderApi } from '../hooks/useRenderApi';
 import MacroPage from './MacroPage';
 
-// -----------------------------------------------------------------------------
-// Macro 탭 UI는 MacroPage.jsx로 분리했다. (RegimeSummary / MacroSection /
-// MacroCard / FearGreedGauge / MacroChartModal / RegimePopover)
-// 기존 API 호출(useRenderApi, data.macro)은 그대로 두고, 렌더링만 위임한다.
-// -----------------------------------------------------------------------------
+const MacroPage = ({ macroData }) => (
+  <div className="p-8 text-center text-slate-500 font-bold bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+    📊 매크로 대시보드 컴포넌트 마운트 영역<br/>
+    (데이터 로드 성공 여부: {macroData ? '성공' : '실패'})
+  </div>
+);
+// =========================================================================
 
 export default function QuantDesk() {
   const [activeTab, setActiveTab] = useState("Macro");
@@ -25,14 +26,13 @@ export default function QuantDesk() {
   const [selectedStock, setSelectedStock] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [riskStock, setRiskStock] = useState(null);
-  const [backtestStock, setBacktestStock] = useState(null); // 🧪 백테스팅 결과 팝업 대상 종목
+  const [backtestStock, setBacktestStock] = useState(null); 
 
   const [timeRange, setTimeRange] = useState("All");
 
   const [indices, setIndices] = useState({ kospi: null, kosdaq: null, nasdaq: null, sp500: null });
   const [isIndexModalOpen, setIsIndexModalOpen] = useState(false);
 
-  // 화이트페이퍼 토글 상태
   const [isEntryOpen, setIsEntryOpen] = useState(true);
   const [isExitOpen, setIsExitOpen] = useState(true);
 
@@ -47,7 +47,7 @@ export default function QuantDesk() {
       const now = new Date();
       const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
       const kst = new Date(utc + (9 * 3600000));
-      const day = kst.getDay(); // 0:일, 1:월 ... 6:토
+      const day = kst.getDay(); 
       const hour = kst.getHours();
       const minute = kst.getMinutes();
       const timeNum = hour * 100 + minute;
@@ -115,16 +115,29 @@ export default function QuantDesk() {
   const fetchQuantData = () => {
     setLoading(true);
 
+    // 🌟 핵심: /api/macro 를 추가하여 백엔드에 3가지를 병렬(동시)로 호출합니다.
     Promise.allSettled([
       callApi("/api/quant-dashboard"),
-      callApi("/api/search/KS11")
+      callApi("/api/search/KS11"),
+      callApi("/api/macro")
     ])
     .then((results) => {
       const quantResult = results[0].status === 'fulfilled' ? results[0].value : null;
       const kospiResult = results[1].status === 'fulfilled' ? results[1].value : null;
+      const macroResult = results[2].status === 'fulfilled' ? results[2].value : null;
 
+      // 🌟 데이터 병합 처리: quant-dashboard 데이터에 macro 데이터를 붙여서 한 번에 세팅
       if (quantResult && quantResult.status === "success" && quantResult.data) {
-        setData(quantResult.data);
+        const mergedData = { ...quantResult.data };
+        
+        // 매크로 데이터를 성공적으로 받아왔다면 병합
+        if (macroResult && macroResult.status === "success" && macroResult.data) {
+            mergedData.macro = macroResult.data;
+        } else {
+            mergedData.macro = []; // 실패 시 빈 배열로 안전하게 초기화
+        }
+        
+        setData(mergedData);
       }
 
       if (kospiResult && kospiResult.status === "success" && kospiResult.data && Array.isArray(kospiResult.data.chart_data)) {
@@ -203,8 +216,6 @@ export default function QuantDesk() {
       });
   };
 
-  // 🧪 quant_cron.py의 run_backtest_for_symbols() → save_backtest_result()로 캐시된
-  // OLD(수정 전 고정로직) vs NEW(현재 로직) 백테스트 결과(data.backtest)를 그대로 사용합니다.
   const handleBacktestClick = (symbol, basicData) => {
     setBacktestStock({ symbol, name: basicData.name });
   };
@@ -296,8 +307,6 @@ export default function QuantDesk() {
     return chartData.slice(Math.max(chartData.length - days, 0));
   }, [chartData, timeRange]);
 
-  // 🧪 build_json_summary()가 만든 old/new 각각의 equity_curve를 날짜 기준으로 합쳐서
-  // OLD vs NEW 누적수익률(%) 비교 라인차트 데이터로 변환
   const backtestChartData = useMemo(() => {
     const bt = data.backtest;
     if (!bt) return [];
@@ -312,7 +321,6 @@ export default function QuantDesk() {
     return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
   }, [data.backtest]);
 
-  // 🧪 선택한 종목(symbol)의 OLD/NEW 개별 트레이드만 필터링 (진입가·손익 비교용)
   const backtestSymbolTrades = useMemo(() => {
     const bt = data.backtest;
     if (!bt || !backtestStock) return { old: [], new: [] };
