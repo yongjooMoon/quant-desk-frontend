@@ -97,6 +97,56 @@ const MICRO_INTERACTION_STYLES = `
   .dark .qd-bg-texture { opacity: 0.35; }
 `;
 
+// =========================================================================
+// 🌟 Quant / Macro 데이터 로컬 캐시 (Local Storage) 관련 상수 및 헬퍼 함수
+//    - 배치가 매일 14:30 시작, 약 10~20분 내 완료되므로 15:10을 만료 시각으로 사용
+//    - 새로고침 버튼은 이 캐시를 거치지 않고 항상 API를 호출합니다 (fetchQuantData(true))
+// =========================================================================
+const QUANT_CACHE_KEY = 'qd_quant_macro_cache_v1';
+const CACHE_EXPIRE_HOUR = 15;
+const CACHE_EXPIRE_MINUTE = 10;
+
+// 다음 만료 시각을 계산합니다.
+// - 오늘 15:10 이전이면 => 오늘 15:10
+// - 오늘 15:10 이후(이미 지남)라면 => 다음날 15:10
+function getNextExpireAt() {
+  const now = new Date();
+  const expire = new Date(now);
+  expire.setHours(CACHE_EXPIRE_HOUR, CACHE_EXPIRE_MINUTE, 0, 0);
+  if (now.getTime() >= expire.getTime()) {
+    expire.setDate(expire.getDate() + 1);
+  }
+  return expire.toISOString();
+}
+
+// 캐시를 읽어옵니다. expireAt 이전이면 데이터를 반환하고, 만료되었거나 없으면 null을 반환합니다.
+function readQuantMacroCache() {
+  try {
+    const raw = window.localStorage.getItem(QUANT_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.expireAt || !parsed.data) return null;
+    const expireAt = new Date(parsed.expireAt);
+    if (Number.isNaN(expireAt.getTime())) return null;
+    if (new Date().getTime() < expireAt.getTime()) {
+      return parsed.data;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// 캐시를 저장합니다. 저장 시점 기준으로 다음 만료 시각(expireAt)을 새로 계산해 함께 저장합니다.
+function writeQuantMacroCache(payload) {
+  try {
+    const expireAt = getNextExpireAt();
+    window.localStorage.setItem(QUANT_CACHE_KEY, JSON.stringify({ data: payload, expireAt }));
+  } catch (e) {
+    // localStorage 접근 실패(비공개 모드 등) 시 캐시 없이 정상 동작하도록 무시합니다.
+  }
+}
+
 export default function QuantDesk() {
   const [activeTab, setActiveTab] = useState("Macro");
   const [data, setData] = useState({ holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null, macro: [] });
@@ -201,8 +251,20 @@ export default function QuantDesk() {
     };
   }, [callApi]);
 
-  const fetchQuantData = () => {
+  // 🌟 forceRefresh = true 인 경우(새로고침 버튼)는 캐시를 무시하고 항상 API를 호출합니다.
+  //    forceRefresh = false(기본, 최초 진입 등)인 경우는 먼저 로컬 캐시를 확인합니다.
+  const fetchQuantData = (forceRefresh = false) => {
     setLoading(true);
+
+    if (!forceRefresh) {
+      const cached = readQuantMacroCache();
+      if (cached) {
+        setData(cached.quantData || { holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null, macro: [] });
+        setKospiData(cached.kospiData || []);
+        setLoading(false);
+        return;
+      }
+    }
 
     // 🌟 핵심: /api/macro 를 추가하여 백엔드에 3가지를 병렬(동시)로 호출합니다.
     Promise.allSettled([
@@ -214,6 +276,9 @@ export default function QuantDesk() {
       const quantResult = results[0].status === 'fulfilled' ? results[0].value : null;
       const kospiResult = results[1].status === 'fulfilled' ? results[1].value : null;
       const macroResult = results[2].status === 'fulfilled' ? results[2].value : null;
+
+      let mergedDataForCache = null;
+      let processedKospiForCache = [];
 
       // 🌟 데이터 병합 처리: quant-dashboard 데이터에 macro 데이터를 붙여서 한 번에 세팅
       if (quantResult && quantResult.status === "success" && quantResult.data) {
@@ -227,6 +292,7 @@ export default function QuantDesk() {
         }
         
         setData(mergedData);
+        mergedDataForCache = mergedData;
       }
 
       if (kospiResult && kospiResult.status === "success" && kospiResult.data && Array.isArray(kospiResult.data.chart_data)) {
@@ -243,9 +309,21 @@ export default function QuantDesk() {
             });
         }
         setKospiData(processedKospi);
+        processedKospiForCache = processedKospi;
       } else {
         setKospiData([]);
+        processedKospiForCache = [];
       }
+
+      // 🌟 Quant 데이터 조회에 성공한 경우에만 로컬 캐시를 갱신합니다.
+      //    (다음날 15:10 이전까지 유효 — 하루 최대 1회만 자동 조회되도록)
+      if (mergedDataForCache) {
+        writeQuantMacroCache({
+          quantData: mergedDataForCache,
+          kospiData: processedKospiForCache
+        });
+      }
+
       setLoading(false);
     });
   };
@@ -255,7 +333,7 @@ export default function QuantDesk() {
   const handleRefresh = () => {
     setSyncing(true);
     setTimeout(() => {
-        fetchQuantData();
+        fetchQuantData(true); // 🌟 새로고침 버튼은 캐시를 무시하고 무조건 API 호출 + 캐시 갱신
         setSyncing(false);
     }, 1500);
   };
