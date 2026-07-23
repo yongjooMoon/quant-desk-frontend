@@ -1,11 +1,9 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Info, Loader2, X } from 'lucide-react';
 import {
   AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart,
 } from 'recharts';
-
-import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
 
@@ -139,11 +137,10 @@ const getStatusStyle = (status) => {
 // 3. CNN Style Fear & Greed Gauge (위치 및 테마 호환 완벽 구현)
 // ---------------------------------------------------------------------------
 const getCartesian = (cx, cy, radius, angle) => {
-  // SVG 좌표계에서 0도는 9시(왼쪽), 180도는 3시(오른쪽)로 매핑합니다.
   const rad = (180 - angle) * Math.PI / 180;
   return {
     x: cx + radius * Math.cos(rad),
-    y: cy - radius * Math.sin(rad) // SVG Y축은 아래로 증가하므로 마이너스 처리
+    y: cy - radius * Math.sin(rad)
   };
 };
 
@@ -155,13 +152,10 @@ const getDonutSlice = (cx, cy, innerRadius, outerRadius, startAngle, endAngle) =
   return `M ${p1.x} ${p1.y} A ${outerRadius} ${outerRadius} 0 0 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${innerRadius} ${innerRadius} 0 0 0 ${p4.x} ${p4.y} Z`;
 };
 
-// 점수(0~100)를 각도(0~180도)로 변환하는 유틸리티 함수
 const scoreToAngle = (score) => {
   return (score / 100) * 180;
 };
 
-// CNN 실제 구간 기준 설정 (하드코딩 각도 제거, 점수 기반 선형 계산용)
-// 오직 min, max 점수 구간만 존재하며, 각도는 렌더링 시점에 자동 계산됨.
 const FEAR_GREED_ZONES = [
   { id: 'ext-fear', label: 'EXTREME\nFEAR', min: 0, max: 25, color: '#FF4B4B' },
   { id: 'fear', label: 'FEAR', min: 25, max: 45, color: '#F97316' },
@@ -177,29 +171,22 @@ const FearGreedGauge = ({ value }) => {
   const innerR = 55;
   
   const clampedValue = Math.max(0, Math.min(100, value));
-  // 바늘 각도 자동 계산 (0점 -> 0도, 50점 -> 90도, 100점 -> 180도)
   const needleAngle = scoreToAngle(clampedValue);
   
   const activeZone = FEAR_GREED_ZONES.find(z => clampedValue >= z.min && clampedValue <= z.max) || FEAR_GREED_ZONES[FEAR_GREED_ZONES.length-1];
 
   return (
     <div className="flex flex-col items-center justify-center w-full mt-4 md:mt-6">
-      {/* 1. 반원 게이지 영역 (크기 복구 및 가독성 향상) */}
       <div className="relative w-full max-w-[360px] md:max-w-[420px] aspect-[2/1] flex justify-center items-end overflow-visible select-none">
         <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
-          {/* 분할 도넛 세그먼트 그리기 */}
           {FEAR_GREED_ZONES.map((zone) => {
             const isActive = activeZone.id === zone.id;
-            
-            // 렌더링 시점에 점수를 기반으로 시작/종료 각도를 선형적으로 자동 계산
             const startAngle = scoreToAngle(zone.min);
             const endAngle = scoreToAngle(zone.max);
-            
             const slicePath = getDonutSlice(cx, cy, innerR, outerR, startAngle, endAngle);
             
             return (
               <g key={zone.id}>
-                {/* 배경/테두리 패스 */}
                 <path 
                   d={slicePath}
                   className={isActive ? '' : 'fill-slate-100 stroke-slate-200 dark:fill-[#1E293B] dark:stroke-[#0F172A]'}
@@ -209,7 +196,6 @@ const FearGreedGauge = ({ value }) => {
             );
           })}
 
-          {/* 내부 점선 트랙 */}
           <path 
             d="M 30 100 A 70 70 0 0 1 170 100" 
             fill="none" 
@@ -219,7 +205,6 @@ const FearGreedGauge = ({ value }) => {
             strokeLinecap="round"
           />
 
-          {/* 눈금 숫자 (0, 25, 50, 75, 100) */}
           {[0, 25, 50, 75, 100].map(tick => {
             const angle = (tick / 100) * 180;
             const pos = getCartesian(cx, cy, 38, angle);
@@ -230,22 +215,17 @@ const FearGreedGauge = ({ value }) => {
             );
           })}
           
-          {/* 바늘 (Needle) */}
-          {/* 9시 방향(왼쪽)을 0도 기준으로 하여 회전하도록 기하학적 형태 교정 */}
           <g style={{ transformOrigin: '100px 100px', transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
-            {/* 바늘의 베이스는 100,100 중심부근, 팁은 30,100 (내부 점선을 넘어 게이지 컬러영역을 가리킴) */}
             <polygon 
               points="100,96 100,104 30,100" 
               className="fill-slate-800 dark:fill-white"
             />
           </g>
           
-          {/* 바늘 중심축 원 */}
           <circle cx="100" cy="100" r="10" className="fill-slate-800 dark:fill-white"/>
           <circle cx="100" cy="100" r="4" className="fill-white dark:fill-[#0B1120]"/>
         </svg>
 
-        {/* 중앙 하단 수치 */}
         <div className="absolute -bottom-2 w-full flex flex-col items-center justify-end z-10 bg-white dark:bg-[#0B1120] px-6 rounded-t-full">
           <p className="text-5xl md:text-6xl font-black tracking-tighter" style={{ color: activeZone.color }}>
             {Math.round(value)}
@@ -253,7 +233,6 @@ const FearGreedGauge = ({ value }) => {
         </div>
       </div>
 
-      {/* 2. 하단 가로 배치 점수 기준 범례 (Legend) */}
       <div className="flex flex-wrap justify-center gap-x-5 gap-y-2.5 mt-8 md:mt-10 px-2 w-full max-w-[500px]">
         {FEAR_GREED_ZONES.map((zone) => {
           const isActive = activeZone.id === zone.id;
@@ -272,12 +251,11 @@ const FearGreedGauge = ({ value }) => {
 };
 
 // ---------------------------------------------------------------------------
-// 4. Fear & Greed 전용 카드 (탭 기능 구현 포함)
+// 4. Fear & Greed 전용 카드 
 // ---------------------------------------------------------------------------
 const FearGreedCard = ({ item }) => {
   const history = item.history || [];
   
-  // 과거 거래일 기준 데이터 추출
   const getHistoricalVal = (offset) => {
     if (history.length > offset) return history[history.length - 1 - offset].value;
     return null;
@@ -285,8 +263,8 @@ const FearGreedCard = ({ item }) => {
 
   const currentVal = item.value;
   const prevClose = getHistoricalVal(1);
-  const oneWeek = getHistoricalVal(5); // 영업일 5일
-  const oneMonth = getHistoricalVal(21); // 영업일 21일
+  const oneWeek = getHistoricalVal(5);
+  const oneMonth = getHistoricalVal(21);
 
   const renderTimelineRow = (label, val) => {
     if (val === null) return null;
@@ -310,7 +288,6 @@ const FearGreedCard = ({ item }) => {
   return (
     <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-600 p-4 md:p-6 rounded-3xl shadow-sm mb-6 flex flex-col lg:flex-row gap-8">
       
-      {/* 왼쪽: 메인 게이지 영역 */}
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="w-full flex flex-col items-start mb-2">
           <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">Fear & Greed Index</h2>
@@ -323,7 +300,6 @@ const FearGreedCard = ({ item }) => {
         </p>
       </div>
 
-      {/* 오른쪽: 작동하는 정보 요약 패널 (3줄 고정) */}
       <div className="w-full lg:w-[340px] flex flex-col justify-center bg-slate-50 dark:bg-[#111827]/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800/50 h-auto self-center">
         <div className="flex flex-col w-full">
           {renderTimelineRow('Previous close', prevClose)}
@@ -430,7 +406,6 @@ const MacroCard = ({ item, onClick }) => {
         </div>
         <div className="w-20 h-12">
           <ResponsiveContainer width="100%" height="100%">
-            {/* 💡 YAxis dataMin, dataMax 명시로 평행선 현상 완벽 해결 */}
             <LineChart data={chartData} margin={{ top: 2, bottom: 2 }}>
               <YAxis domain={['dataMin', 'dataMax']} hide />
               <Line type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2.5} dot={false} isAnimationActive={false} />
@@ -443,7 +418,6 @@ const MacroCard = ({ item, onClick }) => {
 };
 
 const MacroSection = ({ title, items, onCardClick }) => {
-  // Fear & Greed는 새로 구현한 전용 카드 사용
   const isPsychology = items.some(item => item.indicator === 'FEAR_GREED');
   
   if (isPsychology) {
@@ -466,7 +440,7 @@ const MacroSection = ({ title, items, onCardClick }) => {
 };
 
 // ---------------------------------------------------------------------------
-// MacroChartModal — 3Y, 5Y 차트 랜더링 버그(캐싱 현상) 완벽 해결
+// MacroChartModal
 // ---------------------------------------------------------------------------
 const RANGE_TRADING_DAYS = { '1M': 20, '3M': 60, '1Y': 252, '3Y': 756, '5Y': 1260 };
 
@@ -476,7 +450,6 @@ const MacroChartModal = ({ item, onClose }) => {
 
   const chartData = useMemo(() => {
     if (!item.history || item.history.length === 0) return [];
-    // 날짜 오름차순으로 반드시 정렬해야 우측부터 데이터가 채워짐
     const sortedHist = [...item.history].sort((a, b) => new Date(a.date) - new Date(b.date));
     const days = RANGE_TRADING_DAYS[range] || 252;
     return sortedHist.slice(-days);
@@ -521,8 +494,6 @@ const MacroChartModal = ({ item, onClose }) => {
           </div>
 
           <div className="w-full h-[300px] md:h-[400px]">
-            {/* 💡 핵심: key={range} 부여! React가 강제로 기존 컴포넌트를 파괴하고 
-                새로 렌더링하게 만들어 Recharts의 도메인(축) 스케일링 버그를 원천 차단함 */}
             <ResponsiveContainer width="100%" height="100%" key={range}>
               <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                 <defs>
@@ -533,7 +504,6 @@ const MacroChartModal = ({ item, onClose }) => {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
                 <XAxis dataKey="date" tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '800' }} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''} />
-                {/* 💡 핵심: YAxis에 dataMin, dataMax 도메인 지정 */}
                 <YAxis domain={['dataMin', 'dataMax']} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '800' }} tickLine={false} axisLine={false} tickFormatter={(v) => v.toFixed(1)} />
                 <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900' }} itemStyle={{ color: CHART_RED }} labelStyle={{ color: '#94A3B8', marginBottom: '4px' }} formatter={(value) => [value.toFixed(2), 'Value']} />
                 <Area type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2.5} fillOpacity={1} fill="url(#colorMacroModal)" activeDot={{ r: 6, fill: CHART_RED, strokeWidth: 0 }} isAnimationActive={false} />
@@ -547,19 +517,16 @@ const MacroChartModal = ({ item, onClose }) => {
 };
 
 // ---------------------------------------------------------------------------
-// MacroPage — 메인 로직 조립
+// 💡 수정됨: 부모로부터 macroData를 Props로 정확히 받아 매핑합니다!
 // ---------------------------------------------------------------------------
-const MacroPage = () => {
+const MacroPage = ({ macroData }) => {
   const [selectedMacro, setSelectedMacro] = useState(null);
-  const { callApi } = useRenderApi();
-  
-  const [macroData, setMacroData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   const { byIndicator, regimeData } = useMemo(() => {
     const map = {};
-    macroData.forEach(item => { map[item.indicator] = item; });
+    const safeData = Array.isArray(macroData) ? macroData : [];
+
+    safeData.forEach(item => { map[item.indicator] = item; });
 
     Object.keys(map).forEach(key => {
       const item = map[key];
@@ -605,22 +572,12 @@ const MacroPage = () => {
     return { byIndicator: map, regimeData: computedRegime };
   }, [macroData]);
 
-  if (loading) {
+  // 💡 매크로 데이터가 아직 불러와지지 않았거나 비어있을 경우 안전 처리
+  if (!macroData || macroData.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-96 w-full text-slate-500 animate-in fade-in">
         <Loader2 size={48} className="animate-spin text-slate-400 mb-4" />
         <p className="text-[14px] font-extrabold">매크로 데이터를 분석 중입니다...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-96 w-full animate-in fade-in">
-        <div className="bg-red-50 dark:bg-red-500/10 text-red-500 border border-red-200 dark:border-red-500/30 p-6 rounded-2xl max-w-md text-center shadow-sm">
-          <p className="font-black text-[15px] mb-2">데이터 연동 오류</p>
-          <p className="text-[13px] font-bold opacity-80">{error}</p>
-        </div>
       </div>
     );
   }
