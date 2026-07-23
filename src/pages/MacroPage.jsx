@@ -372,53 +372,6 @@ const RegimeSummary = ({ regimeData }) => {
   return (
     <div className="w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm mb-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-
-        <div className="flex items-center gap-4 md:gap-6">
-          {/* ⭐ Regime Gauge — inline SVG, 반원형 계기판 */}
-          <div className="w-28 h-16 md:w-32 md:h-20 shrink-0">
-            <svg viewBox="0 0 200 118" className="w-full h-full overflow-visible">
-              <defs>
-                <filter id="regimeNeedleShadow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodOpacity="0.35" />
-                </filter>
-              </defs>
-
-              {REGIME_ZONES.map(zone => {
-                const isActive = activeZone.id === zone.id;
-                const d = getDonutSlice(gaugeCx, gaugeCy, gaugeInnerR, gaugeOuterR, scoreToAngle(zone.min), scoreToAngle(zone.max));
-                return (
-                  <path
-                    key={zone.id}
-                    d={d}
-                    className={!isActive ? 'fill-slate-100 stroke-slate-200 dark:fill-[#1E293B] dark:stroke-[#0F172A]' : ''}
-                    style={isActive ? { fill: `${zone.color}30`, stroke: zone.color, strokeWidth: 2 } : { strokeWidth: 1 }}
-                  />
-                );
-              })}
-
-              <path
-                d={`M ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 0).x} ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 0).y} A ${gaugeOuterR + 4} ${gaugeOuterR + 4} 0 0 1 ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 180).x} ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 180).y}`}
-                fill="none"
-                className="stroke-slate-200 dark:stroke-slate-700"
-                strokeWidth="1"
-                strokeDasharray="1 6"
-                strokeLinecap="round"
-              />
-
-              <g
-                style={{ transformOrigin: `${gaugeCx}px ${gaugeCy}px`, transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
-                filter="url(#regimeNeedleShadow)"
-              >
-                <polygon
-                  points={`${gaugeCx},${gaugeCy - 4} ${gaugeCx},${gaugeCy + 4} ${gaugeCx - gaugeInnerR + 4},${gaugeCy}`}
-                  className="fill-slate-800 dark:fill-white"
-                />
-              </g>
-              <circle cx={gaugeCx} cy={gaugeCy} r="8" className="fill-slate-800 dark:fill-white" />
-              <circle cx={gaugeCx} cy={gaugeCy} r="3" className="fill-white dark:fill-[#0B1120]" />
-            </svg>
-          </div>
-
           <div className="relative">
             <div className="flex items-center gap-3 mb-2">
               <h2 className="text-[15px] font-black text-slate-500 dark:text-slate-400">Current Market Regime</h2>
