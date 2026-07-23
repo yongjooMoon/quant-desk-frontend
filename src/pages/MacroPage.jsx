@@ -255,7 +255,7 @@ const FearGreedGauge = ({ value }) => {
 // ---------------------------------------------------------------------------
 const FearGreedCard = ({ item }) => {
   const history = item.history || [];
-  console.log(item.indicator, item.history?.length);
+  
   const getHistoricalVal = (offset) => {
     if (history.length > offset) return history[history.length - 1 - offset].value;
     return null;
@@ -380,7 +380,7 @@ const MacroCard = ({ item, onClick }) => {
   // 날짜순 오름차순 정렬 후 최근 20일(1개월)만 슬라이싱
   const sortedHist = [...(item.history || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
   const chartData = sortedHist.slice(-20).map((h, i) => ({ index: i, value: h.value }));
-
+  console.log(item.indicator, item.history?.length);
   return (
     <div
       onClick={() => onClick(item)}
