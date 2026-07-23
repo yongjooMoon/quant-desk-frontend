@@ -15,6 +15,15 @@ const REGIME_CONFIG = {
   "Crash": { color: "text-[#FF4B4B]", hex: "#FF4B4B", desc: "극단적인 Risk-Off\n신규 공격적 매수 자제" }
 };
 
+// Regime Gauge 색상 구간 (0~100 점, Crash → Strong Bull)
+const REGIME_ZONES = [
+  { id: 'crash', label: 'CRASH', min: 0, max: 20, color: '#FF4B4B' },
+  { id: 'bear', label: 'BEAR', min: 20, max: 40, color: '#F97316' },
+  { id: 'neutral', label: 'NEUTRAL', min: 40, max: 60, color: '#EAB308' },
+  { id: 'bull', label: 'BULL', min: 60, max: 85, color: '#00B464' },
+  { id: 'strong-bull', label: 'STRONG BULL', min: 85, max: 100, color: '#10B981' },
+];
+
 // Fear & Greed 위치 최상단 이동
 const SECTIONS = [
   { title: 'Market Psychology', indicators: ['FEAR_GREED'] },
@@ -24,6 +33,7 @@ const SECTIONS = [
 ];
 
 const CHART_RED = '#FF4B4B';
+const CHART_BLUE = '#3B82F6';
 
 // ---------------------------------------------------------------------------
 // 1. Status 계산 유틸리티 함수 (프론트엔드에서 100% 자체 계산)
@@ -134,7 +144,7 @@ const getStatusStyle = (status) => {
 };
 
 // ---------------------------------------------------------------------------
-// 3. CNN Style Fear & Greed Gauge (위치 및 테마 호환 완벽 구현)
+// 2. Gauge 좌표 유틸 (Regime Gauge / Fear & Greed Gauge 공용, inline SVG에서 사용)
 // ---------------------------------------------------------------------------
 const getCartesian = (cx, cy, radius, angle) => {
   const rad = (180 - angle) * Math.PI / 180;
@@ -156,6 +166,9 @@ const scoreToAngle = (score) => {
   return (score / 100) * 180;
 };
 
+// ---------------------------------------------------------------------------
+// 3. CNN Style Fear & Greed Gauge (기존 구조 유지, defs만 소폭 개선)
+// ---------------------------------------------------------------------------
 const FEAR_GREED_ZONES = [
   { id: 'ext-fear', label: 'EXTREME\nFEAR', min: 0, max: 25, color: '#FF4B4B' },
   { id: 'fear', label: 'FEAR', min: 25, max: 45, color: '#F97316' },
@@ -179,6 +192,16 @@ const FearGreedGauge = ({ value }) => {
     <div className="flex flex-col items-center justify-center w-full mt-4 md:mt-6">
       <div className="relative w-full max-w-[360px] md:max-w-[420px] aspect-[2/1] flex justify-center items-end overflow-visible select-none">
         <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
+          <defs>
+            <radialGradient id="fgActiveZoneGlow" cx="50%" cy="100%" r="100%">
+              <stop offset="0%" stopColor={activeZone.color} stopOpacity="0.4" />
+              <stop offset="100%" stopColor={activeZone.color} stopOpacity="0.1" />
+            </radialGradient>
+            <filter id="fgNeedleShadow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodOpacity="0.35" />
+            </filter>
+          </defs>
+
           {FEAR_GREED_ZONES.map((zone) => {
             const isActive = activeZone.id === zone.id;
             const startAngle = scoreToAngle(zone.min);
@@ -190,7 +213,7 @@ const FearGreedGauge = ({ value }) => {
                 <path 
                   d={slicePath}
                   className={isActive ? '' : 'fill-slate-100 stroke-slate-200 dark:fill-[#1E293B] dark:stroke-[#0F172A]'}
-                  style={isActive ? { fill: `${zone.color}33`, stroke: zone.color, strokeWidth: "2" } : { strokeWidth: "1" }}
+                  style={isActive ? { fill: "url(#fgActiveZoneGlow)", stroke: zone.color, strokeWidth: "2" } : { strokeWidth: "1" }}
                 />
               </g>
             );
@@ -215,7 +238,7 @@ const FearGreedGauge = ({ value }) => {
             );
           })}
           
-          <g style={{ transformOrigin: '100px 100px', transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+          <g style={{ transformOrigin: '100px 100px', transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }} filter="url(#fgNeedleShadow)">
             <polygon 
               points="100,96 100,104 30,100" 
               className="fill-slate-800 dark:fill-white"
@@ -335,25 +358,79 @@ const RegimePopover = ({ isOpen, onClose }) => {
   );
 };
 
+// RegimeSummary 내부에서만 쓰는 반원형 Gauge — 별도 파일/컴포넌트로 분리하지 않고 inline SVG로 직접 렌더링
 const RegimeSummary = ({ regimeData }) => {
   const [infoOpen, setInfoOpen] = useState(false);
   const { score, regime } = regimeData;
   const conf = REGIME_CONFIG[regime] || REGIME_CONFIG.Neutral;
 
+  // Gauge 좌표 계산 (JSX 내부에서 바로 사용)
+  const gaugeCx = 100, gaugeCy = 96, gaugeOuterR = 92, gaugeInnerR = 62;
+  const needleAngle = scoreToAngle(score);
+  const activeZone = REGIME_ZONES.find(z => score >= z.min && score <= z.max) || REGIME_ZONES[2];
+
   return (
     <div className="w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm mb-12">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-        <div className="relative">
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-[15px] font-black text-slate-500 dark:text-slate-400">Current Market Regime</h2>
-            <button onClick={() => setInfoOpen(!infoOpen)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer">
-              <Info size={18} />
-            </button>
-            <RegimePopover isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+
+        <div className="flex items-center gap-4 md:gap-6">
+          {/* ⭐ Regime Gauge — inline SVG, 반원형 계기판 */}
+          <div className="w-28 h-16 md:w-32 md:h-20 shrink-0">
+            <svg viewBox="0 0 200 118" className="w-full h-full overflow-visible">
+              <defs>
+                <filter id="regimeNeedleShadow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodOpacity="0.35" />
+                </filter>
+              </defs>
+
+              {REGIME_ZONES.map(zone => {
+                const isActive = activeZone.id === zone.id;
+                const d = getDonutSlice(gaugeCx, gaugeCy, gaugeInnerR, gaugeOuterR, scoreToAngle(zone.min), scoreToAngle(zone.max));
+                return (
+                  <path
+                    key={zone.id}
+                    d={d}
+                    className={!isActive ? 'fill-slate-100 stroke-slate-200 dark:fill-[#1E293B] dark:stroke-[#0F172A]' : ''}
+                    style={isActive ? { fill: `${zone.color}30`, stroke: zone.color, strokeWidth: 2 } : { strokeWidth: 1 }}
+                  />
+                );
+              })}
+
+              <path
+                d={`M ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 0).x} ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 0).y} A ${gaugeOuterR + 4} ${gaugeOuterR + 4} 0 0 1 ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 180).x} ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 180).y}`}
+                fill="none"
+                className="stroke-slate-200 dark:stroke-slate-700"
+                strokeWidth="1"
+                strokeDasharray="1 6"
+                strokeLinecap="round"
+              />
+
+              <g
+                style={{ transformOrigin: `${gaugeCx}px ${gaugeCy}px`, transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                filter="url(#regimeNeedleShadow)"
+              >
+                <polygon
+                  points={`${gaugeCx},${gaugeCy - 4} ${gaugeCx},${gaugeCy + 4} ${gaugeCx - gaugeInnerR + 4},${gaugeCy}`}
+                  className="fill-slate-800 dark:fill-white"
+                />
+              </g>
+              <circle cx={gaugeCx} cy={gaugeCy} r="8" className="fill-slate-800 dark:fill-white" />
+              <circle cx={gaugeCx} cy={gaugeCy} r="3" className="fill-white dark:fill-[#0B1120]" />
+            </svg>
           </div>
-          <h1 className={`text-5xl md:text-6xl font-black tracking-tighter ${conf.color}`}>
-            {regime}
-          </h1>
+
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-2">
+              <h2 className="text-[15px] font-black text-slate-500 dark:text-slate-400">Current Market Regime</h2>
+              <button onClick={() => setInfoOpen(!infoOpen)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer">
+                <Info size={18} />
+              </button>
+              <RegimePopover isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
+            </div>
+            <h1 className={`text-5xl md:text-6xl font-black tracking-tighter ${conf.color}`}>
+              {regime}
+            </h1>
+          </div>
         </div>
 
         <div className="mt-8 md:mt-0 flex items-end gap-10">
@@ -371,11 +448,43 @@ const RegimeSummary = ({ regimeData }) => {
 };
 
 // ---------------------------------------------------------------------------
-// MacroCard — 미니 차트 평행선 현상 해결 적용
+// 카드 아이콘 — 별도 컴포넌트 파일 없이, 필요한 지표에만 최소한으로 inline SVG 추가
+// (QQQ Trend / VIX / WTI 만 지원, 나머지는 기존처럼 아이콘 없이 텍스트만 표시)
+// ---------------------------------------------------------------------------
+const renderCardIcon = (indicator) => {
+  switch (indicator) {
+    case 'QQQ_PRICE':
+      return (
+        <svg viewBox="0 0 24 24" className="w-5 h-5 text-slate-400 dark:text-slate-500" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 17L9 11L13 15L21 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M16 5H21V10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'VIX':
+      return (
+        <svg viewBox="0 0 24 24" className="w-5 h-5 text-slate-400 dark:text-slate-500" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2 12H6L8 5L13 19L16 12L18 15L20 12H22" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'WTI':
+      return (
+        <svg viewBox="0 0 24 24" className="w-5 h-5 text-slate-400 dark:text-slate-500" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 3C12 3 6 12 6 16C6 19.3137 8.68629 22 12 22C15.3137 22 18 19.3137 18 16C18 12 12 3 12 3Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// MacroCard — 미니 차트 평행선 현상 해결 적용 + 카드 아이콘(있는 경우) + Sparkline 색상만 개선
 // ---------------------------------------------------------------------------
 const MacroCard = ({ item, onClick }) => {
   const isPos = item.change_percent >= 0;
   const statusStyle = getStatusStyle(item.calcStatus);
+  const sparkColor = isPos ? CHART_RED : CHART_BLUE;
+  const icon = renderCardIcon(item.indicator);
   
   // 날짜순 오름차순 정렬 후 최근 20일(1개월)만 슬라이싱
   const sortedHist = [...(item.history || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -387,9 +496,12 @@ const MacroCard = ({ item, onClick }) => {
       className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between h-40"
     >
       <div className="flex justify-between items-start mb-2">
-        <h3 className="text-[13px] md:text-[14px] font-extrabold text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-colors truncate pr-2">
-          {item.display_name || item.indicator}
-        </h3>
+        <div className="flex items-center gap-1.5 min-w-0 pr-2">
+          {icon && <span className="shrink-0">{icon}</span>}
+          <h3 className="text-[13px] md:text-[14px] font-extrabold text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-colors truncate">
+            {item.display_name || item.indicator}
+          </h3>
+        </div>
         <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${statusStyle.text} ${statusStyle.bg} ${statusStyle.border} shrink-0`}>
           {statusStyle.label}
         </span>
@@ -408,7 +520,7 @@ const MacroCard = ({ item, onClick }) => {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 2, bottom: 2 }}>
               <YAxis domain={['dataMin', 'dataMax']} hide />
-              <Line type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2.5} dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="value" stroke={sparkColor} strokeWidth={2.5} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -517,7 +629,7 @@ const MacroChartModal = ({ item, onClose }) => {
 };
 
 // ---------------------------------------------------------------------------
-// 💡 수정됨: 부모로부터 macroData를 Props로 정확히 받아 매핑합니다!
+// 부모로부터 macroData를 Props로 받아 매핑
 // ---------------------------------------------------------------------------
 const MacroPage = ({ macroData }) => {
   const [selectedMacro, setSelectedMacro] = useState(null);
@@ -572,7 +684,7 @@ const MacroPage = ({ macroData }) => {
     return { byIndicator: map, regimeData: computedRegime };
   }, [macroData]);
 
-  // 💡 매크로 데이터가 아직 불러와지지 않았거나 비어있을 경우 안전 처리
+  // 매크로 데이터가 아직 불러와지지 않았거나 비어있을 경우 안전 처리
   if (!macroData || macroData.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-96 w-full text-slate-500 animate-in fade-in">
@@ -596,6 +708,3 @@ const MacroPage = ({ macroData }) => {
     </div>
   );
 };
-
-export default MacroPage;
-export { RegimeSummary, MacroSection, MacroCard, FearGreedCard, FearGreedGauge, MacroChartModal, RegimePopover };
