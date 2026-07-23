@@ -372,6 +372,8 @@ const RegimeSummary = ({ regimeData }) => {
   return (
     <div className="w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm mb-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+
+        <div className="flex items-center gap-4 md:gap-6">
           <div className="relative">
             <div className="flex items-center gap-3 mb-2">
               <h2 className="text-[15px] font-black text-slate-500 dark:text-slate-400">Current Market Regime</h2>
