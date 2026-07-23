@@ -7,13 +7,6 @@ import {
 import { AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ComposedChart, LineChart } from 'recharts';
 import { useRenderApi } from '../hooks/useRenderApi';
 import MacroPage from './MacroPage';
-
-const MacroPage = ({ macroData }) => (
-  <div className="p-8 text-center text-slate-500 font-bold bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
-    📊 매크로 대시보드 컴포넌트 마운트 영역<br/>
-    (데이터 로드 성공 여부: {macroData ? '성공' : '실패'})
-  </div>
-);
 // =========================================================================
 
 export default function QuantDesk() {
