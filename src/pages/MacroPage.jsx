@@ -255,7 +255,7 @@ const FearGreedGauge = ({ value }) => {
 // ---------------------------------------------------------------------------
 const FearGreedCard = ({ item }) => {
   const history = item.history || [];
-  
+  console.log(item.indicator, item.history?.length);
   const getHistoricalVal = (offset) => {
     if (history.length > offset) return history[history.length - 1 - offset].value;
     return null;
