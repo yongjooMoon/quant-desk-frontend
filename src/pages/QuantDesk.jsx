@@ -9,6 +9,94 @@ import { useRenderApi } from '../hooks/useRenderApi';
 import MacroPage from './MacroPage';
 // =========================================================================
 
+// 🌟 숫자 카운트업 애니메이션 훅 (ease-out cubic)
+function useCountUp(target, duration = 1100) {
+  const [value, setValue] = useState(0);
+  const rafRef = useRef(null);
+  const fromRef = useRef(0);
+  const targetRef = useRef(0);
+
+  useEffect(() => {
+    const safeTarget = Number.isFinite(target) ? target : 0;
+    const from = fromRef.current;
+    const start = performance.now();
+    cancelAnimationFrame(rafRef.current);
+
+    const tick = (now) => {
+      const progress = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = from + (safeTarget - from) * eased;
+      setValue(current);
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        fromRef.current = safeTarget;
+      }
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    targetRef.current = safeTarget;
+    return () => cancelAnimationFrame(rafRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, duration]);
+
+  return value;
+}
+
+// 🌟 카운트업 숫자를 그리는 얇은 래퍼 (formatter 커스텀 가능)
+function CountUp({ value, duration = 1100, decimals = 2, formatter }) {
+  const animated = useCountUp(value, duration);
+  if (formatter) return <>{formatter(animated)}</>;
+  return <>{animated.toFixed(decimals)}</>;
+}
+
+// 🌟 반원 게이지(score gauge) 위의 특정 percent 지점 좌표 계산 (M 20 100 A 80 80 0 0 1 180 100 기준)
+function getGaugePoint(percent) {
+  const clamped = Math.max(0, Math.min(100, percent || 0));
+  const t = (180 - 1.8 * clamped) * (Math.PI / 180);
+  const x = 100 + 80 * Math.cos(t);
+  const y = 100 - 80 * Math.sin(t);
+  return { x, y };
+}
+
+// 🌟 Dock 스타일 근접도 기반 스케일 계산 (리스트 hover 확대 효과)
+function getDockScale(index, hoverIndex) {
+  if (hoverIndex === null || hoverIndex === undefined) return { scale: 1, lift: 0 };
+  const diff = Math.abs(index - hoverIndex);
+  if (diff === 0) return { scale: 1.035, lift: -4 };
+  if (diff === 1) return { scale: 1.015, lift: -1 };
+  return { scale: 1, lift: 0 };
+}
+
+// 🌟 전역 마이크로 인터랙션 스타일 (스포트라이트 호버, 글로우, 배경 텍스처)
+const MICRO_INTERACTION_STYLES = `
+  .gate-spotlight { position: relative; overflow: hidden; }
+  .gate-spotlight::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), var(--spotlight-color, rgba(255,75,75,0.14)), transparent 42%);
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .gate-spotlight:hover::before { opacity: 1; }
+  .gate-spotlight > * { position: relative; z-index: 1; }
+
+  .qd-dock-row { transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease; will-change: transform; }
+
+  .qd-gauge-glow { filter: drop-shadow(0 0 6px currentColor); animation: qdGaugePulse 1.8s ease-in-out infinite; }
+  @keyframes qdGaugePulse {
+    0%, 100% { opacity: 0.85; r: 5; }
+    50% { opacity: 1; r: 6.5; }
+  }
+
+  .qd-bar-fill { transition: width 1s cubic-bezier(0.22, 1, 0.36, 1); }
+
+  .qd-bg-texture { position: absolute; inset: 0; pointer-events: none; opacity: 0.55; z-index: -1; }
+  .dark .qd-bg-texture { opacity: 0.35; }
+`;
+
 export default function QuantDesk() {
   const [activeTab, setActiveTab] = useState("Macro");
   const [data, setData] = useState({ holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null, macro: [] });
@@ -29,9 +117,17 @@ export default function QuantDesk() {
   const [isEntryOpen, setIsEntryOpen] = useState(true);
   const [isExitOpen, setIsExitOpen] = useState(true);
 
+  // 🌟 Dock 스타일 리스트 호버 확대 효과용 인덱스 상태
+  const [hoverHoldingIdx, setHoverHoldingIdx] = useState(null);
+  const [hoverWatchIdx, setHoverWatchIdx] = useState(null);
+  const [hoverHistoryIdx, setHoverHistoryIdx] = useState(null);
+
   const { callApi, ServerWakeupOverlay } = useRenderApi();
 
   const initialLoadRef = useRef({ kr: false, us: false });
+
+  // 🌟 리포트 모달 게이지용 애니메이션 점수 (모달이 닫혀 있으면 0)
+  const animatedScore = useCountUp(selectedStock ? (selectedStock.score || 0) : 0, 1300);
 
   useEffect(() => {
     let intervalId;
@@ -370,8 +466,29 @@ export default function QuantDesk() {
   const formatNumber = (val) => (val === null || val === undefined || isNaN(val)) ? "N/A" : Number(val).toLocaleString();
   const formatPct = (val) => (val === null || val === undefined || isNaN(val)) ? "N/A" : `${Number(val).toFixed(2)}%`;
 
+  // 🌟 카드 위 마우스 위치를 CSS 변수로 반영해 스포트라이트 호버 효과를 만드는 핸들러
+  const handleSpotlightMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mx = ((e.clientX - rect.left) / rect.width) * 100;
+    const my = ((e.clientY - rect.top) / rect.height) * 100;
+    e.currentTarget.style.setProperty('--mx', `${mx}%`);
+    e.currentTarget.style.setProperty('--my', `${my}%`);
+  };
+
   return (
-    <div className="w-full transition-colors duration-300 pb-20 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
+    <div className="relative w-full transition-colors duration-300 pb-20 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
+
+      <style>{MICRO_INTERACTION_STYLES}</style>
+
+      {/* 🌟 은은한 도트 그리드 배경 텍스처 (깊이감) */}
+      <svg className="qd-bg-texture" width="100%" height="100%" aria-hidden="true">
+        <defs>
+          <pattern id="qdDotGrid" x="0" y="0" width="28" height="28" patternUnits="userSpaceOnUse">
+            <circle cx="1.5" cy="1.5" r="1.5" className="fill-slate-400/40 dark:fill-slate-600/40" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#qdDotGrid)" />
+      </svg>
 
       <ServerWakeupOverlay />
 
@@ -482,9 +599,15 @@ export default function QuantDesk() {
                             const ret = h.return_rate || 0.0;
                             const pnlColor = ret > 0 ? "text-[#FF4B4B]" : (ret < 0 ? "text-[#3B82F6]" : "text-slate-500");
                             const dummyRisk = Math.min(100, Math.max(0, 100 - (ret * 2 + 50)));
+                            const dock = getDockScale(i, hoverHoldingIdx);
 
                             return (
-                            <div key={i} className="flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
+                            <div
+                                key={i}
+                                onMouseEnter={() => setHoverHoldingIdx(i)}
+                                onMouseLeave={() => setHoverHoldingIdx(null)}
+                                style={{ transform: `translateY(${dock.lift}px) scale(${dock.scale})`, zIndex: dock.scale > 1 ? 10 : 1 }}
+                                className="qd-dock-row flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
                                 <div className="flex justify-between items-center w-full md:w-[18%] pr-0 md:pr-4">
                                     <div className="text-[16px] md:text-[16px] font-black text-slate-900 dark:text-white truncate">{h.name}</div>
                                     <div className={`md:hidden text-[16px] font-black ${pnlColor}`}>{ret > 0 ? "+" : ""}{ret.toFixed(2)}%</div>
@@ -529,10 +652,10 @@ export default function QuantDesk() {
                         <div>
                             <div className="flex items-baseline gap-4 mt-2">
                                 <h1 className="text-4xl md:text-5xl font-black tracking-tighter" style={{ color: mainColor }}>
-                                    {lastChartData.cum > 0 ? '+' : ''}{lastChartData.cum.toFixed(2)}%
+                                    {lastChartData.cum > 0 ? '+' : ''}<CountUp value={lastChartData.cum} decimals={2} duration={1400} />%
                                 </h1>
                                 <span className={`text-[14px] md:text-[15px] font-black ${lastChartData.alpha >= 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
-                                    ▲ {lastChartData.alpha > 0 ? '+' : ''}{lastChartData.alpha.toFixed(2)}% (Alpha)
+                                    ▲ {lastChartData.alpha > 0 ? '+' : ''}<CountUp value={lastChartData.alpha} decimals={2} duration={1400} />% (Alpha)
                                 </span>
                             </div>
                         </div>
@@ -553,8 +676,8 @@ export default function QuantDesk() {
                                 ))}
                             </div>
                             <div className="text-[13px] font-extrabold text-slate-400 mt-2 tracking-tight">
-                                Day <span style={{ color: mainColor }}>{lastDayRet > 0 ? '+' : ''}{lastDayRet.toFixed(2)}%</span> &nbsp;&nbsp;
-                                KOSPI <span className="text-[#64748B]">{lastChartData.kospi_cum > 0 ? '+' : ''}{lastChartData.kospi_cum.toFixed(2)}%</span>
+                                Day <span style={{ color: mainColor }}>{lastDayRet > 0 ? '+' : ''}<CountUp value={lastDayRet} decimals={2} /></span>% &nbsp;&nbsp;
+                                KOSPI <span className="text-[#64748B]">{lastChartData.kospi_cum > 0 ? '+' : ''}<CountUp value={lastChartData.kospi_cum} decimals={2} /></span>%
                             </div>
                         </div>
                     </div>
@@ -573,8 +696,8 @@ export default function QuantDesk() {
                                     <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} tickMargin={12} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''}/>
                                     <YAxis tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(value) => value !== undefined && value !== null ? `${value > 0 ? '+' : ''}${value}%` : ''} />
                                     <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(100,116,139,0.2)', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                                    <Line type="monotone" dataKey="kospi_cum" stroke="#94A3B8" strokeWidth={1.5} strokeDasharray="4 4" dot={false} activeDot={false} isAnimationActive={false} />
-                                    <Area type="monotone" dataKey="cum" stroke={mainColor} strokeWidth={3} fillOpacity={1} fill="url(#colorCum)" activeDot={{r: 6, fill: mainColor, strokeWidth: 2, stroke: '#111827'}} />
+                                    <Line type="monotone" dataKey="kospi_cum" stroke="#94A3B8" strokeWidth={1.5} strokeDasharray="4 4" dot={false} activeDot={false} isAnimationActive={true} animationDuration={1600} animationEasing="ease-out" />
+                                    <Area type="monotone" dataKey="cum" stroke={mainColor} strokeWidth={3} fillOpacity={1} fill="url(#colorCum)" activeDot={{r: 6, fill: mainColor, strokeWidth: 2, stroke: '#111827'}} isAnimationActive={true} animationDuration={1800} animationEasing="ease-out" />
                                 </ComposedChart>
                             </ResponsiveContainer>
                         ) : (
@@ -599,8 +722,15 @@ export default function QuantDesk() {
                             <div className="w-[10%] text-[13px] md:text-[14px] font-extrabold text-slate-500 text-center">액션</div>
                         </div>
 
-                        {filWatchlist.length === 0 ? <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-extrabold">종목이 없습니다.</div> : filWatchlist.map((c, idx) => (
-                            <div key={idx} className="flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
+                        {filWatchlist.length === 0 ? <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-extrabold">종목이 없습니다.</div> : filWatchlist.map((c, idx) => {
+                          const dock = getDockScale(idx, hoverWatchIdx);
+                          return (
+                            <div
+                                key={idx}
+                                onMouseEnter={() => setHoverWatchIdx(idx)}
+                                onMouseLeave={() => setHoverWatchIdx(null)}
+                                style={{ transform: `translateY(${dock.lift}px) scale(${dock.scale})`, zIndex: dock.scale > 1 ? 10 : 1 }}
+                                className="qd-dock-row flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
                                 <div className="flex justify-between items-center w-full md:w-[40%] pr-0 md:pr-4">
                                     <div className="flex items-center gap-3 w-full">
                                         <span className="text-[12px] font-extrabold text-white bg-blue-500 rounded-md px-2 py-0.5 md:bg-transparent md:text-slate-500 md:px-0 md:py-0 w-auto md:w-[25%] text-center">{idx+1}</span>
@@ -623,7 +753,8 @@ export default function QuantDesk() {
                                     <button onClick={() => handleReportClick(c.symbol, c)} className="px-4 md:px-3 py-1.5 md:w-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
                                 </div>
                             </div>
-                        ))}
+                          );
+                        })}
                     </div>
                 </div>
               </div>
@@ -633,23 +764,25 @@ export default function QuantDesk() {
           {activeTab === "History" && (
               <div className="animate-in fade-in duration-300 w-full">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10 w-full">
-                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
+                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
                           <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">총 매도 횟수</p>
-                          <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white mb-1">{sellTrades.length}회</p>
+                          <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white mb-1"><CountUp value={sellTrades.length} decimals={0} />회</p>
                           <p className="text-[11px] md:text-[12px] font-extrabold text-slate-400">승 {wins.length} / 패 {losses.length}</p>
                       </div>
-                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
+                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
                           <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">🎯 승률 (타율)</p>
-                          <p className="text-2xl md:text-3xl font-black text-[#3B82F6]">{winRate.toFixed(1)}%</p>
+                          <p className="text-2xl md:text-3xl font-black text-[#3B82F6]"><CountUp value={winRate} decimals={1} />%</p>
                       </div>
-                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
+                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
                           <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">⚖️ 손익비</p>
-                          <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white mb-1">{avgLoss !== 0 ? Math.abs(avgWin/avgLoss).toFixed(2) : "0.00"}</p>
+                          <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white mb-1">{avgLoss !== 0 ? <CountUp value={Math.abs(avgWin/avgLoss)} decimals={2} /> : "0.00"}</p>
                           <p className="text-[11px] md:text-[12px] font-extrabold text-slate-400">평균 {avgWin.toFixed(2)}% / {avgLoss.toFixed(2)}%</p>
                       </div>
-                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center">
+                      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm flex flex-col justify-center hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
                           <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">💰 주당 누적 실현손익금</p>
-                          <p className={`text-xl md:text-2xl lg:text-3xl font-black tracking-tight ${totalProfitAmt > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{parseInt(totalProfitAmt).toLocaleString('ko-KR')}원</p>
+                          <p className={`text-xl md:text-2xl lg:text-3xl font-black tracking-tight ${totalProfitAmt > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
+                              <CountUp value={totalProfitAmt} decimals={0} formatter={(v) => parseInt(v).toLocaleString('ko-KR')} />원
+                          </p>
                       </div>
                   </div>
 
@@ -666,8 +799,14 @@ export default function QuantDesk() {
 
                           {sellTrades.length === 0 ? <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-extrabold w-full">매도 이력이 없습니다.</div> : sellTrades.map((t, idx) => {
                                 const entryPrice = t.trade_price / (1 + ((t.return_rate || 0) / 100));
+                                const dock = getDockScale(idx, hoverHistoryIdx);
                                 return (
-                                  <div key={idx} className="flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
+                                  <div
+                                    key={idx}
+                                    onMouseEnter={() => setHoverHistoryIdx(idx)}
+                                    onMouseLeave={() => setHoverHistoryIdx(null)}
+                                    style={{ transform: `translateY(${dock.lift}px) scale(${dock.scale})`, zIndex: dock.scale > 1 ? 10 : 1 }}
+                                    className="qd-dock-row flex flex-col md:flex-row md:items-center px-4 md:px-5 py-4 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-xl md:rounded-none mb-3 md:mb-0 shadow-sm md:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors w-full gap-3 md:gap-0">
                                       <div className="flex justify-between items-center w-full md:w-[35%] pr-0 md:pr-4">
                                           <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-4 w-full">
                                               <span className="text-[11px] font-extrabold text-slate-400 md:w-[42%] md:text-[14px] md:text-slate-500">{t.trade_date}</span>
@@ -717,7 +856,7 @@ export default function QuantDesk() {
                       {isEntryOpen && (
                           <div className="grid grid-cols-1 gap-4 animate-in slide-in-from-top-2 duration-300 opacity-100">
 
-                              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(255,75,75,0.1)] hover:border-[#FF4B4B] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
+                              <div onMouseMove={handleSpotlightMove} className="gate-spotlight bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(255,75,75,0.1)] hover:border-[#FF4B4B] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
                                   <div className="md:w-1/4 shrink-0 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#FF4B4B] font-black text-lg shadow-sm group-hover:bg-[#FF4B4B] group-hover:text-white transition-colors">A</div>
                                       <h4 className="font-black text-lg text-slate-900 dark:text-white">성장성 <span className="text-[13px] text-slate-400 block font-bold">Growth Composite</span></h4>
@@ -729,7 +868,7 @@ export default function QuantDesk() {
                                   </div>
                               </div>
 
-                              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(255,75,75,0.1)] hover:border-[#FF4B4B] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
+                              <div onMouseMove={handleSpotlightMove} className="gate-spotlight bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(255,75,75,0.1)] hover:border-[#FF4B4B] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
                                   <div className="md:w-1/4 shrink-0 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#FF4B4B] font-black text-lg shadow-sm group-hover:bg-[#FF4B4B] group-hover:text-white transition-colors">B</div>
                                       <h4 className="font-black text-lg text-slate-900 dark:text-white">방어력 <span className="text-[13px] text-slate-400 block font-bold">Dynamic MDD</span></h4>
@@ -741,7 +880,7 @@ export default function QuantDesk() {
                                   </div>
                               </div>
 
-                              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(255,75,75,0.1)] hover:border-[#FF4B4B] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
+                              <div onMouseMove={handleSpotlightMove} className="gate-spotlight bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(255,75,75,0.1)] hover:border-[#FF4B4B] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
                                   <div className="md:w-1/4 shrink-0 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#FF4B4B] font-black text-lg shadow-sm group-hover:bg-[#FF4B4B] group-hover:text-white transition-colors">C</div>
                                       <h4 className="font-black text-lg text-slate-900 dark:text-white">유동성 <span className="text-[13px] text-slate-400 block font-bold">Liquidity</span></h4>
@@ -753,7 +892,7 @@ export default function QuantDesk() {
                                   </div>
                               </div>
 
-                              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(255,75,75,0.1)] hover:border-[#FF4B4B] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
+                              <div onMouseMove={handleSpotlightMove} className="gate-spotlight bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(255,75,75,0.1)] hover:border-[#FF4B4B] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
                                   <div className="md:w-1/4 shrink-0 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#FF4B4B] font-black text-lg shadow-sm group-hover:bg-[#FF4B4B] group-hover:text-white transition-colors">D</div>
                                       <h4 className="font-black text-lg text-slate-900 dark:text-white">추세 <span className="text-[13px] text-slate-400 block font-bold">Trend Alignment</span></h4>
@@ -765,7 +904,7 @@ export default function QuantDesk() {
                                   </div>
                               </div>
 
-                              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(255,75,75,0.1)] hover:border-[#FF4B4B] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
+                              <div onMouseMove={handleSpotlightMove} className="gate-spotlight bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(255,75,75,0.1)] hover:border-[#FF4B4B] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
                                   <div className="md:w-1/4 shrink-0 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#FF4B4B] font-black text-lg shadow-sm group-hover:bg-[#FF4B4B] group-hover:text-white transition-colors">E</div>
                                       <h4 className="font-black text-lg text-slate-900 dark:text-white">가격 돌파 <span className="text-[13px] text-slate-400 block font-bold">Price Breakout</span></h4>
@@ -777,7 +916,7 @@ export default function QuantDesk() {
                                   </div>
                               </div>
 
-                              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(255,75,75,0.1)] hover:border-[#FF4B4B] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
+                              <div onMouseMove={handleSpotlightMove} className="gate-spotlight bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(255,75,75,0.1)] hover:border-[#FF4B4B] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
                                   <div className="md:w-1/4 shrink-0 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#FF4B4B] font-black text-lg shadow-sm group-hover:bg-[#FF4B4B] group-hover:text-white transition-colors">F</div>
                                       <h4 className="font-black text-lg text-slate-900 dark:text-white">수급 <span className="text-[13px] text-slate-400 block font-bold">Volume Surge</span></h4>
@@ -809,7 +948,7 @@ export default function QuantDesk() {
                       {isExitOpen && (
                           <div className="grid grid-cols-1 gap-4 animate-in slide-in-from-top-2 duration-300 opacity-100">
 
-                              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(59,130,246,0.1)] hover:border-[#3B82F6] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
+                              <div onMouseMove={handleSpotlightMove} style={{ '--spotlight-color': 'rgba(59,130,246,0.14)' }} className="gate-spotlight bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(59,130,246,0.1)] hover:border-[#3B82F6] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
                                   <div className="md:w-1/4 shrink-0 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#3B82F6] font-black text-lg shadow-sm group-hover:bg-[#3B82F6] group-hover:text-white transition-colors">1</div>
                                       <h4 className="font-black text-lg text-slate-900 dark:text-white">동적 손절 <span className="text-[13px] text-slate-400 block font-bold">Trailing Stop</span></h4>
@@ -821,7 +960,7 @@ export default function QuantDesk() {
                                   </div>
                               </div>
 
-                              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(59,130,246,0.1)] hover:border-[#3B82F6] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
+                              <div onMouseMove={handleSpotlightMove} style={{ '--spotlight-color': 'rgba(59,130,246,0.14)' }} className="gate-spotlight bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(59,130,246,0.1)] hover:border-[#3B82F6] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
                                   <div className="md:w-1/4 shrink-0 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#3B82F6] font-black text-lg shadow-sm group-hover:bg-[#3B82F6] group-hover:text-white transition-colors">2</div>
                                       <h4 className="font-black text-lg text-slate-900 dark:text-white">추세 붕괴 <span className="text-[13px] text-slate-400 block font-bold">Trend Breakdown</span></h4>
@@ -833,7 +972,7 @@ export default function QuantDesk() {
                                   </div>
                               </div>
 
-                              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(59,130,246,0.1)] hover:border-[#3B82F6] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
+                              <div onMouseMove={handleSpotlightMove} style={{ '--spotlight-color': 'rgba(59,130,246,0.14)' }} className="gate-spotlight bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-2xl shadow-sm hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(59,130,246,0.1)] hover:border-[#3B82F6] hover:-translate-y-1 transition-all duration-300 group flex flex-col md:flex-row md:items-center gap-4 md:gap-8 cursor-default">
                                   <div className="md:w-1/4 shrink-0 flex items-center gap-3">
                                       <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#3B82F6] font-black text-lg shadow-sm group-hover:bg-[#3B82F6] group-hover:text-white transition-colors">3</div>
                                       <h4 className="font-black text-lg text-slate-900 dark:text-white">모멘텀 소진 <span className="text-[13px] text-slate-400 block font-bold">Momentum Exhaust</span></h4>
@@ -868,22 +1007,22 @@ export default function QuantDesk() {
 
                 <div className="space-y-6">
                     <div>
-                        <div className="flex justify-between text-[14px] font-black mb-2"><span>OVERALL EXIT PROXIMITY</span><span>{(riskStock.exit_risk || 0).toFixed(2)}%</span></div>
-                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-3"><div className={`h-3 rounded-full ${(riskStock.exit_risk || 0) > 70 ? 'bg-[#FF4B4B]' : 'bg-[#00B464]'}`} style={{width: `${riskStock.exit_risk || 0}%`}}></div></div>
+                        <div className="flex justify-between text-[14px] font-black mb-2"><span>OVERALL EXIT PROXIMITY</span><span><CountUp value={riskStock.exit_risk || 0} decimals={2} />%</span></div>
+                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-3 overflow-hidden"><div className={`qd-bar-fill h-3 rounded-full ${(riskStock.exit_risk || 0) > 70 ? 'bg-[#FF4B4B]' : 'bg-[#00B464]'}`} style={{width: `${riskStock.exit_risk || 0}%`}}></div></div>
                     </div>
                     <div>
-                        <div className="flex justify-between text-[13px] md:text-[14px] font-extrabold mb-2 text-slate-500"><span>Trailing Stop (ATR) 추정</span><span>{Math.max(0, (riskStock.exit_risk || 0) - 15).toFixed(2)}%</span></div>
-                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2"><div className="bg-slate-400 dark:bg-slate-600 h-2 rounded-full" style={{width: `${Math.max(0, (riskStock.exit_risk || 0) - 15)}%`}}></div></div>
+                        <div className="flex justify-between text-[13px] md:text-[14px] font-extrabold mb-2 text-slate-500"><span>Trailing Stop (ATR) 추정</span><span><CountUp value={Math.max(0, (riskStock.exit_risk || 0) - 15)} decimals={2} />%</span></div>
+                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden"><div className="qd-bar-fill bg-slate-400 dark:bg-slate-600 h-2 rounded-full" style={{width: `${Math.max(0, (riskStock.exit_risk || 0) - 15)}%`}}></div></div>
                     </div>
                     <div>
-                        <div className="flex justify-between text-[13px] md:text-[14px] font-extrabold mb-2 text-slate-500"><span>Trend Break (MA20) 추정</span><span>{Math.max(0, (riskStock.exit_risk || 0) - 5).toFixed(2)}%</span></div>
-                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2"><div className="bg-slate-400 dark:bg-slate-600 h-2 rounded-full" style={{width: `${Math.max(0, (riskStock.exit_risk || 0) - 5)}%`}}></div></div>
+                        <div className="flex justify-between text-[13px] md:text-[14px] font-extrabold mb-2 text-slate-500"><span>Trend Break (MA20) 추정</span><span><CountUp value={Math.max(0, (riskStock.exit_risk || 0) - 5)} decimals={2} />%</span></div>
+                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden"><div className="qd-bar-fill bg-slate-400 dark:bg-slate-600 h-2 rounded-full" style={{width: `${Math.max(0, (riskStock.exit_risk || 0) - 5)}%`}}></div></div>
                     </div>
                 </div>
 
                 <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 grid grid-cols-2 gap-4">
                     <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">진입가 (Entry)</p><p className="text-lg md:text-xl font-black text-slate-900 dark:text-white">₩{Math.round(riskStock.entry_price || 0).toLocaleString()}</p></div>
-                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">보유 수익률 (P&L)</p><p className={`text-lg md:text-xl font-black ${(riskStock.return_rate || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(riskStock.return_rate || 0) > 0 ? '+' : ''}{(riskStock.return_rate || 0).toFixed(2)}%</p></div>
+                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">보유 수익률 (P&L)</p><p className={`text-lg md:text-xl font-black ${(riskStock.return_rate || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(riskStock.return_rate || 0) > 0 ? '+' : ''}<CountUp value={riskStock.return_rate || 0} decimals={2} />%</p></div>
                 </div>
             </div>
         </div>
@@ -943,8 +1082,8 @@ export default function QuantDesk() {
                                                 <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 10, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={35} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''}/>
                                                 <YAxis tick={{fill: '#94A3B8', fontSize: 10, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(v) => v !== undefined && v !== null ? `${v > 0 ? '+' : ''}${v.toFixed(0)}%` : ''} />
                                                 <Tooltip contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900', fontSize: '12px'}} formatter={(value, name) => [`${value > 0 ? '+' : ''}${value.toFixed(2)}%`, name === 'old_cum' ? 'OLD' : 'NEW']} />
-                                                <Line type="monotone" dataKey="old_cum" name="old_cum" stroke="#64748B" strokeWidth={1.5} strokeDasharray="4 4" dot={false} isAnimationActive={false} />
-                                                <Line type="monotone" dataKey="new_cum" name="new_cum" stroke="#FF4B4B" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                                                <Line type="monotone" dataKey="old_cum" name="old_cum" stroke="#64748B" strokeWidth={1.5} strokeDasharray="4 4" dot={false} isAnimationActive={true} animationDuration={1500} animationEasing="ease-out" />
+                                                <Line type="monotone" dataKey="new_cum" name="new_cum" stroke="#FF4B4B" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={1900} animationEasing="ease-out" />
                                             </LineChart>
                                         </ResponsiveContainer>
                                     ) : (
@@ -1022,11 +1161,11 @@ export default function QuantDesk() {
                                 <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                                     <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">⚡ Quant Scores</h3>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">퀀트 랭킹 스코어</p><p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">{(selectedStock.score || 0).toFixed(2)}점</p></div>
+                                        <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">퀀트 랭킹 스코어</p><p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white"><CountUp value={selectedStock.score || 0} decimals={2} />점</p></div>
                                         <div>
                                             <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">생존 필터 통과</p>
                                             <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
-                                                {selectedStock.total_pass !== undefined ? selectedStock.total_pass : (selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0)} / 6
+                                                <CountUp value={selectedStock.total_pass !== undefined ? selectedStock.total_pass : (selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0)} decimals={0} /> / 6
                                             </p>
                                         </div>
                                     </div>
@@ -1035,14 +1174,17 @@ export default function QuantDesk() {
 
                                 <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-center items-center relative">
                                     <div className="relative w-48 md:w-56 h-28 md:h-32 mb-2 flex justify-center items-end">
-                                        <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0">
+                                        <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
                                             <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="18" strokeLinecap="round" />
                                             <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#00B464" strokeWidth="18" strokeLinecap="round"
-                                                  strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * (selectedStock.score || 0) / 100)}
-                                                  style={{ transition: 'stroke-dashoffset 1.5s ease-in-out' }} />
+                                                  strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * animatedScore / 100)} />
+                                            {(() => {
+                                                const { x, y } = getGaugePoint(animatedScore);
+                                                return <circle cx={x} cy={y} r="5" fill="#00B464" className="qd-gauge-glow" style={{ color: '#00B464' }} />;
+                                            })()}
                                         </svg>
                                         <div className="absolute bottom-0 w-full flex flex-col items-center justify-end pb-2">
-                                            <p className="text-4xl md:text-5xl font-black text-[#00B464] tracking-tighter">{(selectedStock.score || 0).toFixed(1)}</p>
+                                            <p className="text-4xl md:text-5xl font-black text-[#00B464] tracking-tighter">{animatedScore.toFixed(1)}</p>
                                         </div>
                                     </div>
                                     <p className="text-[13px] md:text-[14px] font-extrabold text-slate-500 mt-2">퀀트 랭킹 스코어</p>
@@ -1094,7 +1236,7 @@ export default function QuantDesk() {
                                                 <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={30} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''}/>
                                                 <YAxis domain={['auto', 'auto']} tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(value) => value !== undefined && value !== null ? value.toLocaleString() : ''} />
                                                 <Tooltip contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900'}} itemStyle={{color: '#FF4B4B'}} labelStyle={{color: '#94A3B8', marginBottom: '4px'}} formatter={(value) => [value !== undefined && value !== null ? value.toLocaleString() : '', "종가"]} />
-                                                <Line type="monotone" dataKey="price" stroke="#FF4B4B" strokeWidth={2.5} dot={false} activeDot={{r: 5, fill: '#FF4B4B', strokeWidth: 0}} />
+                                                <Line type="monotone" dataKey="price" stroke="#FF4B4B" strokeWidth={2.5} dot={false} activeDot={{r: 5, fill: '#FF4B4B', strokeWidth: 0}} isAnimationActive={true} animationDuration={1700} animationEasing="ease-out" />
                                             </LineChart>
                                         </ResponsiveContainer>
                                     ) : (
