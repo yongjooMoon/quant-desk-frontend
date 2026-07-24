@@ -109,7 +109,7 @@ function MacroTicker({ macroData, onNavigate }) {
   // 이음새 없는(seamless) 무한 루프를 위해 동일한 리스트를 두 번 이어붙임
   const items = [...macroData, ...macroData];
   // 항목 수에 비례해 속도(시간) 조절 — 너무 빠르거나 느리지 않게
-  const duration = Math.max(40, macroData.length * 8);
+  const duration = Math.max(40, macroData.length * 6);
 
   return (
     <div className="macro-ticker-wrap bg-[#0B1120] border-y border-slate-800/80 mb-8 rounded-xl">
