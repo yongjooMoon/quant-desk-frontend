@@ -67,7 +67,65 @@ function getDockScale(index, hoverIndex) {
   return { scale: 1, lift: 0 };
 }
 
-// 🌟 전역 마이크로 인터랙션 스타일 (스포트라이트 호버, 글로우, 배경 텍스처)
+// 🌟 매크로 지표 값 포맷 (unit이 통화기호면 접두어, 그 외에는 접미어)
+function formatMacroValue(item) {
+  const val = item?.value;
+  if (val === null || val === undefined || isNaN(val)) return "N/A";
+  const unit = item.unit || "";
+  const formatted = Math.abs(val) >= 1000
+    ? val.toLocaleString(undefined, { maximumFractionDigits: 2 })
+    : val.toFixed(2);
+  if (["$", "₩", "£", "€"].includes(unit)) return `${unit}${formatted}`;
+  if (!unit) return formatted;
+  return `${formatted}${unit}`;
+}
+
+// 🌟 매크로 티커 한 칸(항목)
+function MacroTickerItem({ item, onClick }) {
+  const change = item?.change_percent || 0;
+  const isUp = change > 0;
+  const isDown = change < 0;
+  const color = isUp ? "text-[#FF4B4B]" : isDown ? "text-[#3B82F6]" : "text-slate-400";
+  const arrow = isUp ? "▲" : isDown ? "▼" : "─";
+
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-5 py-2.5 shrink-0 whitespace-nowrap cursor-pointer hover:opacity-70 transition-opacity"
+    >
+      <span className="text-[13px] font-extrabold text-slate-400">{item.display_name}</span>
+      <span className="text-[13px] font-black text-white">{formatMacroValue(item)}</span>
+      <span className={`text-[12px] font-black ${color}`}>
+        {arrow} {change > 0 ? "+" : ""}{change.toFixed(2)}%
+      </span>
+    </button>
+  );
+}
+
+// 🌟 매크로 지표 티커 바 (상단에서 계속 흐르는 marquee, hover 시 정지, 클릭 시 탭 이동)
+function MacroTicker({ macroData, onNavigate }) {
+  if (!macroData || macroData.length === 0) return null;
+
+  // 이음새 없는(seamless) 무한 루프를 위해 동일한 리스트를 두 번 이어붙임
+  const items = [...macroData, ...macroData];
+  // 항목 수에 비례해 속도(시간) 조절 — 너무 빠르거나 느리지 않게
+  const duration = Math.max(20, macroData.length * 3);
+
+  return (
+    <div className="macro-ticker-wrap bg-[#0B1120] border-y border-slate-800/80 mb-8 rounded-xl">
+      <div
+        className="macro-ticker-track"
+        style={{ "--macro-duration": `${duration}s` }}
+      >
+        {items.map((item, idx) => (
+          <MacroTickerItem key={`${item.indicator}-${idx}`} item={item} onClick={onNavigate} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 🌟 전역 마이크로 인터랙션 스타일 (스포트라이트 호버, 글로우, 배경 텍스처, 매크로 티커)
 const MICRO_INTERACTION_STYLES = `
   .gate-spotlight { position: relative; overflow: hidden; }
   .gate-spotlight::before {
@@ -95,6 +153,28 @@ const MICRO_INTERACTION_STYLES = `
 
   .qd-bg-texture { position: absolute; inset: 0; pointer-events: none; opacity: 0.55; z-index: -1; }
   .dark .qd-bg-texture { opacity: 0.35; }
+
+  /* 🌟 매크로 티커(marquee) 스타일 */
+  .macro-ticker-wrap {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);
+  }
+  .macro-ticker-track {
+    display: flex;
+    align-items: center;
+    width: max-content;
+    animation: macroTickerScroll var(--macro-duration, 40s) linear infinite;
+  }
+  .macro-ticker-wrap:hover .macro-ticker-track {
+    animation-play-state: paused;
+  }
+  @keyframes macroTickerScroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
 `;
 
 // =========================================================================
@@ -611,6 +691,9 @@ export default function QuantDesk() {
             </button>
         ))}
       </div>
+
+      {/* 🌟 매크로 지표 티커: 탭 목록 바로 아래, 모든 탭에서 항상 노출 — hover 시 정지, 클릭 시 Macro 탭 이동 */}
+      <MacroTicker macroData={data.macro} onNavigate={() => setActiveTab("Macro")} />
 
       {loading && !syncing ? (
         <div className="flex justify-center p-20 w-full"><RefreshCcw className="animate-spin text-blue-500" size={40} /></div>
