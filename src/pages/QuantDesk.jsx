@@ -99,8 +99,8 @@ function MacroTickerItem({ item, onClick }) {
       onClick={onClick}
       className="flex items-center gap-1.5 px-5 py-2.5 shrink-0 whitespace-nowrap cursor-pointer hover:opacity-70 transition-opacity"
     >
-      <span className="text-[13px] font-extrabold text-slate-400">{item.display_name}</span>
-      <span className="text-[13px] font-black text-white">{formatMacroValue(item)}</span>
+      <span className="text-[13px] font-extrabold text-slate-500 dark:text-slate-400">{item.display_name}</span>
+      <span className="text-[13px] font-black text-slate-900 dark:text-white">{formatMacroValue(item)}</span>
       <span className={`text-[12px] font-black ${color}`}>
         {arrow} {change > 0 ? "+" : ""}{change.toFixed(2)}%
       </span>
