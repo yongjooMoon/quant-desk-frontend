@@ -87,6 +87,7 @@ function MacroTickerItem({ item, onClick }) {
   const isDown = change < 0;
   const color = isUp ? "text-[#FF4B4B]" : isDown ? "text-[#3B82F6]" : "text-slate-400";
   const arrow = isUp ? "▲" : isDown ? "▼" : "─";
+  const hideValue = shouldHideMacroValue(item);
 
   return (
     <button
@@ -94,7 +95,9 @@ function MacroTickerItem({ item, onClick }) {
       className="flex items-center gap-1.5 px-5 py-2.5 shrink-0 whitespace-nowrap cursor-pointer hover:opacity-70 transition-opacity"
     >
       <span className="text-[13px] font-extrabold text-slate-400">{item.display_name}</span>
-      <span className="text-[13px] font-black text-white">{formatMacroValue(item)}</span>
+      {!hideValue && (
+        <span className="text-[13px] font-black text-white">{formatMacroValue(item)}</span>
+      )}
       <span className={`text-[12px] font-black ${color}`}>
         {arrow} {change > 0 ? "+" : ""}{change.toFixed(2)}%
       </span>
@@ -102,15 +105,19 @@ function MacroTickerItem({ item, onClick }) {
   );
 }
 
+// 🌟 값(수치) 표시를 생략할 지표 판별 — 지표명/표시명에 USD, 인덱스, KOSPI 등이 포함되면 값은 숨기고 등락률만 표시
+function shouldHideMacroValue(item) {
+  const key = `${item.indicator || ""} ${item.display_name || ""}`.toUpperCase();
+  return key.includes("USD") || key.includes("INDEX") || key.includes("지수") || key.includes("DXY");
+}
+
 // 🌟 매크로 지표 티커 바 (상단에서 계속 흐르는 marquee, hover 시 정지, 클릭 시 탭 이동)
 function MacroTicker({ macroData, onNavigate }) {
   if (!macroData || macroData.length === 0) return null;
-
   // 이음새 없는(seamless) 무한 루프를 위해 동일한 리스트를 두 번 이어붙임
   const items = [...macroData, ...macroData];
   // 항목 수에 비례해 속도(시간) 조절 — 너무 빠르거나 느리지 않게
   const duration = Math.max(30, macroData.length * 4);
-
   return (
     <div className="macro-ticker-wrap bg-[#0B1120] border-y border-slate-800/80 mb-8 rounded-xl">
       <div
