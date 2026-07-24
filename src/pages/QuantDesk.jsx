@@ -93,7 +93,7 @@ function MacroTickerItem({ item, onClick }) {
   const isDown = change < 0;
   const color = isUp ? "text-[#FF4B4B]" : isDown ? "text-[#3B82F6]" : "text-slate-400";
   const arrow = isUp ? "▲" : isDown ? "▼" : "─";
-  print(item)
+  console.log(item)
   return (
     <button
       onClick={onClick}
