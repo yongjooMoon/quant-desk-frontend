@@ -426,7 +426,7 @@ const FearGreedCard = ({ item }) => {
 const RegimePopover = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
   return (
-    <div className="absolute top-10 left-0 md:left-4 z-50 w-[280px] bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-4 animate-in fade-in zoom-in-95 duration-200">
+    <div className="absolute top-8 right-0 z-50 w-[280px] bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-4 animate-in fade-in zoom-in-95 duration-200">
       <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100 dark:border-slate-700/50">
         <h4 className="font-black text-slate-900 dark:text-white text-[15px]">Market Regime 가이드</h4>
         <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={16} /></button>
@@ -443,8 +443,6 @@ const RegimePopover = ({ isOpen, onClose }) => {
   );
 };
 
-// 🌟 RegimeSummary — 게이지를 완전히 제거하고, regime 문자열 + 점수 + 정보 버튼만 있는
-//    얇은 한 줄짜리 바(bar)로 축소했습니다. "움직이는" 역할은 FearGreedGauge로 이전되었습니다.
 const RegimeSummary = ({ regimeData }) => {
   const [infoOpen, setInfoOpen] = useState(false);
   const { score, regime } = regimeData;
@@ -471,10 +469,13 @@ const RegimeSummary = ({ regimeData }) => {
         {score}<span className="text-slate-400 dark:text-slate-500 font-bold text-[12px]"> / 100</span>
       </span>
 
-      <button onClick={() => setInfoOpen(!infoOpen)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer ml-auto">
-        <Info size={16} />
-      </button>
-      <RegimePopover isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
+      {/* 🌟 Info 버튼을 relative 컨테이너로 감싸서, 팝업이 이 버튼을 기준으로 위치하도록 함 */}
+      <div className="relative ml-auto">
+        <button onClick={() => setInfoOpen(!infoOpen)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer">
+          <Info size={16} />
+        </button>
+        <RegimePopover isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
+      </div>
     </div>
   );
 };
