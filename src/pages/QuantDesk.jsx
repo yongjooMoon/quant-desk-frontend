@@ -118,7 +118,7 @@ function MacroTicker({ macroData, onNavigate }) {
   const duration = Math.max(30, macroData.length * 4);
 
   return (
-    <div className="macro-ticker-wrap bg-[#0B1120] border-y border-slate-800/80 mb-8 rounded-xl">
+    <div className="macro-ticker-wrap bg-white dark:bg-[#0B1120] border-y border-slate-200 dark:border-slate-800/80 mb-8 rounded-xl">
       <div
         className="macro-ticker-track"
         style={{ "--macro-duration": `${duration}s` }}
