@@ -296,7 +296,6 @@ export default function HousingCalendar() {
         {/* 주 단위 렌더링 */}
         <div className="grid grid-cols-5">
           {weeks.map((week, wIdx) => {
-            const isSelectedWeek = selectedDate && week.some((d) => isSameDate(d, selectedDate));
             return (
               <div key={wIdx} className="contents">
                 {week.map((dateObj, dIdx) => {
