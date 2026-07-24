@@ -1,88 +1,154 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { RefreshCcw, Check } from 'lucide-react';
 import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
-// 배지(공급 유형) 설정 — 기존 파이썬 로직의 badge/color 값과 1:1 매핑
-//    + LH 항목을 새로운 배지로 추가
+// 배지(공급 유형) 설정 — badge/color 값 매핑 + LH 신규 추가
 // =========================================================================
 const BADGE_CONFIG = {
-  '특': { label: '특별공급', color: '#f39c12', solid: true },
-  '1': { label: '1순위', color: '#2980b9', solid: true },
-  '2': { label: '2순위', color: '#27ae60', solid: true },
-  '무': { label: '무순위', color: '#7f8c8d', solid: false },
-  '임': { label: '임의공급', color: '#d35400', solid: false },
-  '오': { label: '오피스텔/생활숙박/도시형/민간임대', color: '#e84393', solid: false },
-  '공': { label: '공공지원민간임대', color: '#8e44ad', solid: false },
-  '불': { label: '불법행위재공급', color: '#16a085', solid: false },
+  '특': { label: '특별공급', short: '특', color: '#f59e0b', color2: '#f97316' },
+  '1': { label: '1순위', short: '1', color: '#3b82f6', color2: '#2563eb' },
+  '2': { label: '2순위', short: '2', color: '#10b981', color2: '#059669' },
+  '무': { label: '무순위', short: '무', color: '#64748b', color2: '#475569' },
+  '임': { label: '임의공급', short: '임', color: '#f97316', color2: '#ea580c' },
+  '오': { label: '오피스텔/생활숙박/도시형/민간임대', short: '오', color: '#ec4899', color2: '#db2777' },
+  '공': { label: '공공지원민간임대', short: '공', color: '#a855f7', color2: '#9333ea' },
+  '불': { label: '불법행위재공급', short: '불', color: '#14b8a6', color2: '#0d9488' },
   // 🌟 신규 추가 — LH 실 분양 주택
-  'LH': { label: 'LH 분양', color: '#1e3799', solid: true },
+  'LH': { label: 'LH 분양', short: 'LH', color: '#6366f1', color2: '#4f46e5' },
 };
 
 const WEEKDAY_LABELS = ['월', '화', '수', '목', '금'];
 
 // =========================================================================
-// 월요일 시작, 평일(월~금)만 담긴 주 단위 그리드 생성
+// 전역 마이크로 인터랙션 스타일 — 배경 텍스처, 펄스, 진입 애니메이션 등
 // =========================================================================
-function buildWeekdayGrid(year, month) {
-  // month: 1~12
-  const firstOfMonth = new Date(year, month - 1, 1);
-  const lastOfMonth = new Date(year, month, 0);
-
-  // 이번 달 1일이 속한 주의 월요일부터 시작
-  const gridStart = new Date(firstOfMonth);
-  const firstDow = firstOfMonth.getDay(); // 0=일 ... 6=토
-  const diffToMonday = firstDow === 0 ? -6 : 1 - firstDow;
-  gridStart.setDate(firstOfMonth.getDate() + diffToMonday);
-
-  const weeks = [];
-  let cursor = new Date(gridStart);
-
-  while (cursor <= lastOfMonth || cursor.getMonth() + 1 === month) {
-    const week = [];
-    for (let i = 0; i < 5; i++) { // 월~금만
-      const inMonth = cursor.getMonth() + 1 === month;
-      week.push(inMonth ? new Date(cursor) : null);
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    cursor.setDate(cursor.getDate() + 2); // 토, 일 건너뛰기
-    weeks.push(week);
-    if (cursor > lastOfMonth) break;
+const GLOBAL_STYLES = `
+  @keyframes hcPulseRing {
+    0% { transform: scale(0.9); opacity: 0.9; }
+    70% { transform: scale(1.9); opacity: 0; }
+    100% { transform: scale(1.9); opacity: 0; }
   }
+  @keyframes hcFadeInUp {
+    0% { opacity: 0; transform: translateY(6px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes hcShimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes hcDrift {
+    0%   { transform: translate(0px, 0px); }
+    33%  { transform: translate(10px, 8px); }
+    66%  { transform: translate(-8px, 12px); }
+    100% { transform: translate(0px, 0px); }
+  }
+  @keyframes hcBadgePop {
+    0% { transform: scale(0.4); opacity: 0; }
+    60% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .hc-cell {
+    animation: hcFadeInUp 0.35s ease-out backwards;
+    transition: transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .hc-cell:hover { transform: translateY(-3px); }
+  .hc-chip { transition: transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease, background 0.2s ease; }
+  .hc-chip:hover { transform: translateY(-2px) scale(1.03); }
+  .hc-row { transition: background 0.18s ease, transform 0.18s ease; }
+  .hc-row:hover { transform: translateX(2px); }
+  .hc-mobile-pill { animation: hcBadgePop 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+  .hc-shimmer {
+    background: linear-gradient(90deg, rgba(148,163,184,0.08) 25%, rgba(148,163,184,0.22) 37%, rgba(148,163,184,0.08) 63%);
+    background-size: 200% 100%;
+    animation: hcShimmer 1.4s ease-in-out infinite;
+  }
+`;
 
-  return weeks;
+// =========================================================================
+// 은은하게 움직이는 배경 (도트 그리드 + 컬러 블롭) — SVG 기반
+// =========================================================================
+function AmbientBackground() {
+  return (
+    <div className="absolute inset-0 overflow-hidden rounded-[28px] pointer-events-none">
+      <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+        <defs>
+          <pattern id="hcDotGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+            <circle cx="1.2" cy="1.2" r="1.2" className="fill-slate-300 dark:fill-slate-700" opacity="0.35" />
+          </pattern>
+          <filter id="hcBlobBlur" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="46" />
+          </filter>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#hcDotGrid)" />
+        <circle cx="12%" cy="18%" r="120" fill="#6366f1" opacity="0.10" filter="url(#hcBlobBlur)" style={{ animation: 'hcDrift 18s ease-in-out infinite' }} />
+        <circle cx="88%" cy="82%" r="140" fill="#f97316" opacity="0.08" filter="url(#hcBlobBlur)" style={{ animation: 'hcDrift 22s ease-in-out infinite reverse' }} />
+      </svg>
+    </div>
+  );
 }
 
-const toDateKey = (dateObj) => {
-  if (!dateObj) return null;
-  const y = dateObj.getFullYear();
-  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const d = String(dateObj.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-};
-
-const isSameDate = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+// =========================================================================
+// 헤더용 캘린더 아이콘 (SVG, 상단에 살짝 펄스되는 dot)
+// =========================================================================
+function HeaderIcon() {
+  return (
+    <div className="relative shrink-0">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <defs>
+          <linearGradient id="hcHeaderGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#6366f1" />
+            <stop offset="100%" stopColor="#a855f7" />
+          </linearGradient>
+        </defs>
+        <rect x="4" y="7" width="32" height="29" rx="8" fill="url(#hcHeaderGrad)" opacity="0.15" />
+        <rect x="4" y="7" width="32" height="29" rx="8" stroke="url(#hcHeaderGrad)" strokeWidth="2" />
+        <path d="M4 16H36" stroke="url(#hcHeaderGrad)" strokeWidth="2" />
+        <path d="M12 4V10" stroke="url(#hcHeaderGrad)" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M28 4V10" stroke="url(#hcHeaderGrad)" strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="14" cy="24" r="2.2" fill="url(#hcHeaderGrad)" />
+        <circle cx="20" cy="24" r="2.2" fill="url(#hcHeaderGrad)" opacity="0.55" />
+        <circle cx="26" cy="24" r="2.2" fill="url(#hcHeaderGrad)" opacity="0.55" />
+      </svg>
+      <span className="absolute -top-1 -right-1 flex items-center justify-center">
+        <span className="absolute w-3 h-3 rounded-full bg-emerald-400" style={{ animation: 'hcPulseRing 1.8s ease-out infinite' }} />
+        <span className="relative w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]" />
+      </span>
+    </div>
+  );
+}
 
 // =========================================================================
-// 필터 칩 (배지 유형 토글)
+// 필터 칩 (배지 유형 토글) — 그라디언트 글로우, hover lift
 // =========================================================================
 function FilterChips({ activeFilters, onToggle }) {
   return (
-    <div className="flex flex-wrap gap-2 mb-6">
+    <div className="flex flex-wrap gap-2 mb-7">
       {Object.entries(BADGE_CONFIG).map(([key, conf]) => {
         const active = activeFilters.has(key);
         return (
           <button
             key={key}
             onClick={() => onToggle(key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-black transition-all cursor-pointer ${
+            className="hc-chip flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12px] font-black cursor-pointer border"
+            style={
               active
-                ? 'shadow-sm'
-                : 'opacity-40 grayscale bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-700 text-slate-400'
-            }`}
-            style={active ? { borderColor: conf.color, color: conf.color, backgroundColor: `${conf.color}14` } : {}}
+                ? {
+                    color: '#fff',
+                    background: `linear-gradient(135deg, ${conf.color}, ${conf.color2})`,
+                    borderColor: 'transparent',
+                    boxShadow: `0 6px 16px -4px ${conf.color}80`,
+                  }
+                : {
+                    color: '#94a3b8',
+                    background: 'transparent',
+                    borderColor: 'rgba(148,163,184,0.35)',
+                  }
+            }
           >
-            {active && <Check size={12} strokeWidth={3} />}
+            {active ? <Check size={12} strokeWidth={3.5} /> : (
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: conf.color, opacity: 0.5 }} />
+            )}
             {conf.label}
           </button>
         );
@@ -92,28 +158,20 @@ function FilterChips({ activeFilters, onToggle }) {
 }
 
 // =========================================================================
-// 배지 pill (셀 내부 항목에 붙는 작은 라벨)
+// 배지 pill (셀 내부 항목에 붙는 작은 라벨) — 그라디언트 + 글로우
 // =========================================================================
 function ItemBadge({ badge }) {
-  const conf = BADGE_CONFIG[badge] || { label: badge, color: '#7f8c8d', solid: false };
-  if (conf.solid) {
-    return (
-      <span
-        className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white"
-        style={{ backgroundColor: conf.color }}
-        title={conf.label}
-      >
-        {badge === 'LH' ? 'L' : badge}
-      </span>
-    );
-  }
+  const conf = BADGE_CONFIG[badge] || { short: badge, color: '#64748b', color2: '#475569', label: badge };
   return (
     <span
-      className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black border-2 bg-white dark:bg-[#111827]"
-      style={{ borderColor: conf.color, color: conf.color }}
+      className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white"
+      style={{
+        background: `linear-gradient(135deg, ${conf.color}, ${conf.color2})`,
+        boxShadow: `0 0 0 3px ${conf.color}1f`,
+      }}
       title={conf.label}
     >
-      {badge === 'LH' ? 'L' : badge}
+      {conf.short}
     </span>
   );
 }
@@ -127,10 +185,10 @@ function ListingRow({ item, dense = false }) {
       href={item.url}
       target="_blank"
       rel="noreferrer"
-      className={`flex items-center gap-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors ${dense ? 'px-2 py-1.5' : 'px-2.5 py-2'}`}
+      className={`hc-row flex items-center gap-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 ${dense ? 'px-1.5 py-1' : 'px-2 py-1.5'}`}
     >
       <ItemBadge badge={item.badge} />
-      <span className={`truncate text-slate-700 dark:text-slate-200 font-bold ${dense ? 'text-[12px]' : 'text-[13px]'}`} title={item.name}>
+      <span className={`truncate text-slate-700 dark:text-slate-200 font-bold ${dense ? 'text-[11.5px]' : 'text-[13px]'}`} title={item.name}>
         {item.name}
       </span>
     </a>
@@ -138,42 +196,146 @@ function ListingRow({ item, dense = false }) {
 }
 
 // =========================================================================
-// 날짜 셀 (데스크탑: 전체 리스트 노출 / 모바일: 날짜 + 건수만 표시, 선택 기능 없음)
+// 날짜 셀 — 카드형(rounded, gap 기반), 오늘은 그라디언트 링 + 펄스, 과거는 흐리게
 // =========================================================================
-function DayCell({ dateObj, items, isPast, isToday }) {
+function DayCell({ dateObj, items, isPast, isToday, delayIdx }) {
   if (!dateObj) {
-    return <div className="hidden md:block border-b border-r border-slate-100 dark:border-slate-800/60 min-h-[64px]" />;
+    return <div className="hidden md:block rounded-2xl min-h-[64px]" />;
   }
 
-  const dateNumClass = isPast
-    ? 'text-slate-300 dark:text-slate-600 line-through'
-    : isToday
-    ? 'text-white bg-blue-500 rounded-md px-1.5'
-    : 'text-slate-800 dark:text-slate-200';
-
   return (
-    <div className="border-b border-r border-slate-100 dark:border-slate-800/60 min-h-[64px] md:min-h-[140px] p-2 md:p-2.5 bg-white dark:bg-[#111827] transition-colors">
-      {/* 데스크탑: 날짜 숫자 */}
-      <div className={`hidden md:inline-flex text-[13px] font-black mb-2 ${dateNumClass}`}>{dateObj.getDate()}</div>
+    <div
+      className={`hc-cell relative rounded-2xl border p-2.5 md:p-3 min-h-[68px] md:min-h-[148px] overflow-hidden ${
+        isPast
+          ? 'bg-slate-50/70 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800/60 opacity-55'
+          : isToday
+          ? 'bg-white dark:bg-[#111827] border-transparent shadow-[0_0_0_2px_rgba(99,102,241,0.55)] shadow-lg'
+          : 'bg-white dark:bg-[#111827] border-slate-200/70 dark:border-slate-800 shadow-sm hover:shadow-md'
+      }`}
+      style={{ animationDelay: `${Math.min(delayIdx, 14) * 25}ms` }}
+    >
+      {/* 오늘 표시 그라디언트 백광 */}
+      {isToday && (
+        <div
+          className="absolute -top-6 -right-6 w-16 h-16 rounded-full opacity-25 blur-xl pointer-events-none"
+          style={{ background: 'radial-gradient(circle, #6366f1, transparent 70%)' }}
+        />
+      )}
 
-      {/* 데스크탑: 전체 리스트 */}
-      <div className="hidden md:flex md:flex-col gap-0.5 overflow-hidden">
-        {!isPast && items.slice(0, 6).map((item) => <ListingRow key={item.id} item={item} dense />)}
-        {!isPast && items.length > 6 && (
-          <span className="text-[11px] font-bold text-slate-400 px-2.5">+{items.length - 6}건 더보기</span>
+      {/* 데스크탑: 날짜 숫자 */}
+      <div className="hidden md:flex items-center gap-1.5 mb-2 relative z-10">
+        {isToday ? (
+          <span className="relative flex items-center justify-center w-6 h-6 rounded-full text-[12px] font-black text-white" style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)' }}>
+            {dateObj.getDate()}
+            <span className="absolute inset-0 rounded-full" style={{ animation: 'hcPulseRing 1.8s ease-out infinite', background: 'radial-gradient(circle,#6366f1,transparent 70%)' }} />
+          </span>
+        ) : (
+          <span className={`text-[13px] font-black ${isPast ? 'text-slate-300 dark:text-slate-600 line-through' : 'text-slate-800 dark:text-slate-100'}`}>
+            {dateObj.getDate()}
+          </span>
         )}
       </div>
 
-      {/* 모바일: 날짜 + 건수만 표시 (클릭/확장 없음) */}
-      <div className="md:hidden w-full flex flex-col items-center justify-center gap-0.5 py-1">
-        <span className={`text-[15px] font-black ${dateNumClass}`}>{dateObj.getDate()}</span>
+      {/* 데스크탑: 전체 리스트 */}
+      <div className="hidden md:flex md:flex-col gap-0.5 overflow-hidden relative z-10">
+        {!isPast && items.slice(0, 5).map((item) => <ListingRow key={item.id} item={item} dense />)}
+        {!isPast && items.length > 5 && (
+          <span className="text-[10.5px] font-black text-indigo-400 dark:text-indigo-400 px-1.5">+{items.length - 5}건 더보기</span>
+        )}
+      </div>
+
+      {/* 모바일: 날짜 + 건수 그라디언트 필 */}
+      <div className="md:hidden w-full flex flex-col items-center justify-center gap-1 py-0.5 relative z-10">
+        <span
+          className={`flex items-center justify-center w-7 h-7 rounded-full text-[13px] font-black ${
+            isToday ? 'text-white' : isPast ? 'text-slate-300 dark:text-slate-600 line-through' : 'text-slate-800 dark:text-slate-100'
+          }`}
+          style={isToday ? { background: 'linear-gradient(135deg,#6366f1,#a855f7)' } : {}}
+        >
+          {dateObj.getDate()}
+        </span>
         {!isPast && items.length > 0 && (
-          <span className="text-[11px] font-bold text-blue-500 dark:text-blue-400">({items.length}건)</span>
+          <span
+            className="hc-mobile-pill text-[10px] font-black text-white px-1.5 py-0.5 rounded-full"
+            style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}
+          >
+            {items.length}건
+          </span>
         )}
       </div>
     </div>
   );
 }
+
+// =========================================================================
+// 로딩 스켈레톤 (shimmer, SVG 도트 로더 대체 텍스트 애니메이션)
+// =========================================================================
+function CalendarSkeleton() {
+  return (
+    <div className="grid grid-cols-5 gap-2 md:gap-3">
+      {Array.from({ length: 25 }).map((_, i) => (
+        <div key={i} className="hc-shimmer rounded-2xl min-h-[68px] md:min-h-[148px]" style={{ animationDelay: `${(i % 5) * 80}ms` }} />
+      ))}
+    </div>
+  );
+}
+
+// =========================================================================
+// 빈 상태 (SVG 일러스트)
+// =========================================================================
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-14 gap-3">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" className="fill-slate-100 dark:fill-slate-800" />
+        <rect x="18" y="20" width="28" height="24" rx="5" className="fill-white dark:fill-[#111827] stroke-slate-300 dark:stroke-slate-600" strokeWidth="2" />
+        <path d="M18 27H46" className="stroke-slate-300 dark:stroke-slate-600" strokeWidth="2" />
+        <circle cx="38" cy="38" r="9" className="fill-white dark:fill-[#111827] stroke-indigo-400" strokeWidth="2" />
+        <path d="M44 44L48 48" className="stroke-indigo-400" strokeWidth="2.5" strokeLinecap="round" />
+      </svg>
+      <p className="text-[13px] font-black text-slate-400">이번 달 등록된 공고가 없습니다.</p>
+    </div>
+  );
+}
+
+// =========================================================================
+// 유틸
+// =========================================================================
+function buildWeekdayGrid(year, month) {
+  const firstOfMonth = new Date(year, month - 1, 1);
+  const lastOfMonth = new Date(year, month, 0);
+
+  const gridStart = new Date(firstOfMonth);
+  const firstDow = firstOfMonth.getDay();
+  const diffToMonday = firstDow === 0 ? -6 : 1 - firstDow;
+  gridStart.setDate(firstOfMonth.getDate() + diffToMonday);
+
+  const weeks = [];
+  let cursor = new Date(gridStart);
+
+  while (cursor <= lastOfMonth || cursor.getMonth() + 1 === month) {
+    const week = [];
+    for (let i = 0; i < 5; i++) {
+      const inMonth = cursor.getMonth() + 1 === month;
+      week.push(inMonth ? new Date(cursor) : null);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    cursor.setDate(cursor.getDate() + 2);
+    weeks.push(week);
+    if (cursor > lastOfMonth) break;
+  }
+  return weeks;
+}
+
+const toDateKey = (dateObj) => {
+  if (!dateObj) return null;
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const isSameDate = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 // =========================================================================
 // 메인 컴포넌트
@@ -190,9 +352,6 @@ export default function HousingCalendar() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // -----------------------------------------------------------------------
-  // 데이터 조회
-  // -----------------------------------------------------------------------
   useEffect(() => {
     setLoading(true);
 
@@ -211,7 +370,6 @@ export default function HousingCalendar() {
       });
   }, [year, month]);
 
-  // 필터 적용 + 날짜별 그룹화
   const groupedByDate = useMemo(() => {
     const map = {};
     rawData
@@ -233,60 +391,76 @@ export default function HousingCalendar() {
     });
   };
 
+  let cellCounter = 0;
+
   return (
     <div className="w-full pb-16 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
+      <style>{GLOBAL_STYLES}</style>
 
-      {/* 헤더: 연월 타이틀 */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-          {year}년 {month}월 청약 캘린더
-        </h2>
-        {loading && <RefreshCcw size={18} className="animate-spin text-blue-500" />}
+      {/* 헤더 */}
+      <div className="flex items-center justify-between mb-7">
+        <div className="flex items-center gap-3">
+          <HeaderIcon />
+          <div>
+            <h2 className="text-xl md:text-[26px] font-black tracking-tight bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(120deg,#4f46e5,#a855f7 60%,#ec4899)' }}>
+              {year}년 {month}월 청약 캘린더
+            </h2>
+            <p className="text-[11px] md:text-[12px] font-bold text-slate-400 mt-0.5">청약홈 · LH 분양 통합 일정</p>
+          </div>
+        </div>
+        {loading && <RefreshCcw size={18} className="animate-spin text-indigo-500" />}
       </div>
 
       {/* 필터 칩 */}
       <FilterChips activeFilters={activeFilters} onToggle={handleToggleFilter} />
 
       {/* 캘린더 본체 */}
-      <div className="w-full border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm bg-white dark:bg-[#111827]">
+      <div className="relative w-full rounded-[28px] border border-slate-200/70 dark:border-slate-800 shadow-sm bg-white/70 dark:bg-[#0B1120]/70 backdrop-blur-sm p-3 md:p-5 overflow-hidden">
+        <AmbientBackground />
 
-        {/* 요일 헤더 (월~금) */}
-        <div className="grid grid-cols-5 bg-slate-50 dark:bg-[#0B1120] border-b border-slate-200 dark:border-slate-800">
-          {WEEKDAY_LABELS.map((label) => (
-            <div key={label} className="text-center text-[12px] md:text-[13px] font-black text-slate-500 dark:text-slate-400 py-3">
+        {/* 요일 헤더 */}
+        <div className="grid grid-cols-5 mb-2 md:mb-3 relative z-10">
+          {WEEKDAY_LABELS.map((label, i) => (
+            <div key={label} className="text-center text-[11px] md:text-[12.5px] font-black py-2 tracking-wide" style={{ color: ['#6366f1', '#8b5cf6', '#a855f7', '#c026d3', '#db2777'][i] }}>
               {label}
             </div>
           ))}
         </div>
 
         {/* 주 단위 렌더링 */}
-        <div className="grid grid-cols-5">
-          {weeks.map((week, wIdx) => (
-            <div key={wIdx} className="contents">
-              {week.map((dateObj, dIdx) => {
-                const key = toDateKey(dateObj);
-                const items = key ? (groupedByDate[key] || []) : [];
-                const isPast = dateObj ? dateObj < today : false;
-                const isToday = dateObj ? isSameDate(dateObj, today) : false;
+        <div className="relative z-10">
+          {loading ? (
+            <CalendarSkeleton />
+          ) : (
+            <div className="flex flex-col gap-2 md:gap-3">
+              {weeks.map((week, wIdx) => (
+                <div key={wIdx} className="grid grid-cols-5 gap-2 md:gap-3">
+                  {week.map((dateObj, dIdx) => {
+                    const key = toDateKey(dateObj);
+                    const items = key ? (groupedByDate[key] || []) : [];
+                    const isPast = dateObj ? dateObj < today : false;
+                    const isToday = dateObj ? isSameDate(dateObj, today) : false;
+                    cellCounter += 1;
 
-                return (
-                  <DayCell
-                    key={dIdx}
-                    dateObj={dateObj}
-                    items={items}
-                    isPast={isPast}
-                    isToday={isToday}
-                  />
-                );
-              })}
+                    return (
+                      <DayCell
+                        key={dIdx}
+                        dateObj={dateObj}
+                        items={items}
+                        isPast={isPast}
+                        isToday={isToday}
+                        delayIdx={cellCounter}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </div>
 
-      {!loading && rawData.length === 0 && (
-        <p className="text-center text-[13px] font-bold text-slate-400 mt-6">이번 달 등록된 공고가 없습니다.</p>
-      )}
+      {!loading && rawData.length === 0 && <EmptyState />}
     </div>
   );
 }
