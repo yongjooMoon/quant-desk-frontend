@@ -11,10 +11,9 @@ const BADGE_CONFIG = {
   '2': { label: '2순위', short: '2', color: '#10b981', color2: '#059669' },
   '무': { label: '무순위', short: '무', color: '#64748b', color2: '#475569' },
   '임': { label: '임의공급', short: '임', color: '#f97316', color2: '#ea580c' },
-  '오': { label: '오피스텔/생활숙박/도시형/민간임대', short: '오', color: '#ec4899', color2: '#db2777' },
-  '공': { label: '공공지원민간임대', short: '공', color: '#a855f7', color2: '#9333ea' },
-  '불': { label: '불법행위재공급', short: '불', color: '#14b8a6', color2: '#0d9488' },
-  // 🌟 신규 추가 — LH 실 분양 주택
+  '오': { label: '오피스텔', short: '오', color: '#ec4899', color2: '#db2777' },
+  '공': { label: '공공임대', short: '공', color: '#a855f7', color2: '#9333ea' },
+  '불': { label: '불법행위', short: '불', color: '#14b8a6', color2: '#0d9488' },
   'LH': { label: 'LH 분양', short: 'LH', color: '#6366f1', color2: '#4f46e5' },
 };
 
