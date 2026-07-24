@@ -134,7 +134,7 @@ export default function RealEstate() {
       <div className="mb-10">
         <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white flex items-center gap-3 tracking-tight mb-3">
           <Building2 className="text-[#3182F6]" size={36} />
-          아파트 실거래가 정밀 분석 엔진
+          아파트 실거래가 분석 엔진
         </h1>
         <p className="text-[16px] md:text-[18px] font-bold text-slate-500 dark:text-slate-400">
           국토교통부 실거래가 데이터와 K-APT 단지 정보를 크로스체킹하여 엑셀 리포트를 추출합니다.
