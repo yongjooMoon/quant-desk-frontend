@@ -4,6 +4,53 @@ import { Search, ChevronLeft, ChevronRight, RefreshCcw, X, Calendar } from 'luci
 // 🌟 분리된 공통 API 훅 임포트
 import { useRenderApi } from '../hooks/useRenderApi';
 
+// 🌟 마이크로 인터랙션 전용 스타일 (LIVE 펄스, 스켈레톤 셰머, 검색창 글로우)
+const NEWS_MICRO_STYLES = `
+  @keyframes newsLivePulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.6); }
+  }
+  .news-live-dot { position: relative; display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: #FF4B4B; }
+  .news-live-dot::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 9999px;
+    background: #FF4B4B;
+    animation: newsLivePulse 1.6s ease-out infinite;
+  }
+
+  .news-skeleton {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(90deg, rgba(148,163,184,0.14) 25%, rgba(148,163,184,0.28) 37%, rgba(148,163,184,0.14) 63%);
+    background-size: 400% 100%;
+    animation: newsShimmer 1.4s ease infinite;
+  }
+  .dark .news-skeleton {
+    background: linear-gradient(90deg, rgba(51,65,85,0.35) 25%, rgba(71,85,105,0.55) 37%, rgba(51,65,85,0.35) 63%);
+    background-size: 400% 100%;
+    animation: newsShimmer 1.4s ease infinite;
+  }
+  @keyframes newsShimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+  .news-search-glow { transition: box-shadow 0.3s ease, border-color 0.3s ease; }
+  .news-search-glow:focus-within {
+    box-shadow: 0 0 0 4px rgba(255,75,75,0.12), 0 0 24px rgba(255,75,75,0.18);
+    border-color: rgba(255,75,75,0.5);
+  }
+
+  .news-tilt-card { transition: transform 0.2s ease-out, box-shadow 0.2s ease-out; will-change: transform; }
+
+  .news-blob { position: absolute; border-radius: 9999px; filter: blur(70px); pointer-events: none; }
+
+  @keyframes newsRowIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .news-row-in { animation: newsRowIn 0.45s ease-out both; }
+`;
+
 export default function NewsDesk() {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +74,15 @@ export default function NewsDesk() {
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
+
+  // 🌟 탭 밑줄 슬라이드 애니메이션용 refs & state
+  const tabRefs = useRef({});
+  const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 });
+
+  // 🌟 상세 모달: 읽기 진행률 바 & 감성 게이지 애니메이션용
+  const modalContentRef = useRef(null);
+  const [readProgress, setReadProgress] = useState(0);
+  const [gaugeAnimated, setGaugeAnimated] = useState(false);
 
   const tabsNames = [
     "전체", 
@@ -116,6 +172,14 @@ export default function NewsDesk() {
     return `${String(date.getFullYear()).slice(2)}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
 
+  // 🌟 최근 10분 이내 기사인지 판별 (LIVE 뱃지용)
+  const isRecentNews = (isoString) => {
+    if (!isoString) return false;
+    const date = parseDBTime(isoString);
+    const diffMins = Math.floor((new Date() - date) / (1000 * 60));
+    return diffMins >= 0 && diffMins < 10;
+  };
+
   const getDateStr = (d) => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
@@ -134,9 +198,9 @@ export default function NewsDesk() {
   };
 
   const getSentimentInfo = (score) => {
-    if (score <= 2) return { text: "Bearish (부정적)", classes: "bg-red-100 text-red-700 dark:bg-[#3F1A1A] dark:text-[#F87171] border border-red-900/50" };
-    if (score === 3) return { text: "Neutral (중립)", classes: "bg-yellow-100 text-yellow-700 dark:bg-[#3F311A] dark:text-[#FBBF24] border border-yellow-900/50" };
-    return { text: "Bullish (긍정적)", classes: "bg-emerald-100 text-emerald-700 dark:bg-[#1A3F2A] dark:text-[#34D399] border border-emerald-900/50" };
+    if (score <= 2) return { text: "Bearish (부정적)", classes: "bg-red-100 text-red-700 dark:bg-[#3F1A1A] dark:text-[#F87171] border border-red-900/50", ringColor: "#F87171" };
+    if (score === 3) return { text: "Neutral (중립)", classes: "bg-yellow-100 text-yellow-700 dark:bg-[#3F311A] dark:text-[#FBBF24] border border-yellow-900/50", ringColor: "#FBBF24" };
+    return { text: "Bullish (긍정적)", classes: "bg-emerald-100 text-emerald-700 dark:bg-[#1A3F2A] dark:text-[#34D399] border border-emerald-900/50", ringColor: "#34D399" };
   };
 
   const getCategoryStyle = (category) => {
@@ -179,6 +243,32 @@ export default function NewsDesk() {
     setSelectedNews(item);
   };
 
+  // 🌟 마그네틱 틸트 효과: 마우스 위치에 따라 카드가 살짝 기울어짐
+  const handleTiltMove = (e) => {
+    if (isDragging) return;
+    const card = e.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = ((y - centerY) / centerY) * -6;
+    const rotateY = ((x - centerX) / centerX) * 6;
+    card.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
+  };
+  const handleTiltLeave = (e) => {
+    e.currentTarget.style.transform = 'perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)';
+  };
+
+  // 🌟 상세 모달 스크롤 시 상단 읽기 진행률 바 갱신
+  const handleModalScroll = () => {
+    const el = modalContentRef.current;
+    if (!el) return;
+    const max = el.scrollHeight - el.clientHeight;
+    const pct = max > 0 ? (el.scrollTop / max) * 100 : 0;
+    setReadProgress(pct);
+  };
+
   const todayMajorNews = news.filter(n => n.is_major && getDateStr(parseDBTime(n.created_at)) === getTodayStr());
 
   const filteredList = news.filter(n => {
@@ -205,25 +295,98 @@ export default function NewsDesk() {
 
   const showCategoryBadge = true;
 
+  // 🌟 활성 탭이 바뀌거나 탭 바가 나타날 때 밑줄 위치/너비를 재계산
+  useEffect(() => {
+    if (searchQuery) return;
+    const el = tabRefs.current[activeTab];
+    if (el) {
+      setUnderlineStyle({ left: el.offsetLeft, width: el.offsetWidth });
+    }
+  }, [activeTab, searchQuery, loading]);
+
+  useEffect(() => {
+    const recalc = () => {
+      if (searchQuery) return;
+      const el = tabRefs.current[activeTab];
+      if (el) setUnderlineStyle({ left: el.offsetLeft, width: el.offsetWidth });
+    };
+    window.addEventListener('resize', recalc);
+    return () => window.removeEventListener('resize', recalc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, searchQuery]);
+
+  // 🌟 모달이 열릴 때 읽기 진행률 초기화 + 감성 게이지를 0에서 목표값까지 애니메이션
+  useEffect(() => {
+    if (selectedNews) {
+      setReadProgress(0);
+      if (modalContentRef.current) modalContentRef.current.scrollTop = 0;
+      setGaugeAnimated(false);
+      const t = setTimeout(() => setGaugeAnimated(true), 60);
+      return () => clearTimeout(t);
+    } else {
+      setGaugeAnimated(false);
+    }
+  }, [selectedNews]);
+
   return (
     <div className="w-full transition-colors duration-300 pb-20 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
-      
+
+      <style>{NEWS_MICRO_STYLES}</style>
+
       {/* 🌟 통신 지연 시 띄워주는 서버 기상 오버레이 */}
       <ServerWakeupOverlay />
 
       <div className="mb-10">
-        <div className="w-full flex items-center bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/80 rounded-xl px-4 py-3 shadow-sm">
+        <div className="news-search-glow w-full flex items-center bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/80 rounded-xl px-4 py-3 shadow-sm">
           <Search className="text-slate-400 mr-3" size={20} />
           <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="🔍 뉴스 검색 (제목 또는 내용)" className="flex-1 bg-transparent border-none outline-none text-slate-900 dark:text-white placeholder-slate-400 text-sm md:text-base font-extrabold" />
         </div>
       </div>
 
       {loading ? (
-        <div className="flex justify-center p-10"><RefreshCcw className="animate-spin text-blue-500" size={32} /></div>
+        <>
+          {/* 🌟 스켈레톤 로딩: 히어로 카드 + 리스트 뼈대 */}
+          <div className="mb-12">
+            <div className="news-skeleton h-8 w-48 rounded-lg mb-6" />
+            <div className="flex gap-4 md:gap-5 overflow-hidden pb-4">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="w-[85vw] sm:w-[320px] md:w-[340px] lg:w-[360px] shrink-0 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] min-h-[160px] flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="news-skeleton h-5 w-14 rounded-md" />
+                      <div className="news-skeleton h-4 w-10 rounded-md" />
+                    </div>
+                    <div className="news-skeleton h-4 w-full rounded-md mb-2" />
+                    <div className="news-skeleton h-4 w-3/4 rounded-md" />
+                  </div>
+                  <div className="news-skeleton h-5 w-16 rounded-md mt-4" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="news-skeleton h-8 w-56 rounded-lg mb-6" />
+            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+              {[0, 1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="p-4 md:p-5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <div className="news-skeleton h-5 w-16 rounded" />
+                    <div className="news-skeleton h-4 w-10 rounded" />
+                  </div>
+                  <div className="news-skeleton h-5 w-full rounded-md" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       ) : (
         <>
           {!searchQuery && (
-            <div className="mb-12 select-none">
+            <div className="relative mb-12 select-none">
+              {/* 🌟 은은한 그라디언트 블롭 배경 (깊이감) */}
+              <div className="news-blob w-72 h-72 -top-10 -left-10 bg-[#FF4B4B]/10 dark:bg-[#FF4B4B]/[0.08] -z-10" />
+              <div className="news-blob w-64 h-64 top-10 right-0 bg-[#3B82F6]/10 dark:bg-[#3B82F6]/[0.08] -z-10" />
+
               <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white flex items-center mb-6 tracking-tight">
                 🔥 오늘 주요뉴스
               </h2>
@@ -240,7 +403,9 @@ export default function NewsDesk() {
                     <div
                       key={item.id}
                       onClick={(e) => handleCardClick(e, item)}
-                      className="w-[85vw] sm:w-[320px] md:w-[340px] lg:w-[360px] snap-center shrink-0 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] hover:border-blue-400 dark:hover:border-slate-600 transition-all flex flex-col justify-between min-h-[160px] shadow-sm hover:shadow-lg"
+                      onMouseMove={handleTiltMove}
+                      onMouseLeave={handleTiltLeave}
+                      className="news-tilt-card w-[85vw] sm:w-[320px] md:w-[340px] lg:w-[360px] snap-center shrink-0 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] hover:border-blue-400 dark:hover:border-slate-600 hover:shadow-xl flex flex-col justify-between min-h-[160px] shadow-sm"
                     >
                       <div>
                         <div className="flex justify-between items-center mb-3">
@@ -249,7 +414,12 @@ export default function NewsDesk() {
                               {getShortCategoryName(getItemCategory(item))}
                             </span>
                           )}
-                          <span className="text-[12px] text-slate-500 dark:text-slate-400 font-extrabold">{formatTime(item.created_at)}</span>
+                          <span className="text-[12px] text-slate-500 dark:text-slate-400 font-extrabold flex items-center gap-1.5">
+                            {isRecentNews(item.created_at) && (
+                              <span className="news-live-dot" title="방금 업데이트됨" />
+                            )}
+                            {formatTime(item.created_at)}
+                          </span>
                         </div>
                         <h3 className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white leading-snug line-clamp-2 tracking-tight">{item.title}</h3>
                       </div>
@@ -282,13 +452,23 @@ export default function NewsDesk() {
                 onMouseLeave={handleMouseLeaveOrUp}
                 onMouseUp={handleMouseLeaveOrUp}
                 onMouseMove={handleMouseMove}
-                className={`flex gap-3 md:gap-5 border-b border-slate-200 dark:border-slate-800 mb-6 overflow-x-auto whitespace-nowrap hide-scrollbar pb-0 select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                className={`relative flex gap-3 md:gap-5 border-b border-slate-200 dark:border-slate-800 mb-6 overflow-x-auto whitespace-nowrap hide-scrollbar pb-0 select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
               >
                 {tabsNames.map(tab => (
-                  <button key={tab} onClick={() => setActiveTab(tab)} className={`pb-3 px-2 text-[14px] md:text-[15px] font-black tracking-tight transition-colors ${activeTab === tab ? 'text-[#FF4B4B] border-b-[3px] border-[#FF4B4B]' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+                  <button
+                    key={tab}
+                    ref={(el) => { tabRefs.current[tab] = el; }}
+                    onClick={() => setActiveTab(tab)}
+                    className={`relative z-10 pb-3 px-2 text-[14px] md:text-[15px] font-black tracking-tight transition-colors ${activeTab === tab ? 'text-[#FF4B4B]' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
+                  >
                     {tab}
                   </button>
                 ))}
+                {/* 🌟 활성 탭을 따라 부드럽게 슬라이드하는 밑줄 인디케이터 */}
+                <div
+                  className="absolute bottom-0 h-[3px] bg-[#FF4B4B] rounded-full transition-all duration-300 ease-out pointer-events-none"
+                  style={{ left: underlineStyle.left, width: underlineStyle.width }}
+                />
               </div>
             )}
 
@@ -309,8 +489,13 @@ export default function NewsDesk() {
             )}
 
             <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-              {filteredList.length > 0 ? filteredList.slice(0, 50).map((item) => (
-                <div key={item.id} onClick={() => setSelectedNews(item)} className="p-4 md:p-5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors flex flex-col gap-2">
+              {filteredList.length > 0 ? filteredList.slice(0, 50).map((item, idx) => (
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedNews(item)}
+                  style={{ animationDelay: `${Math.min(idx, 20) * 30}ms` }}
+                  className="news-row-in p-4 md:p-5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 hover:translate-x-1 cursor-pointer transition-all flex flex-col gap-2"
+                >
                   
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2 overflow-hidden">
@@ -327,7 +512,10 @@ export default function NewsDesk() {
                       )}
                     </div>
                     
-                    <span className="text-[12.5px] text-slate-400 dark:text-slate-500 font-extrabold shrink-0 whitespace-nowrap ml-2">
+                    <span className="text-[12.5px] text-slate-400 dark:text-slate-500 font-extrabold shrink-0 whitespace-nowrap ml-2 flex items-center gap-1.5">
+                      {isRecentNews(item.created_at) && (
+                        <span className="news-live-dot" title="방금 업데이트됨" />
+                      )}
                       {formatTime(item.created_at)}
                     </span>
                   </div>
@@ -347,6 +535,9 @@ export default function NewsDesk() {
 
       {selectedNews && (() => {
         const sentiment = getSentimentInfo(selectedNews.sentiment_score);
+        const ringRadius = 16;
+        const ringCircumference = 2 * Math.PI * ringRadius;
+        const ringOffset = ringCircumference * (1 - (gaugeAnimated ? (selectedNews.sentiment_score || 0) / 5 : 0));
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
             <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[1200px] min-h-[60vh] md:min-h-[75vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -381,7 +572,12 @@ export default function NewsDesk() {
                 </div>
               </div>
 
-              <div className="p-6 md:p-10 overflow-y-auto flex-1">
+              {/* 🌟 읽기 진행률 바 (본문 스크롤에 따라 채워짐) */}
+              <div className="h-[3px] w-full bg-slate-100 dark:bg-slate-800/80">
+                <div className="h-full bg-[#FF4B4B] transition-[width] duration-150 ease-out" style={{ width: `${readProgress}%` }} />
+              </div>
+
+              <div ref={modalContentRef} onScroll={handleModalScroll} className="p-6 md:p-10 overflow-y-auto flex-1">
                   
                   {/* 🌟 섹터/자산 태그: 분석가님 아이디어 적용! 본문 상단으로 이동하여 칩(Chip) 형태로 배치 */}
                   {selectedNews.sector_asset && selectedNews.sector_asset.trim() !== "" && (
@@ -405,9 +601,23 @@ export default function NewsDesk() {
                   <div className="py-4 border-t border-slate-100 dark:border-slate-800/80 mt-6">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                           <span className="text-[15px] sm:text-[16px] md:text-[17px] font-black text-slate-500 dark:text-slate-400 tracking-tight">AI Sentiment Score</span>
-                          <span className={`font-black px-4 sm:px-5 py-2.5 rounded-xl sm:rounded-full text-[13px] sm:text-[14px] md:text-[15px] shadow-sm text-center sm:text-left ${sentiment.classes}`}>
-                              {selectedNews.sentiment_score} / 5 · {sentiment.text}
-                          </span>
+                          <div className="flex items-center gap-3">
+                              {/* 🌟 감성 점수 애니메이션 링 게이지 */}
+                              <svg width="40" height="40" viewBox="0 0 40 40" className="shrink-0 -rotate-90">
+                                  <circle cx="20" cy="20" r={ringRadius} fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="5" />
+                                  <circle
+                                      cx="20" cy="20" r={ringRadius} fill="none"
+                                      stroke={sentiment.ringColor}
+                                      strokeWidth="5" strokeLinecap="round"
+                                      strokeDasharray={ringCircumference}
+                                      strokeDashoffset={ringOffset}
+                                      style={{ transition: 'stroke-dashoffset 1.1s cubic-bezier(0.22,1,0.36,1)' }}
+                                  />
+                              </svg>
+                              <span className={`font-black px-4 sm:px-5 py-2.5 rounded-xl sm:rounded-full text-[13px] sm:text-[14px] md:text-[15px] shadow-sm text-center sm:text-left ${sentiment.classes}`}>
+                                  {selectedNews.sentiment_score} / 5 · {sentiment.text}
+                              </span>
+                          </div>
                       </div>
                   </div>
               </div>
