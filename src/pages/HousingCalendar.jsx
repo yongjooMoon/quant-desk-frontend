@@ -97,23 +97,19 @@ function AmbientBackground() {
 // 헤더용 캘린더 아이콘 (SVG, 상단에 살짝 펄스되는 dot)
 // =========================================================================
 function HeaderIcon() {
+  // 그라디언트/필터 defs 없이 단색으로 구성 — 일부 렌더 환경에서 defs 기반
+  // 그라디언트가 깨지며 아이콘이 폴백(플레이스홀더)으로 대체되는 문제를 피하기 위함
   return (
-    <div className="relative shrink-0">
-      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-        <defs>
-          <linearGradient id="hcHeaderGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#6366f1" />
-            <stop offset="100%" stopColor="#a855f7" />
-          </linearGradient>
-        </defs>
-        <rect x="4" y="7" width="32" height="29" rx="8" fill="url(#hcHeaderGrad)" opacity="0.15" />
-        <rect x="4" y="7" width="32" height="29" rx="8" stroke="url(#hcHeaderGrad)" strokeWidth="2" />
-        <path d="M4 16H36" stroke="url(#hcHeaderGrad)" strokeWidth="2" />
-        <path d="M12 4V10" stroke="url(#hcHeaderGrad)" strokeWidth="2.5" strokeLinecap="round" />
-        <path d="M28 4V10" stroke="url(#hcHeaderGrad)" strokeWidth="2.5" strokeLinecap="round" />
-        <circle cx="14" cy="24" r="2.2" fill="url(#hcHeaderGrad)" />
-        <circle cx="20" cy="24" r="2.2" fill="url(#hcHeaderGrad)" opacity="0.55" />
-        <circle cx="26" cy="24" r="2.2" fill="url(#hcHeaderGrad)" opacity="0.55" />
+    <div className="relative shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#EEF0FF' }}>
+      <svg width="24" height="24" viewBox="0 0 40 40" fill="none">
+        <rect x="4" y="7" width="32" height="29" rx="8" fill="#6366f1" opacity="0.18" />
+        <rect x="4" y="7" width="32" height="29" rx="8" stroke="#6366f1" strokeWidth="2.5" />
+        <path d="M4 16H36" stroke="#6366f1" strokeWidth="2.5" />
+        <path d="M12 4V10" stroke="#6366f1" strokeWidth="3" strokeLinecap="round" />
+        <path d="M28 4V10" stroke="#6366f1" strokeWidth="3" strokeLinecap="round" />
+        <circle cx="14" cy="24" r="2.4" fill="#6366f1" />
+        <circle cx="20" cy="24" r="2.4" fill="#8b5cf6" />
+        <circle cx="26" cy="24" r="2.4" fill="#8b5cf6" />
       </svg>
       <span className="absolute -top-1 -right-1 flex items-center justify-center">
         <span className="absolute w-3 h-3 rounded-full bg-emerald-400" style={{ animation: 'hcPulseRing 1.8s ease-out infinite' }} />
@@ -135,7 +131,7 @@ function FilterChips({ activeFilters, onToggle }) {
           <button
             key={key}
             onClick={() => onToggle(key)}
-            className="hc-chip flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12px] font-black cursor-pointer border"
+            className="hc-chip flex items-center gap-1.5 px-4 py-2.5 rounded-full text-[13.5px] font-black cursor-pointer border"
             style={
               active
                 ? {
@@ -169,7 +165,7 @@ function ItemBadge({ badge }) {
   const conf = BADGE_CONFIG[badge] || { short: badge, color: '#64748b', color2: '#475569', label: badge };
   return (
     <span
-      className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white"
+      className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10.5px] font-black text-white"
       style={{
         background: `linear-gradient(135deg, ${conf.color}, ${conf.color2})`,
         boxShadow: `0 0 0 3px ${conf.color}1f`,
@@ -191,10 +187,10 @@ function ListingRow({ item, dense = false }) {
       target="_blank"
       rel="noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className={`hc-row flex items-center gap-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 ${dense ? 'px-1.5 py-1' : 'px-2.5 py-2'}`}
+      className={`hc-row flex items-center gap-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 ${dense ? 'px-1.5 py-1.5' : 'px-2.5 py-2'}`}
     >
       <ItemBadge badge={item.badge} />
-      <span className={`truncate text-slate-700 dark:text-slate-200 font-bold ${dense ? 'text-[11.5px]' : 'text-[13.5px]'}`} title={item.name}>
+      <span className={`truncate text-slate-700 dark:text-slate-200 font-bold leading-snug ${dense ? 'text-[13px]' : 'text-[15px]'}`} title={item.name}>
         {item.name}
       </span>
     </a>
@@ -240,12 +236,12 @@ function DayCell({ dateObj, items, isPast, isToday, delayIdx, onOpenDetail }) {
       {/* 데스크탑: 날짜 숫자 */}
       <div className="hidden md:flex items-center gap-1.5 mb-2 relative z-10">
         {isToday ? (
-          <span className="relative flex items-center justify-center w-6 h-6 rounded-full text-[12px] font-black text-white" style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)' }}>
+          <span className="relative flex items-center justify-center w-7 h-7 rounded-full text-[13.5px] font-black text-white" style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)' }}>
             {dateObj.getDate()}
             <span className="absolute inset-0 rounded-full" style={{ animation: 'hcPulseRing 1.8s ease-out infinite', background: 'radial-gradient(circle,#6366f1,transparent 70%)' }} />
           </span>
         ) : (
-          <span className={`font-black ${isPast ? 'text-[11px] text-slate-300 dark:text-slate-600 line-through' : 'text-[13px] text-slate-800 dark:text-slate-100'}`}>
+          <span className={`font-black ${isPast ? 'text-[12px] text-slate-300 dark:text-slate-600 line-through' : 'text-[15px] text-slate-800 dark:text-slate-100'}`}>
             {dateObj.getDate()}
           </span>
         )}
@@ -467,7 +463,7 @@ export default function HousingCalendar() {
             <h2 className="text-xl md:text-[26px] font-black tracking-tight bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(120deg,#4f46e5,#a855f7 60%,#ec4899)' }}>
               {year}년 {month}월 청약 캘린더
             </h2>
-            <p className="text-[11px] md:text-[12px] font-bold text-slate-400 mt-0.5">청약홈 · LH 분양 통합 일정</p>
+            <p className="text-[12px] md:text-[13px] font-bold text-slate-400 mt-0.5">청약홈 · LH 분양 통합 일정</p>
           </div>
         </div>
         {loading && <RefreshCcw size={18} className="animate-spin text-indigo-500" />}
@@ -483,7 +479,7 @@ export default function HousingCalendar() {
         {/* 요일 헤더 */}
         <div className="grid grid-cols-5 mb-2 md:mb-3 relative z-10">
           {WEEKDAY_LABELS.map((label, i) => (
-            <div key={label} className="text-center text-[11px] md:text-[12.5px] font-black py-2 tracking-wide" style={{ color: ['#6366f1', '#8b5cf6', '#a855f7', '#c026d3', '#db2777'][i] }}>
+            <div key={label} className="text-center text-[12px] md:text-[14px] font-black py-2 tracking-wide" style={{ color: ['#6366f1', '#8b5cf6', '#a855f7', '#c026d3', '#db2777'][i] }}>
               {label}
             </div>
           ))}
