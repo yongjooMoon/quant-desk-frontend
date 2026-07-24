@@ -30,15 +30,6 @@ const REGIME_CONFIG = {
   "Crash": { color: "text-[#FF4B4B]", hex: "#FF4B4B", desc: "극단적인 Risk-Off\n신규 공격적 매수 자제" }
 };
 
-// Regime Gauge 색상 구간 (0~100 점, Crash → Strong Bull)
-const REGIME_ZONES = [
-  { id: 'crash', label: 'CRASH', min: 0, max: 20, color: '#FF4B4B' },
-  { id: 'bear', label: 'BEAR', min: 20, max: 40, color: '#F97316' },
-  { id: 'neutral', label: 'NEUTRAL', min: 40, max: 60, color: '#EAB308' },
-  { id: 'bull', label: 'BULL', min: 60, max: 85, color: '#00B464' },
-  { id: 'strong-bull', label: 'STRONG BULL', min: 85, max: 100, color: '#10B981' },
-];
-
 // Fear & Greed 위치 최상단 이동
 const SECTIONS = [
   { title: 'Market Psychology', indicators: ['FEAR_GREED'] },
@@ -159,7 +150,7 @@ const getStatusStyle = (status) => {
 };
 
 // ---------------------------------------------------------------------------
-// 2. Gauge 좌표 유틸 (Regime Gauge / Fear & Greed Gauge 공용, inline SVG에서 사용)
+// 2. Gauge 좌표 유틸 (Fear & Greed Gauge에서 사용, inline SVG에서 사용)
 // ---------------------------------------------------------------------------
 const getCartesian = (cx, cy, radius, angle) => {
   const rad = (180 - angle) * Math.PI / 180;
@@ -182,7 +173,22 @@ const scoreToAngle = (score) => {
 };
 
 // ---------------------------------------------------------------------------
-// 3. CNN Style Fear & Greed Gauge (기존 구조 유지, defs만 소폭 개선)
+// 3. LIVE 점멸 점 — Regime 요약바 / Fear&Greed 카드가 공용으로 사용하는 작은 인디케이터
+// ---------------------------------------------------------------------------
+const LiveDot = ({ size = 12 }) => (
+  <svg width={size} height={size} viewBox="0 0 14 14">
+    <circle cx="7" cy="7" r="3" fill="#10B981" />
+    <circle cx="7" cy="7" r="3" fill="none" stroke="#10B981" strokeWidth="1.5">
+      <animate attributeName="r" values="3;7;3" dur="2s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite" />
+    </circle>
+  </svg>
+);
+
+// ---------------------------------------------------------------------------
+// 4. CNN Style Fear & Greed Gauge
+//    🌟 기존 Regime 게이지가 갖고 있던 "움직임"(glow 니들, draw-in progress arc,
+//    값 변경 시 bounce)을 이쪽으로 이전해서, 이제 이 게이지가 메인 비주얼 역할을 합니다.
 // ---------------------------------------------------------------------------
 const FEAR_GREED_ZONES = [
   { id: 'ext-fear', label: 'EXTREME\nFEAR', min: 0, max: 25, color: '#FF4B4B' },
@@ -203,6 +209,14 @@ const FearGreedGauge = ({ value }) => {
   
   const activeZone = FEAR_GREED_ZONES.find(z => clampedValue >= z.min && clampedValue <= z.max) || FEAR_GREED_ZONES[FEAR_GREED_ZONES.length-1];
 
+  // 🌟 Regime 게이지 스타일의 draw-in progress arc 좌표 (도넛 바깥쪽에 얇게)
+  const progressR = outerR + 8;
+  const trackR = outerR + 4;
+  const progressStart = getCartesian(cx, cy, progressR, 0);
+  const progressEnd = getCartesian(cx, cy, progressR, needleAngle);
+  const trackStart = getCartesian(cx, cy, trackR, 0);
+  const trackEnd = getCartesian(cx, cy, trackR, 180);
+
   return (
     <div className="flex flex-col items-center justify-center w-full mt-4 md:mt-6">
       <div className="relative w-full max-w-[360px] md:max-w-[420px] aspect-[2/1] flex justify-center items-end overflow-visible select-none">
@@ -212,7 +226,13 @@ const FearGreedGauge = ({ value }) => {
               <stop offset="0%" stopColor={activeZone.color} stopOpacity="0.4" />
               <stop offset="100%" stopColor={activeZone.color} stopOpacity="0.1" />
             </radialGradient>
+            {/* 🌟 blur + merge를 추가해 니들이 은은하게 발광하도록 강화 */}
             <filter id="fgNeedleShadow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="1.1" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
               <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodOpacity="0.35" />
             </filter>
           </defs>
@@ -234,13 +254,27 @@ const FearGreedGauge = ({ value }) => {
             );
           })}
 
-          <path 
-            d="M 30 100 A 70 70 0 0 1 170 100" 
-            fill="none" 
-            className="stroke-slate-300 dark:stroke-slate-700"
-            strokeWidth="1.5" 
-            strokeDasharray="2 8" 
+          {/* 🌟 은은한 전체 트랙 (Regime 게이지에서 가져온 스타일) */}
+          <path
+            d={`M ${trackStart.x} ${trackStart.y} A ${trackR} ${trackR} 0 0 1 ${trackEnd.x} ${trackEnd.y}`}
+            fill="none"
+            className="stroke-slate-200 dark:stroke-slate-700"
+            strokeWidth="1"
+            strokeDasharray="1 6"
             strokeLinecap="round"
+          />
+
+          {/* 🌟 값이 바뀔 때마다 처음부터 다시 그려지는 draw-in progress arc */}
+          <path
+            key={`fg-progress-${clampedValue}`}
+            d={`M ${progressStart.x} ${progressStart.y} A ${progressR} ${progressR} 0 0 1 ${progressEnd.x} ${progressEnd.y}`}
+            fill="none"
+            stroke={activeZone.color}
+            strokeWidth="3"
+            strokeLinecap="round"
+            pathLength={1}
+            strokeDasharray="1"
+            style={{ strokeDashoffset: 1, animation: 'drawArc 1.2s ease-out forwards' }}
           />
 
           {[0, 25, 50, 75, 100].map(tick => {
@@ -265,7 +299,12 @@ const FearGreedGauge = ({ value }) => {
         </svg>
 
         <div className="absolute -bottom-2 w-full flex flex-col items-center justify-end z-10 bg-white dark:bg-[#0B1120] px-6 rounded-t-full">
-          <p className="text-5xl md:text-6xl font-black tracking-tighter" style={{ color: activeZone.color }}>
+          {/* 🌟 값이 바뀔 때마다 살짝 튕기는 bounce 애니메이션 */}
+          <p
+            key={`fg-value-${Math.round(clampedValue)}`}
+            className="text-5xl md:text-6xl font-black tracking-tighter"
+            style={{ color: activeZone.color, animation: 'bounceScale 0.5s ease-out', display: 'inline-block' }}
+          >
             {Math.round(value)}
           </p>
         </div>
@@ -289,7 +328,8 @@ const FearGreedGauge = ({ value }) => {
 };
 
 // ---------------------------------------------------------------------------
-// 4. Fear & Greed 전용 카드 
+// 5. Fear & Greed 전용 카드
+//    🌟 Regime 카드에 있던 ambient dot-grid + blurred blob 배경을 이쪽으로 이전
 // ---------------------------------------------------------------------------
 const FearGreedCard = ({ item }) => {
   const history = item.history || [];
@@ -303,6 +343,8 @@ const FearGreedCard = ({ item }) => {
   const prevClose = getHistoricalVal(1);
   const oneWeek = getHistoricalVal(5);
   const oneMonth = getHistoricalVal(21);
+
+  const activeZone = FEAR_GREED_ZONES.find(z => currentVal >= z.min && currentVal <= z.max) || FEAR_GREED_ZONES[2];
 
   const renderTimelineRow = (label, val) => {
     if (val === null) return null;
@@ -324,11 +366,39 @@ const FearGreedCard = ({ item }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-600 p-4 md:p-6 rounded-3xl shadow-sm mb-6 flex flex-col lg:flex-row gap-8">
-      
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <div className="w-full flex flex-col items-start mb-2">
+    <div className="relative bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-600 p-4 md:p-6 rounded-3xl shadow-sm mb-6 flex flex-col lg:flex-row gap-8 overflow-hidden">
+
+      {/* 🌟 Ambient 배경: dot-grid + regime 색상(zone 컬러) blurred blob, 아주 느리게 drift */}
+      <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+        <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+          <defs>
+            <pattern id="fgDotGrid" width="18" height="18" patternUnits="userSpaceOnUse">
+              <circle cx="1" cy="1" r="1" className="fill-slate-300 dark:fill-slate-700" opacity="0.3" />
+            </pattern>
+            <filter id="fgBlobBlur" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="40" />
+            </filter>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#fgDotGrid)" />
+          <circle
+            cx="18%"
+            cy="30%"
+            r="130"
+            fill={activeZone.color}
+            opacity="0.12"
+            filter="url(#fgBlobBlur)"
+            style={{ animation: 'ambientDrift 16s ease-in-out infinite' }}
+          />
+        </svg>
+      </div>
+
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center">
+        <div className="w-full flex items-center gap-2.5 mb-2">
           <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">Fear & Greed Index</h2>
+          <span className="flex items-center gap-1.5">
+            <LiveDot size={11} />
+            <span className="text-[10px] font-black text-emerald-500 tracking-wider">LIVE</span>
+          </span>
         </div>
         <div className="w-full mt-6 pb-6">
           <FearGreedGauge value={currentVal} />
@@ -338,7 +408,7 @@ const FearGreedCard = ({ item }) => {
         </p>
       </div>
 
-      <div className="w-full lg:w-[340px] flex flex-col justify-center bg-slate-50 dark:bg-[#111827]/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800/50 h-auto self-center">
+      <div className="relative z-10 w-full lg:w-[340px] flex flex-col justify-center bg-slate-50 dark:bg-[#111827]/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800/50 h-auto self-center">
         <div className="flex flex-col w-full">
           {renderTimelineRow('Previous close', prevClose)}
           {renderTimelineRow('1 week ago', oneWeek)}
@@ -356,7 +426,7 @@ const FearGreedCard = ({ item }) => {
 const RegimePopover = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
   return (
-    <div className="absolute top-12 left-0 md:left-4 z-50 w-[280px] bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-4 animate-in fade-in zoom-in-95 duration-200">
+    <div className="absolute top-10 left-0 md:left-4 z-50 w-[280px] bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-4 animate-in fade-in zoom-in-95 duration-200">
       <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100 dark:border-slate-700/50">
         <h4 className="font-black text-slate-900 dark:text-white text-[15px]">Market Regime 가이드</h4>
         <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={16} /></button>
@@ -373,163 +443,38 @@ const RegimePopover = ({ isOpen, onClose }) => {
   );
 };
 
-// RegimeSummary — Ambient 배경 + LIVE dot + Regime Gauge(glow, draw-in) + 전환 시 flash/bounce 추가
+// 🌟 RegimeSummary — 게이지를 완전히 제거하고, regime 문자열 + 점수 + 정보 버튼만 있는
+//    얇은 한 줄짜리 바(bar)로 축소했습니다. "움직이는" 역할은 FearGreedGauge로 이전되었습니다.
 const RegimeSummary = ({ regimeData }) => {
   const [infoOpen, setInfoOpen] = useState(false);
   const { score, regime } = regimeData;
   const conf = REGIME_CONFIG[regime] || REGIME_CONFIG.Neutral;
 
-  // Gauge 좌표 계산 (JSX 내부에서 바로 사용)
-  const gaugeCx = 100, gaugeCy = 96, gaugeOuterR = 92, gaugeInnerR = 62;
-  const needleAngle = scoreToAngle(score);
-  const activeZone = REGIME_ZONES.find(z => score >= z.min && score <= z.max) || REGIME_ZONES[2];
-  const progressArc = getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 8, needleAngle);
-  const progressStart = getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 8, 0);
-
   return (
-    // FIX: 최상단 래퍼에서 overflow-hidden 제거하여 팝업이 잘리지 않게 처리합니다.
-    <div className="relative w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm mb-12">
+    <div className="relative w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl px-5 md:px-6 py-3.5 shadow-sm mb-8 flex items-center flex-wrap gap-x-3 gap-y-1.5">
 
-      {/* 배경 요소들이 코너를 벗어나지 않게 막아주는 전용 overflow-hidden 래퍼 */}
-      <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
-        {/* 1. Ambient 배경: dot-grid + regime 색상 blurred blob (아주 느리게 drift) */}
-        <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-          <defs>
-            <pattern id="regimeDotGrid" width="18" height="18" patternUnits="userSpaceOnUse">
-              <circle cx="1" cy="1" r="1" className="fill-slate-300 dark:fill-slate-700" opacity="0.35" />
-            </pattern>
-            <filter id="regimeBlobBlur" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="40" />
-            </filter>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#regimeDotGrid)" />
-          <circle
-            cx="85%"
-            cy="30%"
-            r="120"
-            fill={conf.hex}
-            opacity="0.12"
-            filter="url(#regimeBlobBlur)"
-            style={{ animation: 'ambientDrift 16s ease-in-out infinite' }}
-          />
-        </svg>
+      <span className="text-[12px] md:text-[13px] font-black text-slate-500 dark:text-slate-400 tracking-tight">
+        Current Market Regime
+      </span>
 
-        {/* 7. Regime 전환 시 배경 flash (regime이 바뀔 때만 remount되어 애니메이션 재생) */}
-        <div
-          key={`flash-${regime}`}
-          className="absolute inset-0"
-          style={{ background: conf.hex, animation: 'flashFade 0.8s ease-out forwards' }}
-        />
-      </div>
+      <LiveDot size={10} />
 
-      <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+      <h1
+        key={`title-${regime}`}
+        className={`text-lg md:text-xl font-black tracking-tight ${conf.color}`}
+        style={{ animation: 'bounceScale 0.5s ease-out', display: 'inline-block' }}
+      >
+        {regime}
+      </h1>
 
-        <div className="flex items-center gap-4 md:gap-6">
-          {/* 3. Regime Gauge — glow + draw-in progress arc */}
-          <div className="w-28 h-16 md:w-32 md:h-20 shrink-0">
-            <svg viewBox="0 0 200 118" className="w-full h-full overflow-visible">
-              <defs>
-                <filter id="regimeNeedleShadow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="1.1" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                  <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodOpacity="0.35" />
-                </filter>
-              </defs>
+      <span className={`text-[13px] md:text-[14px] font-black ${conf.color}`}>
+        {score}<span className="text-slate-400 dark:text-slate-500 font-bold text-[12px]"> / 100</span>
+      </span>
 
-              {REGIME_ZONES.map(zone => {
-                const isActive = activeZone.id === zone.id;
-                const d = getDonutSlice(gaugeCx, gaugeCy, gaugeInnerR, gaugeOuterR, scoreToAngle(zone.min), scoreToAngle(zone.max));
-                return (
-                  <path
-                    key={zone.id}
-                    d={d}
-                    className={!isActive ? 'fill-slate-100 stroke-slate-200 dark:fill-[#1E293B] dark:stroke-[#0F172A]' : ''}
-                    style={isActive ? { fill: `${zone.color}30`, stroke: zone.color, strokeWidth: 2 } : { strokeWidth: 1 }}
-                  />
-                );
-              })}
-
-              <path
-                d={`M ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 0).x} ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 0).y} A ${gaugeOuterR + 4} ${gaugeOuterR + 4} 0 0 1 ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 180).x} ${getCartesian(gaugeCx, gaugeCy, gaugeOuterR + 4, 180).y}`}
-                fill="none"
-                className="stroke-slate-200 dark:stroke-slate-700"
-                strokeWidth="1"
-                strokeDasharray="1 6"
-                strokeLinecap="round"
-              />
-
-              {/* score가 바뀔 때마다 다시 그려지는 progress arc (draw-in) */}
-              <path
-                key={`arc-${score}`}
-                d={`M ${progressStart.x} ${progressStart.y} A ${gaugeOuterR + 8} ${gaugeOuterR + 8} 0 0 1 ${progressArc.x} ${progressArc.y}`}
-                fill="none"
-                stroke={activeZone.color}
-                strokeWidth="3"
-                strokeLinecap="round"
-                pathLength={1}
-                strokeDasharray="1"
-                style={{ strokeDashoffset: 1, animation: 'drawArc 1.2s ease-out forwards' }}
-              />
-
-              <g
-                style={{ transformOrigin: `${gaugeCx}px ${gaugeCy}px`, transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
-                filter="url(#regimeNeedleShadow)"
-              >
-                <polygon
-                  points={`${gaugeCx},${gaugeCy - 4} ${gaugeCx},${gaugeCy + 4} ${gaugeCx - gaugeInnerR + 4},${gaugeCy}`}
-                  className="fill-slate-800 dark:fill-white"
-                />
-              </g>
-              <circle cx={gaugeCx} cy={gaugeCy} r="8" className="fill-slate-800 dark:fill-white" />
-              <circle cx={gaugeCx} cy={gaugeCy} r="3" className="fill-white dark:fill-[#0B1120]" />
-            </svg>
-          </div>
-
-          <div className="relative">
-            <div className="flex items-center gap-3 mb-2">
-              <h2 className="text-[15px] font-black text-slate-500 dark:text-slate-400">Current Market Regime</h2>
-
-              {/* 2. LIVE pulse dot */}
-              <span className="flex items-center gap-1.5">
-                <svg width="14" height="14" viewBox="0 0 14 14">
-                  <circle cx="7" cy="7" r="3" fill="#10B981" />
-                  <circle cx="7" cy="7" r="3" fill="none" stroke="#10B981" strokeWidth="1.5">
-                    <animate attributeName="r" values="3;7;3" dur="2s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite" />
-                  </circle>
-                </svg>
-                <span className="text-[10px] font-black text-emerald-500 tracking-wider">LIVE</span>
-              </span>
-
-              <button onClick={() => setInfoOpen(!infoOpen)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer">
-                <Info size={18} />
-              </button>
-              {/* 여기에 있는 팝업 컴포넌트가 더 이상 부모에 의해 잘리지 않습니다 */}
-              <RegimePopover isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
-            </div>
-            <h1
-              key={`title-${regime}`}
-              className={`text-5xl md:text-6xl font-black tracking-tighter ${conf.color}`}
-              style={{ animation: 'bounceScale 0.5s ease-out', display: 'inline-block' }}
-            >
-              {regime}
-            </h1>
-          </div>
-        </div>
-
-        <div className="mt-8 md:mt-0 flex items-end gap-10">
-          <div className="flex flex-col items-start md:items-end">
-            <p className="text-[13px] font-extrabold text-slate-500 mb-1">Regime Score</p>
-            <div className="flex items-baseline gap-2">
-              <span className={`text-4xl md:text-5xl font-black ${conf.color}`}>{score}</span>
-              <span className="text-xl font-black text-slate-400">/ 100</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <button onClick={() => setInfoOpen(!infoOpen)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer ml-auto">
+        <Info size={16} />
+      </button>
+      <RegimePopover isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
     </div>
   );
 };
