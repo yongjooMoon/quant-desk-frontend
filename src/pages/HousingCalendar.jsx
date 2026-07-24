@@ -216,7 +216,6 @@ export default function HousingCalendar() {
   const [rawData, setRawData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilters, setActiveFilters] = useState(new Set(Object.keys(BADGE_CONFIG)));
-  const [selectedDate, setSelectedDate] = useState(null); // 모바일 선택 날짜
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth() + 1;
@@ -229,7 +228,6 @@ export default function HousingCalendar() {
   useEffect(() => {
     setLoading(true);
 
-    const { callApi } = useRenderApi(); // 훅은 최상단에서만 호출 가능 — 컴포넌트 상단으로 이동 필요
     callApi(`/api/home/search?year=${year}&month=${month}`)
       .then((res) => {
         if (res.status === 'success') {
@@ -319,15 +317,6 @@ export default function HousingCalendar() {
                     />
                   );
                 })}
-
-                {/* 🌟 모바일 전용 확장 패널 — 선택된 날짜가 속한 주 바로 아래에 삽입 */}
-                {isSelectedWeek && (
-                  <MobileExpandPanel
-                    dateObj={selectedDate}
-                    items={(groupedByDate[toDateKey(selectedDate)] || [])}
-                    onClose={() => setSelectedDate(null)}
-                  />
-                )}
               </div>
             );
           })}
