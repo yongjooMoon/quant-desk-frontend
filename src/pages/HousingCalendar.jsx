@@ -303,8 +303,6 @@ export default function HousingCalendar() {
                   const items = key ? (groupedByDate[key] || []) : [];
                   const isPast = dateObj ? dateObj < today : false;
                   const isToday = dateObj ? isSameDate(dateObj, today) : false;
-                  const isSelected = dateObj ? isSameDate(dateObj, selectedDate) : false;
-
                   return (
                     <DayCell
                       key={dIdx}
