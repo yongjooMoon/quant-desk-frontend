@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCcw, Check, X } from 'lucide-react';
-// import { useRenderApi } from '../hooks/useRenderApi'; // 🌟 실제 연동 시 주석 해제
+import { useRenderApi } from '../hooks/useRenderApi'; // 🌟 실제 연동 시 주석 해제
 
 // =========================================================================
 // 배지(공급 유형) 설정 — 기존 파이썬 로직의 badge/color 값과 1:1 매핑
@@ -20,52 +20,6 @@ const BADGE_CONFIG = {
 };
 
 const WEEKDAY_LABELS = ['월', '화', '수', '목', '금'];
-
-// =========================================================================
-// 🌟 더미 데이터 (실제 연동 전 임시) — 이번 달 기준으로 과거/오늘/미래 날짜를 섞어서 생성
-//    실제로는 /api/home 이 이 형태(배열)로 내려주면 됨:
-//    { id, name, url, badge, source, date: 'YYYY-MM-DD' }
-// =========================================================================
-function buildDummyData() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth(); // 0-indexed
-  const d = now.getDate();
-
-  const mk = (dayOffset, name, badge, source = 'applyhome') => {
-    const dt = new Date(y, m, d + dayOffset);
-    return {
-      id: `${name}-${badge}-${dayOffset}`,
-      name,
-      url: 'https://www.applyhome.co.kr',
-      badge,
-      source,
-      date: `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`,
-    };
-  };
-
-  return [
-    mk(-3, '드파인 아르티아', '1'),
-    mk(-3, '장위 푸르지오 마크원', '1'),
-    mk(-2, '김해 신문 센트럴 아이파크', '2'),
-    mk(-1, '밀양 수자인 더퍼스트 1단지', '2'),
-    mk(0, '양주 회천지구 A-8BL 로제비앙', '특'),
-    mk(0, '함안가야 휴니온아르페', '특'),
-    mk(0, '이천 서희스타힐스 SKY', '1'),
-    mk(0, '한화포레나 유성 1단지', 'LH', 'lh'),
-    mk(1, '신제주 동문디이스트 시그니처', '1'),
-    mk(1, '이천 서희스타힐스 SKY', '2'),
-    mk(1, '시흥 은계 에피트(7차)', '임'),
-    mk(2, '울산반구 수자인 더센트럴', '공'),
-    mk(2, '의왕 백운밸리 리젠시빌 란트', '공'),
-    mk(3, '엘리프 역곡', '무'),
-    mk(3, '대방역 여의도 더로드캐슬(4차)', 'LH', 'lh'),
-    mk(4, '오목천역 더리브', '임'),
-    mk(5, '원종역 해모로 아스트라 3차', '임'),
-    mk(7, '군산 세경아파트 우선분양전환', '특'),
-    mk(9, '풍무역세권 수자인 그라센트 2차', '임'),
-  ];
-}
 
 // =========================================================================
 // 월요일 시작, 평일(월~금)만 담긴 주 단위 그리드 생성
@@ -274,27 +228,20 @@ export default function HousingCalendar() {
   useEffect(() => {
     setLoading(true);
 
-    // const { callApi } = useRenderApi(); // 훅은 최상단에서만 호출 가능 — 컴포넌트 상단으로 이동 필요
-    // callApi(`/api/home?year=${year}&month=${month}`)
-    //   .then((res) => {
-    //     if (res.status === 'success') {
-    //       setRawData(res.data); // [{ id, name, url, badge, source, date: 'YYYY-MM-DD' }, ...]
-    //     } else {
-    //       setRawData([]);
-    //     }
-    //     setLoading(false);
-    //   })
-    //   .catch(() => {
-    //     setRawData([]);
-    //     setLoading(false);
-    //   });
-
-    // 🌟 임시: 더미 데이터로 대체
-    const t = setTimeout(() => {
-      setRawData(buildDummyData());
-      setLoading(false);
-    }, 200);
-    return () => clearTimeout(t);
+    const { callApi } = useRenderApi(); // 훅은 최상단에서만 호출 가능 — 컴포넌트 상단으로 이동 필요
+    callApi(`/api/home/search?year=${year}&month=${month}`)
+      .then((res) => {
+        if (res.status === 'success') {
+          setRawData(res.data); // [{ id, name, url, badge, source, date: 'YYYY-MM-DD' }, ...]
+        } else {
+          setRawData([]);
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        setRawData([]);
+        setLoading(false);
+      });
   }, [year, month]);
 
   // 필터 적용 + 날짜별 그룹화
