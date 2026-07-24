@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCcw, Check, X } from 'lucide-react';
+import { RefreshCcw, Check } from 'lucide-react';
 import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
@@ -119,7 +119,7 @@ function ItemBadge({ badge }) {
 }
 
 // =========================================================================
-// 개별 공고 한 줄 (데스크탑 셀 내부 / 모바일 확장 패널 공용)
+// 개별 공고 한 줄 (데스크탑 셀 내부에서 사용)
 // =========================================================================
 function ListingRow({ item, dense = false }) {
   return (
@@ -138,34 +138,9 @@ function ListingRow({ item, dense = false }) {
 }
 
 // =========================================================================
-// 모바일 전용 — 선택된 날짜의 상세 리스트 패널 (해당 주 바로 아래에 삽입됨)
+// 날짜 셀 (데스크탑: 전체 리스트 노출 / 모바일: 날짜 + 건수만 표시, 선택 기능 없음)
 // =========================================================================
-function MobileExpandPanel({ dateObj, items, onClose }) {
-  return (
-    <div className="col-span-5 md:hidden -mt-px mb-2 bg-slate-50 dark:bg-[#0B1120] border-x border-b border-slate-200 dark:border-slate-800 rounded-b-xl px-3 py-3 animate-in fade-in slide-in-from-top-1 duration-200">
-      <div className="flex items-center justify-between mb-2 px-1">
-        <span className="text-[13px] font-black text-slate-900 dark:text-white">
-          {dateObj.getMonth() + 1}월 {dateObj.getDate()}일 ({items.length}건)
-        </span>
-        <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer">
-          <X size={16} />
-        </button>
-      </div>
-      {items.length === 0 ? (
-        <p className="text-[12px] font-bold text-slate-400 px-1 py-2">해당 필터에 맞는 공고가 없습니다.</p>
-      ) : (
-        <div className="flex flex-col gap-0.5">
-          {items.map((item) => <ListingRow key={item.id} item={item} dense />)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// =========================================================================
-// 날짜 셀 (데스크탑: 전체 리스트 노출 / 모바일: 날짜 + 건수만, 탭하면 패널 오픈)
-// =========================================================================
-function DayCell({ dateObj, items, isPast, isToday, isSelected, onSelect }) {
+function DayCell({ dateObj, items, isPast, isToday }) {
   if (!dateObj) {
     return <div className="hidden md:block border-b border-r border-slate-100 dark:border-slate-800/60 min-h-[64px]" />;
   }
@@ -177,12 +152,8 @@ function DayCell({ dateObj, items, isPast, isToday, isSelected, onSelect }) {
     : 'text-slate-800 dark:text-slate-200';
 
   return (
-    <div
-      className={`border-b border-r border-slate-100 dark:border-slate-800/60 min-h-[64px] md:min-h-[140px] p-2 md:p-2.5 transition-colors ${
-        isSelected ? 'bg-blue-50 dark:bg-blue-500/10' : 'bg-white dark:bg-[#111827]'
-      }`}
-    >
-      {/* 데스크탑: 클릭 불필요, 날짜만 표시 */}
+    <div className="border-b border-r border-slate-100 dark:border-slate-800/60 min-h-[64px] md:min-h-[140px] p-2 md:p-2.5 bg-white dark:bg-[#111827] transition-colors">
+      {/* 데스크탑: 날짜 숫자 */}
       <div className={`hidden md:inline-flex text-[13px] font-black mb-2 ${dateNumClass}`}>{dateObj.getDate()}</div>
 
       {/* 데스크탑: 전체 리스트 */}
@@ -193,16 +164,13 @@ function DayCell({ dateObj, items, isPast, isToday, isSelected, onSelect }) {
         )}
       </div>
 
-      {/* 모바일: 날짜 + 건수 버튼 (탭하면 아래에 패널 오픈) */}
-      <button
-        onClick={() => onSelect(dateObj)}
-        className="md:hidden w-full flex flex-col items-center justify-center gap-0.5 py-1 cursor-pointer"
-      >
+      {/* 모바일: 날짜 + 건수만 표시 (클릭/확장 없음) */}
+      <div className="md:hidden w-full flex flex-col items-center justify-center gap-0.5 py-1">
         <span className={`text-[15px] font-black ${dateNumClass}`}>{dateObj.getDate()}</span>
         {!isPast && items.length > 0 && (
           <span className="text-[11px] font-bold text-blue-500 dark:text-blue-400">({items.length}건)</span>
         )}
-      </button>
+      </div>
     </div>
   );
 }
@@ -212,7 +180,7 @@ function DayCell({ dateObj, items, isPast, isToday, isSelected, onSelect }) {
 // =========================================================================
 export default function HousingCalendar() {
   const { callApi } = useRenderApi();
-  const [viewDate, setViewDate] = useState(new Date()); // 현재 조회 중인 연/월
+  const [viewDate] = useState(new Date()); // 연/월 이동 없음 — 항상 현재 달 고정
   const [rawData, setRawData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilters, setActiveFilters] = useState(new Set(Object.keys(BADGE_CONFIG)));
@@ -223,7 +191,7 @@ export default function HousingCalendar() {
   today.setHours(0, 0, 0, 0);
 
   // -----------------------------------------------------------------------
-  // 🌟 데이터 조회 — 실제 연동 시 아래 주석을 해제하고 더미 데이터 fallback 제거
+  // 데이터 조회
   // -----------------------------------------------------------------------
   useEffect(() => {
     setLoading(true);
@@ -268,13 +236,11 @@ export default function HousingCalendar() {
   return (
     <div className="w-full pb-16 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
 
-      {/* 헤더: 연월 타이틀 + 이전/다음 월 이동 */}
+      {/* 헤더: 연월 타이틀 */}
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-            {year}년 {month}월 청약 캘린더
-          </h2>
-        </div>
+        <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+          {year}년 {month}월 청약 캘린더
+        </h2>
         {loading && <RefreshCcw size={18} className="animate-spin text-blue-500" />}
       </div>
 
@@ -295,28 +261,26 @@ export default function HousingCalendar() {
 
         {/* 주 단위 렌더링 */}
         <div className="grid grid-cols-5">
-          {weeks.map((week, wIdx) => {
-            return (
-              <div key={wIdx} className="contents">
-                {week.map((dateObj, dIdx) => {
-                  const key = toDateKey(dateObj);
-                  const items = key ? (groupedByDate[key] || []) : [];
-                  const isPast = dateObj ? dateObj < today : false;
-                  const isToday = dateObj ? isSameDate(dateObj, today) : false;
-                  return (
-                    <DayCell
-                      key={dIdx}
-                      dateObj={dateObj}
-                      items={items}
-                      isPast={isPast}
-                      isToday={isToday}
-                      isSelected={isSelected}
-                    />
-                  );
-                })}
-              </div>
-            );
-          })}
+          {weeks.map((week, wIdx) => (
+            <div key={wIdx} className="contents">
+              {week.map((dateObj, dIdx) => {
+                const key = toDateKey(dateObj);
+                const items = key ? (groupedByDate[key] || []) : [];
+                const isPast = dateObj ? dateObj < today : false;
+                const isToday = dateObj ? isSameDate(dateObj, today) : false;
+
+                return (
+                  <DayCell
+                    key={dIdx}
+                    dateObj={dateObj}
+                    items={items}
+                    isPast={isPast}
+                    isToday={isToday}
+                  />
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
 
