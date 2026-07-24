@@ -1,10 +1,10 @@
-// src/App.jsx
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
-import { Newspaper, TrendingUp, Building2, Search, Sun, Moon, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Newspaper, TrendingUp, Building2, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays } from 'lucide-react';
 
 import NewsDesk from './pages/NewsDesk';
 import QuantDesk from './pages/QuantDesk';
+import HousingCalendar from './pages/HousingCalendar';
 import RealEstate from './pages/RealEstate';
 import StockSearch from './pages/StockSearch';
 
@@ -25,6 +25,7 @@ function App() {
   const navItems = [
     { path: '/news', icon: Newspaper, label: '마켓뉴스' },
     { path: '/quant', icon: TrendingUp, label: '퀀트투자' },
+    { path: '/calendar', icon: CalendarDays, label: '캘린더' },
     { path: '/realestate', icon: Building2, label: '부동산' },
     { path: '/search', icon: Search, label: '종목검색' },
   ];
@@ -51,6 +52,7 @@ function App() {
       {/* 최상위 래퍼 (Full Width & Height) */}
       <div className="flex w-full h-screen bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-300 overflow-hidden font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
 
+        {}
         {/* 💻 PC 좌측 슬림 메뉴바 (너비를 3분의 1 줄여서 160px로 슬림하게 적용) */}
         <aside className={`hidden md:flex h-full bg-white dark:bg-[#111827] border-r border-slate-200 dark:border-slate-800/80 flex-col py-6 z-30 flex-shrink-0 transition-all duration-300 ease-in-out relative ${isSidebarOpen ? 'w-[160px]' : 'w-[72px]'}`}>
 
@@ -69,6 +71,7 @@ function App() {
             </button>
           </div>
 
+          {}
           {/* 🌟 네비게이션 아이템 영역 */}
           <nav className="flex flex-col w-full px-3 flex-1">
             {navItems.map((item) => (
@@ -101,6 +104,7 @@ function App() {
             ))}
           </nav>
 
+          {}
           {/* 🌟 하단 테마 변경 토글 */}
           <div className="w-full px-3 mt-auto">
             <button
@@ -125,6 +129,7 @@ function App() {
           </div>
         </aside>
 
+        {}
         {/* 📱 모바일 하단 탭 */}
         <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800/80 flex justify-around items-center h-16 z-50 pb-safe">
             {navItems.map((item) => (
@@ -139,6 +144,7 @@ function App() {
             ))}
         </nav>
 
+        {}
         {/* 🌟 메인 컨텐츠 영역 (가운데 정렬) */}
         <main className="flex-1 h-full overflow-y-auto relative scroll-smooth flex justify-center w-full">
           {/* 모바일 상단 테마 버튼 */}
@@ -152,6 +158,7 @@ function App() {
               <Route path="/" element={<Navigate to="/news" replace />} />
               <Route path="/news" element={<NewsDesk />} />
               <Route path="/quant" element={<QuantDesk />} />
+              <Route path="/calendar" element={<HousingCalendar />} />
               <Route path="/realestate" element={<RealEstate />} />
               <Route path="/search" element={<StockSearch />} />
             </Routes>
