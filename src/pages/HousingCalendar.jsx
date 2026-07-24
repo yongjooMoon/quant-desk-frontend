@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCcw, Check, X } from 'lucide-react';
-import { useRenderApi } from '../hooks/useRenderApi'; // 🌟 실제 연동 시 주석 해제
+import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
 // 배지(공급 유형) 설정 — 기존 파이썬 로직의 badge/color 값과 1:1 매핑
@@ -211,6 +211,7 @@ function DayCell({ dateObj, items, isPast, isToday, isSelected, onSelect }) {
 // 메인 컴포넌트
 // =========================================================================
 export default function HousingCalendar() {
+  const { callApi } = useRenderApi();
   const [viewDate, setViewDate] = useState(new Date()); // 현재 조회 중인 연/월
   const [rawData, setRawData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -266,34 +267,15 @@ export default function HousingCalendar() {
     });
   };
 
-  const handlePrevMonth = () => {
-    setSelectedDate(null);
-    setViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  };
-  const handleNextMonth = () => {
-    setSelectedDate(null);
-    setViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-  };
-
-  const handleSelectDate = (dateObj) => {
-    setSelectedDate((prev) => (isSameDate(prev, dateObj) ? null : dateObj));
-  };
-
   return (
     <div className="w-full pb-16 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
 
       {/* 헤더: 연월 타이틀 + 이전/다음 월 이동 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={handlePrevMonth} className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
-            <ChevronLeft size={18} />
-          </button>
           <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
             {year}년 {month}월 청약 캘린더
           </h2>
-          <button onClick={handleNextMonth} className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
-            <ChevronRight size={18} />
-          </button>
         </div>
         {loading && <RefreshCcw size={18} className="animate-spin text-blue-500" />}
       </div>
@@ -334,7 +316,6 @@ export default function HousingCalendar() {
                       isPast={isPast}
                       isToday={isToday}
                       isSelected={isSelected}
-                      onSelect={handleSelectDate}
                     />
                   );
                 })}
