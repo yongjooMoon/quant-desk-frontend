@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { RefreshCcw, Check } from 'lucide-react';
+import { RefreshCcw, Check, X } from 'lucide-react';
 import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
@@ -33,6 +33,10 @@ const GLOBAL_STYLES = `
     0% { opacity: 0; transform: translateY(6px); }
     100% { opacity: 1; transform: translateY(0); }
   }
+  @keyframes hcFadeInUpSheet {
+    0% { opacity: 0; transform: translateY(24px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
   @keyframes hcShimmer {
     0% { background-position: -200% 0; }
     100% { background-position: 200% 0; }
@@ -50,9 +54,10 @@ const GLOBAL_STYLES = `
   }
   .hc-cell {
     animation: hcFadeInUp 0.35s ease-out backwards;
-    transition: transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease, border-color 0.25s ease;
+    transition: transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease, border-color 0.25s ease, min-height 0.2s ease, padding 0.2s ease;
   }
   .hc-cell:hover { transform: translateY(-3px); }
+  .hc-cell.hc-clickable:active { transform: scale(0.97); }
   .hc-chip { transition: transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease, background 0.2s ease; }
   .hc-chip:hover { transform: translateY(-2px) scale(1.03); }
   .hc-row { transition: background 0.18s ease, transform 0.18s ease; }
@@ -177,7 +182,7 @@ function ItemBadge({ badge }) {
 }
 
 // =========================================================================
-// 개별 공고 한 줄 (데스크탑 셀 내부에서 사용)
+// 개별 공고 한 줄 (데스크탑 셀 / 모바일 시트 내부에서 공용 사용)
 // =========================================================================
 function ListingRow({ item, dense = false }) {
   return (
@@ -185,10 +190,11 @@ function ListingRow({ item, dense = false }) {
       href={item.url}
       target="_blank"
       rel="noreferrer"
-      className={`hc-row flex items-center gap-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 ${dense ? 'px-1.5 py-1' : 'px-2 py-1.5'}`}
+      onClick={(e) => e.stopPropagation()}
+      className={`hc-row flex items-center gap-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 ${dense ? 'px-1.5 py-1' : 'px-2.5 py-2'}`}
     >
       <ItemBadge badge={item.badge} />
-      <span className={`truncate text-slate-700 dark:text-slate-200 font-bold ${dense ? 'text-[11.5px]' : 'text-[13px]'}`} title={item.name}>
+      <span className={`truncate text-slate-700 dark:text-slate-200 font-bold ${dense ? 'text-[11.5px]' : 'text-[13.5px]'}`} title={item.name}>
         {item.name}
       </span>
     </a>
@@ -196,22 +202,31 @@ function ListingRow({ item, dense = false }) {
 }
 
 // =========================================================================
-// 날짜 셀 — 카드형(rounded, gap 기반), 오늘은 그라디언트 링 + 펄스, 과거는 흐리게
+// 날짜 셀 — 카드형(rounded, gap 기반), 오늘은 그라디언트 링 + 펄스
+// 지난 날짜는 크기 자체를 축소, 전체 항목은 잘리지 않고 다 표시됨
+// 모바일에서는 탭하면 하단 시트로 전체 리스트 오픈
 // =========================================================================
-function DayCell({ dateObj, items, isPast, isToday, delayIdx }) {
+function DayCell({ dateObj, items, isPast, isToday, delayIdx, onOpenDetail }) {
   if (!dateObj) {
     return <div className="hidden md:block rounded-2xl min-h-[64px]" />;
   }
 
+  const clickable = !isPast && items.length > 0;
+
+  const sizeClasses = isPast
+    ? 'p-1.5 md:p-2 min-h-[40px] md:min-h-[56px]'
+    : 'p-2.5 md:p-3 min-h-[68px] md:min-h-[148px]';
+
+  const themeClasses = isPast
+    ? 'bg-slate-50/70 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800/60 opacity-40'
+    : isToday
+    ? 'bg-white dark:bg-[#111827] border-transparent shadow-[0_0_0_2px_rgba(99,102,241,0.55)] shadow-lg'
+    : 'bg-white dark:bg-[#111827] border-slate-200/70 dark:border-slate-800 shadow-sm hover:shadow-md';
+
   return (
     <div
-      className={`hc-cell relative rounded-2xl border p-2.5 md:p-3 min-h-[68px] md:min-h-[148px] overflow-hidden ${
-        isPast
-          ? 'bg-slate-50/70 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800/60 opacity-55'
-          : isToday
-          ? 'bg-white dark:bg-[#111827] border-transparent shadow-[0_0_0_2px_rgba(99,102,241,0.55)] shadow-lg'
-          : 'bg-white dark:bg-[#111827] border-slate-200/70 dark:border-slate-800 shadow-sm hover:shadow-md'
-      }`}
+      onClick={clickable ? () => onOpenDetail(dateObj, items) : undefined}
+      className={`hc-cell relative rounded-2xl border overflow-hidden ${sizeClasses} ${themeClasses} ${clickable ? 'hc-clickable cursor-pointer md:cursor-default' : ''}`}
       style={{ animationDelay: `${Math.min(delayIdx, 14) * 25}ms` }}
     >
       {/* 오늘 표시 그라디언트 백광 */}
@@ -230,24 +245,23 @@ function DayCell({ dateObj, items, isPast, isToday, delayIdx }) {
             <span className="absolute inset-0 rounded-full" style={{ animation: 'hcPulseRing 1.8s ease-out infinite', background: 'radial-gradient(circle,#6366f1,transparent 70%)' }} />
           </span>
         ) : (
-          <span className={`text-[13px] font-black ${isPast ? 'text-slate-300 dark:text-slate-600 line-through' : 'text-slate-800 dark:text-slate-100'}`}>
+          <span className={`font-black ${isPast ? 'text-[11px] text-slate-300 dark:text-slate-600 line-through' : 'text-[13px] text-slate-800 dark:text-slate-100'}`}>
             {dateObj.getDate()}
           </span>
         )}
       </div>
 
-      {/* 데스크탑: 전체 리스트 */}
-      <div className="hidden md:flex md:flex-col gap-0.5 overflow-hidden relative z-10">
-        {!isPast && items.slice(0, 5).map((item) => <ListingRow key={item.id} item={item} dense />)}
-        {!isPast && items.length > 5 && (
-          <span className="text-[10.5px] font-black text-indigo-400 dark:text-indigo-400 px-1.5">+{items.length - 5}건 더보기</span>
-        )}
+      {/* 데스크탑: 전체 리스트 — 더보기 없이 전부 표시 */}
+      <div className="hidden md:flex md:flex-col gap-0.5 relative z-10">
+        {!isPast && items.map((item) => <ListingRow key={item.id} item={item} dense />)}
       </div>
 
-      {/* 모바일: 날짜 + 건수 그라디언트 필 */}
+      {/* 모바일: 날짜 + 건수 그라디언트 필 (탭하면 하단 시트로 리스트 오픈) */}
       <div className="md:hidden w-full flex flex-col items-center justify-center gap-1 py-0.5 relative z-10">
         <span
-          className={`flex items-center justify-center w-7 h-7 rounded-full text-[13px] font-black ${
+          className={`flex items-center justify-center rounded-full font-black ${
+            isPast ? 'w-5 h-5 text-[11px]' : 'w-7 h-7 text-[13px]'
+          } ${
             isToday ? 'text-white' : isPast ? 'text-slate-300 dark:text-slate-600 line-through' : 'text-slate-800 dark:text-slate-100'
           }`}
           style={isToday ? { background: 'linear-gradient(135deg,#6366f1,#a855f7)' } : {}}
@@ -262,6 +276,46 @@ function DayCell({ dateObj, items, isPast, isToday, delayIdx }) {
             {items.length}건
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// 모바일 하단 시트 — 날짜 셀 탭 시 해당 날짜의 전체 리스트를 보여줌
+// =========================================================================
+function DayDetailSheet({ day, onClose }) {
+  if (!day) return null;
+  const { dateObj, items } = day;
+
+  return (
+    <div
+      className="md:hidden fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-h-[75vh] bg-white dark:bg-[#111827] rounded-t-3xl px-4 pt-3 pb-5 overflow-y-auto shadow-2xl"
+        style={{ animation: 'hcFadeInUpSheet 0.25s cubic-bezier(0.22,1,0.36,1)' }}
+      >
+        <div className="w-10 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 mx-auto mb-4" />
+        <div className="flex items-center justify-between mb-3 px-1">
+          <h3 className="text-[15px] font-black text-slate-800 dark:text-slate-100">
+            {dateObj.getMonth() + 1}월 {dateObj.getDate()}일{' '}
+            <span className="text-indigo-500">{items.length}건</span>
+          </h3>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400"
+          >
+            <X size={14} strokeWidth={3} />
+          </button>
+        </div>
+        <div className="flex flex-col gap-1">
+          {items.map((item) => (
+            <ListingRow key={item.id} item={item} />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -346,6 +400,7 @@ export default function HousingCalendar() {
   const [rawData, setRawData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilters, setActiveFilters] = useState(new Set(Object.keys(BADGE_CONFIG)));
+  const [selectedDay, setSelectedDay] = useState(null); // { dateObj, items } — 모바일 하단 시트용
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth() + 1;
@@ -391,6 +446,13 @@ export default function HousingCalendar() {
     });
   };
 
+  // 모바일 전용 — 데스크탑(md 이상)에서는 이미 리스트가 전부 보이므로 시트를 띄우지 않음
+  const handleOpenDetail = (dateObj, items) => {
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches) return;
+    if (!items.length) return;
+    setSelectedDay({ dateObj, items });
+  };
+
   let cellCounter = 0;
 
   return (
@@ -434,7 +496,7 @@ export default function HousingCalendar() {
           ) : (
             <div className="flex flex-col gap-2 md:gap-3">
               {weeks.map((week, wIdx) => (
-                <div key={wIdx} className="grid grid-cols-5 gap-2 md:gap-3">
+                <div key={wIdx} className="grid grid-cols-5 gap-2 md:gap-3 items-start">
                   {week.map((dateObj, dIdx) => {
                     const key = toDateKey(dateObj);
                     const items = key ? (groupedByDate[key] || []) : [];
@@ -450,6 +512,7 @@ export default function HousingCalendar() {
                         isPast={isPast}
                         isToday={isToday}
                         delayIdx={cellCounter}
+                        onOpenDetail={handleOpenDetail}
                       />
                     );
                   })}
@@ -461,6 +524,9 @@ export default function HousingCalendar() {
       </div>
 
       {!loading && rawData.length === 0 && <EmptyState />}
+
+      {/* 모바일 날짜 상세 시트 */}
+      <DayDetailSheet day={selectedDay} onClose={() => setSelectedDay(null)} />
     </div>
   );
 }
