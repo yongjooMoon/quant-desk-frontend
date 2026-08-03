@@ -244,7 +244,7 @@ export default function QuantDesk() {
   const [riskStock, setRiskStock] = useState(null);
   const [backtestStock, setBacktestStock] = useState(null);
 
-  // 🌟 [수정] /api/backtesting/result 조회 결과 — "구 전략(old) vs 신 전략(new)" 비교 리포트 원본 전체를 담아둠
+  // 🌟 [수정] /api/backtesting/result 조회 결과 — "전략 트랙레코드 + 확정종목 신뢰도/포지션사이징" 리포트 원본 전체를 담아둠
   const [backtestResult, setBacktestResult] = useState(null);
   const [backtestLoading, setBacktestLoading] = useState(false);
 
@@ -341,9 +341,9 @@ export default function QuantDesk() {
   }, [callApi]);
 
   // 🌟 [수정] 백테스트 팝업(backtestStock)이 열릴 때마다 /api/backtesting/result를 호출해서
-  //    old(기존 전략) vs new(신규 전략) 비교 리포트 전체를 backtestResult에 담는다.
-  //    (기존처럼 응답이 종목별 배열이 아니라, generated_at/old/new/entry_price_comparison 등을 담은
-  //     하나의 비교 리포트 객체로 내려오므로 그대로 저장하고, 화면에서 종목(symbol) 기준으로 걸러서 사용한다.)
+  //    "전략 트랙레코드(track_record_used) + 오늘 확정 종목별 신뢰도·포지션사이징(per_symbol)" 리포트를 backtestResult에 담는다.
+  //    (예전처럼 old/new 비교 객체가 아니라, generated_at/track_record_used/per_symbol/name_map 등을 담은
+  //     하나의 리포트 객체로 내려오므로 그대로 저장하고, 화면에서 종목(symbol) 기준으로 걸러서 사용한다.)
   useEffect(() => {
     if (!backtestStock) {
       setBacktestResult(null);
@@ -592,53 +592,52 @@ export default function QuantDesk() {
 
   // 🌟 [수정] 현재 백테스트 팝업이 보고 있는 종목 코드
   const backtestSymbol = backtestStock?.symbol;
-  // 🌟 [추가] name_map에 종목명이 있으면 그걸 우선 사용 (없으면 클릭 당시의 이름 사용)
+  // 🌟 name_map에 종목명이 있으면 그걸 우선 사용 (없으면 클릭 당시의 이름 사용)
   const backtestDisplayName = (backtestResult?.name_map && backtestSymbol && backtestResult.name_map[backtestSymbol]) || backtestStock?.name;
 
-  // 🌟 [추가] old/new 전략의 trades 배열에서 지금 보고 있는 종목의 거래만 추출
-  const backtestOldTrades = useMemo(() => {
-    if (!backtestResult || !backtestSymbol) return [];
-    return (backtestResult.old?.trades || []).filter(t => t.symbol === backtestSymbol);
-  }, [backtestResult, backtestSymbol]);
+  // 🌟 [수정] 헤드라인 신뢰도·통계 근거인 "전략 트랙레코드" (전체 유니버스 기준, quant_backTesting.build_track_record 결과)
+  const backtestTrackRecord = backtestResult?.track_record_used || null;
 
-  const backtestNewTrades = useMemo(() => {
-    if (!backtestResult || !backtestSymbol) return [];
-    return (backtestResult.new?.trades || []).filter(t => t.symbol === backtestSymbol);
-  }, [backtestResult, backtestSymbol]);
-
-  // 🌟 [추가] equity_curve(기준값 1.0)를 누적 수익률(%)로 변환해서 old/new를 한 차트에서 비교
-  const backtestEquityChartData = useMemo(() => {
-    if (!backtestResult) return [];
-    const oldCurve = backtestResult.old?.equity_curve || [];
-    const newCurve = backtestResult.new?.equity_curve || [];
-    const map = {};
-    oldCurve.forEach(pt => {
-      if (!map[pt.date]) map[pt.date] = { date: pt.date };
-      map[pt.date].old = (pt.value - 1) * 100;
-    });
-    newCurve.forEach(pt => {
-      if (!map[pt.date]) map[pt.date] = { date: pt.date };
-      map[pt.date].new = (pt.value - 1) * 100;
-    });
-    return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
-  }, [backtestResult]);
-
-  // 🌟 [추가] 진입가 비교(entry_price_comparison.matches)에서 현재 종목에 해당하는 항목
-  const backtestEntryMatch = useMemo(() => {
+  // 🌟 [수정] per_symbol 배열에서 지금 보고 있는 종목의 리포트(포지션사이징 + 이 종목만의 own_history)를 추출
+  const backtestSymbolReport = useMemo(() => {
     if (!backtestResult || !backtestSymbol) return null;
-    return (backtestResult.entry_price_comparison?.matches || []).find(m => m.symbol === backtestSymbol) || null;
+    return (backtestResult.per_symbol || []).find(p => p.symbol === backtestSymbol) || null;
   }, [backtestResult, backtestSymbol]);
 
-  // 🌟 [추가] old vs new 지표 비교 테이블에 쓰일 항목 정의
-  const backtestMetrics = [
-    { label: '누적 수익률', key: 'cum_return_pct', suffix: '%' },
-    { label: 'MDD (최대낙폭)', key: 'mdd_pct', suffix: '%' },
-    { label: '승률', key: 'win_rate', suffix: '%', pct100: true },
-    { label: '손익비', key: 'payoff_ratio', suffix: '' },
-    { label: '기대값 (Expectancy)', key: 'expectancy_pct', suffix: '%' },
-    { label: '평균 보유일', key: 'avg_hold_days', suffix: '일' },
-    { label: '거래 횟수', key: 'trade_count', suffix: '회' },
-  ];
+  const backtestSizing = backtestSymbolReport?.position_sizing || null;
+  const backtestOwnHistory = backtestSymbolReport?.own_history || null;
+  const backtestOwnTrades = backtestOwnHistory?.trades || [];
+
+  // 🌟 [수정] 전략 트랙레코드의 equity_curve(기준값 1.0)를 누적 수익률(%)로 변환 + 벤치마크(코스피/코스닥) 비교선
+  const backtestEquityChartData = useMemo(() => {
+    if (!backtestTrackRecord?.equity_curve) return [];
+    return backtestTrackRecord.equity_curve.map(pt => ({
+      date: pt.date,
+      strategy: (pt.value - 1) * 100,
+    }));
+  }, [backtestTrackRecord]);
+
+  // 🌟 신뢰도 라벨 한글 매핑 + 색상
+  const CONFIDENCE_LABEL = {
+    insufficient: { text: '표본 부족', color: '#94A3B8', bg: 'bg-slate-100 dark:bg-slate-800', border: 'border-slate-300 dark:border-slate-700' },
+    reference: { text: '참고 가능', color: '#3B82F6', bg: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-300 dark:border-blue-800' },
+    reliable: { text: '신뢰 가능', color: '#00B464', bg: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-300 dark:border-emerald-800' },
+  };
+  const getConfidenceMeta = (level) => CONFIDENCE_LABEL[level] || CONFIDENCE_LABEL.insufficient;
+
+  // 🌟 [수정] 전략 트랙레코드 핵심 지표 리스트 (승률/기대값은 95% 신뢰구간을 함께 표기)
+  const backtestHeadlineMetrics = backtestTrackRecord ? [
+    { label: '표본(트레이드) 수', value: `${backtestTrackRecord.trade_count}건` },
+    { label: '승률', value: `${backtestTrackRecord.win_rate?.toFixed(1)}%`, sub: `95% CI ${backtestTrackRecord.win_rate_ci95?.[0]?.toFixed(1)}~${backtestTrackRecord.win_rate_ci95?.[1]?.toFixed(1)}%` },
+    { label: '기대값 (Expectancy)', value: `${backtestTrackRecord.expectancy_pct > 0 ? '+' : ''}${backtestTrackRecord.expectancy_pct?.toFixed(2)}%`, sub: `95% CI ${backtestTrackRecord.expectancy_ci95?.[0]?.toFixed(2)}~${backtestTrackRecord.expectancy_ci95?.[1]?.toFixed(2)}%` },
+    { label: 'Profit Factor', value: backtestTrackRecord.profit_factor?.toFixed(2) },
+    { label: '손익비 (Payoff)', value: backtestTrackRecord.payoff_ratio?.toFixed(2) },
+    { label: '트레이드 샤프', value: backtestTrackRecord.return_sharpe?.toFixed(2) },
+    { label: '평균 보유일', value: `${backtestTrackRecord.avg_hold_days?.toFixed(1)}일` },
+    { label: 'MDD', value: `${backtestTrackRecord.mdd_pct?.toFixed(1)}%` },
+    { label: '누적수익률', value: `${backtestTrackRecord.cum_return_pct > 0 ? '+' : ''}${backtestTrackRecord.cum_return_pct?.toFixed(1)}%` },
+    { label: '벤치마크 대비 초과수익', value: `${backtestTrackRecord.excess_return_pct > 0 ? '+' : ''}${backtestTrackRecord.excess_return_pct?.toFixed(1)}%` },
+  ] : [];
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -1252,13 +1251,13 @@ export default function QuantDesk() {
         </div>
       )}
 
-      {/* BACKTEST MODAL — 🌟 [수정] /api/backtesting/result의 "구 전략(old) vs 신 전략(new)" 비교 리포트 기반으로 완전히 새로 작성 */}
+      {/* BACKTEST MODAL — 🌟 [수정] /api/backtesting/result의 "전략 트랙레코드(신뢰도) + 확정종목 포지션사이징" 리포트 기반으로 완전히 새로 작성 */}
       {backtestStock && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
             <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[900px] min-h-[50vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
                 <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
-                    <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">🧪 {backtestDisplayName || backtestStock.name} 백테스팅 비교 (구 전략 vs 신 전략)</h3>
+                    <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">🧪 {backtestDisplayName || backtestStock.name} 신뢰도 · 포지션사이징</h3>
                     <button onClick={() => setBacktestStock(null)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors cursor-pointer"><X size={20}/></button>
                 </div>
 
@@ -1266,115 +1265,151 @@ export default function QuantDesk() {
                     {backtestLoading ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-500 py-16">
                             <RefreshCcw className="animate-spin mb-4 text-blue-500" size={36} />
-                            <p className="font-black text-[14px] md:text-[15px]">백테스팅 결과를 불러오는 중입니다...</p>
+                            <p className="font-black text-[14px] md:text-[15px]">전략 트랙레코드를 불러오는 중입니다...</p>
                         </div>
                     ) : !backtestResult ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-500 py-16">
-                            <p className="font-black text-[15px] md:text-lg text-center">백테스팅 결과 데이터가 없습니다.<br/>다음 배치(Cron) 실행 후 다시 확인해 주세요.</p>
+                            <p className="font-black text-[15px] md:text-lg text-center">전략 트랙레코드 데이터가 없습니다.<br/>다음 배치(Cron) 실행 후 다시 확인해 주세요.</p>
                         </div>
                     ) : (
                         <>
                             <p className="text-[13px] font-extrabold text-slate-500 mb-6">
-                                생성 시각 {backtestResult.generated_at} · 백테스트 기간 {backtestResult.trading_days}거래일 · 종목코드 {backtestSymbol}
+                                생성 시각 {backtestResult.generated_at} · 참고 기간 {backtestResult.trading_days}거래일 · 종목코드 {backtestSymbol}
                             </p>
 
-                            {/* Equity Curve 비교 차트 */}
-                            <div className="p-5 md:p-6 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 mb-6">
-                                <div className="flex items-center gap-5 mb-3">
-                                    <p className="text-[13px] font-black text-slate-500">누적 수익률 추이</p>
-                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#64748B]"></span><span className="text-[12px] font-extrabold text-slate-500">구 전략(Old)</span></div>
-                                    <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#FF4B4B]"></span><span className="text-[12px] font-extrabold text-slate-500">신 전략(New)</span></div>
-                                </div>
-                                <div className="w-full h-[220px]">
-                                    {backtestEquityChartData.length > 0 ? (
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <ComposedChart data={backtestEquityChartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
-                                                <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 10, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''} />
-                                                <YAxis tick={{fill: '#94A3B8', fontSize: 10, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(v) => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`} />
-                                                <Tooltip formatter={(value) => [`${value > 0 ? '+' : ''}${value.toFixed(2)}%`, '']} contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900'}} labelStyle={{color: '#94A3B8'}} />
-                                                <Line type="monotone" dataKey="old" name="구 전략" stroke="#94A3B8" strokeWidth={2} strokeDasharray="4 4" dot={false} isAnimationActive={true} animationDuration={1200} />
-                                                <Line type="monotone" dataKey="new" name="신 전략" stroke="#FF4B4B" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={1400} />
-                                            </ComposedChart>
-                                        </ResponsiveContainer>
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-[12px] font-bold text-slate-400">차트 데이터가 없습니다</div>
-                                    )}
+                            {/* ── 전략 트랙레코드 (헤드라인 신뢰도 근거) ── */}
+                            {backtestTrackRecord && (
+                              <div className="p-5 md:p-6 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 mb-6">
+                                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                                      <p className="text-[14px] font-black text-slate-900 dark:text-white">📋 전략 트랙레코드 (전체 유니버스 기준)</p>
+                                      {(() => {
+                                          const meta = getConfidenceMeta(backtestTrackRecord.confidence_level);
+                                          return (
+                                              <span className={`text-[12px] font-black px-3 py-1 rounded-full border ${meta.bg} ${meta.border}`} style={{ color: meta.color }}>
+                                                  {meta.text}
+                                              </span>
+                                          );
+                                      })()}
+                                  </div>
+
+                                  <p className="text-[12.5px] font-extrabold text-slate-500 dark:text-slate-400 mb-5 leading-relaxed">
+                                      {backtestTrackRecord.confidence_note}
+                                  </p>
+
+                                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-2">
+                                      {backtestHeadlineMetrics.map((m, i) => (
+                                          <div key={i} className="p-3 bg-white dark:bg-[#0B1120] rounded-xl border border-slate-200 dark:border-slate-800">
+                                              <p className="text-[11px] font-extrabold text-slate-500 mb-1">{m.label}</p>
+                                              <p className="text-[15px] font-black text-slate-900 dark:text-white">{m.value}</p>
+                                              {m.sub && <p className="text-[10.5px] font-bold text-slate-400 mt-0.5">{m.sub}</p>}
+                                          </div>
+                                      ))}
+                                  </div>
+
+                                  {/* Equity Curve */}
+                                  <div className="mt-5">
+                                      <p className="text-[12px] font-black text-slate-500 mb-2">전략 누적 수익률 추이 (벤치마크 대비 초과수익 {backtestTrackRecord.excess_return_pct > 0 ? '+' : ''}{backtestTrackRecord.excess_return_pct?.toFixed(1)}%)</p>
+                                      <div className="w-full h-[200px]">
+                                          {backtestEquityChartData.length > 0 ? (
+                                              <ResponsiveContainer width="100%" height="100%">
+                                                  <ComposedChart data={backtestEquityChartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
+                                                      <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 10, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''} />
+                                                      <YAxis tick={{fill: '#94A3B8', fontSize: 10, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(v) => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`} />
+                                                      <Tooltip formatter={(value) => [`${value > 0 ? '+' : ''}${value.toFixed(2)}%`, '전략']} contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900'}} labelStyle={{color: '#94A3B8'}} />
+                                                      <Line type="monotone" dataKey="strategy" name="전략" stroke="#FF4B4B" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={1400} />
+                                                  </ComposedChart>
+                                              </ResponsiveContainer>
+                                          ) : (
+                                              <div className="w-full h-full flex items-center justify-center text-[12px] font-bold text-slate-400">차트 데이터가 없습니다</div>
+                                          )}
+                                      </div>
+                                  </div>
+                              </div>
+                            )}
+
+                            {/* ── 이 종목의 권장 포지션사이징 ── */}
+                            {backtestSizing ? (
+                              <div className="p-5 md:p-6 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 mb-6">
+                                  <p className="text-[14px] font-black text-slate-900 dark:text-white mb-4">🎯 {backtestDisplayName} 권장 수량/투입금액</p>
+
+                                  {backtestSizing.hold_recommended && (
+                                      <div className="mb-4 p-3 rounded-xl bg-orange-50 dark:bg-orange-950/30 border border-orange-300 dark:border-orange-800 text-[12.5px] font-extrabold text-orange-600 dark:text-orange-400">
+                                          ⚠️ {backtestSizing.hold_reason}
+                                      </div>
+                                  )}
+
+                                  <div className="flex items-baseline gap-3 mb-5">
+                                      <span className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">{formatNumber(backtestSizing.recommended_quantity)}주</span>
+                                      <span className="text-[14px] font-extrabold text-slate-500">₩{formatNumber(backtestSizing.recommended_position_value)}</span>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                                      <div className="p-3 bg-white dark:bg-[#0B1120] rounded-xl border border-slate-200 dark:border-slate-800">
+                                          <p className="text-[11px] font-extrabold text-slate-500 mb-1">진입가 / 손절가</p>
+                                          <p className="text-[13px] font-black text-slate-900 dark:text-white">₩{formatNumber(backtestSizing.entry_price)} / ₩{formatNumber(backtestSizing.stop_price)}</p>
+                                      </div>
+                                      <div className="p-3 bg-white dark:bg-[#0B1120] rounded-xl border border-slate-200 dark:border-slate-800">
+                                          <p className="text-[11px] font-extrabold text-slate-500 mb-1">ATR 리스크</p>
+                                          <p className="text-[13px] font-black text-slate-900 dark:text-white">{backtestSizing.atr_risk_pct?.toFixed(2)}%</p>
+                                      </div>
+                                      <div className="p-3 bg-white dark:bg-[#0B1120] rounded-xl border border-slate-200 dark:border-slate-800">
+                                          <p className="text-[11px] font-extrabold text-slate-500 mb-1">기준 수량(ATR)</p>
+                                          <p className="text-[13px] font-black text-slate-900 dark:text-white">{formatNumber(backtestSizing.base_quantity)}주</p>
+                                      </div>
+                                      <div className="p-3 bg-white dark:bg-[#0B1120] rounded-xl border border-slate-200 dark:border-slate-800">
+                                          <p className="text-[11px] font-extrabold text-slate-500 mb-1">현재 시장 레짐</p>
+                                          <p className="text-[13px] font-black text-slate-900 dark:text-white">{backtestSymbolReport?.regime || '-'}</p>
+                                      </div>
+                                  </div>
+
+                                  <p className="text-[11.5px] font-extrabold text-slate-500 mb-2">권장 수량 = 기준 수량 × 켈리 배율 × 신뢰도 배율</p>
+                                  <div className="grid grid-cols-3 gap-3">
+                                      <div className="p-3 bg-white dark:bg-[#0B1120] rounded-xl border border-slate-200 dark:border-slate-800">
+                                          <p className="text-[11px] font-extrabold text-slate-500 mb-1">프랙셔널 켈리(1/4)</p>
+                                          <p className="text-[13px] font-black text-slate-900 dark:text-white">{(backtestSizing.kelly_scale * 100)?.toFixed(0)}%</p>
+                                          <p className="text-[10px] font-bold text-slate-400 mt-0.5">원값 {backtestSizing.kelly_fraction_raw} → 캡 적용 {backtestSizing.kelly_fraction_capped}</p>
+                                      </div>
+                                      <div className="p-3 bg-white dark:bg-[#0B1120] rounded-xl border border-slate-200 dark:border-slate-800">
+                                          <p className="text-[11px] font-extrabold text-slate-500 mb-1">신뢰도 배율</p>
+                                          <p className="text-[13px] font-black text-slate-900 dark:text-white">{(backtestSizing.confidence_scale * 100)?.toFixed(0)}%</p>
+                                          <p className="text-[10px] font-bold text-slate-400 mt-0.5">{getConfidenceMeta(backtestSizing.confidence_level).text}</p>
+                                      </div>
+                                      <div className="p-3 bg-white dark:bg-[#0B1120] rounded-xl border border-slate-200 dark:border-slate-800">
+                                          <p className="text-[11px] font-extrabold text-slate-500 mb-1">최종 축소 배율</p>
+                                          <p className="text-[13px] font-black text-[#FF4B4B]">{(backtestSizing.final_scale * 100)?.toFixed(0)}%</p>
+                                      </div>
+                                  </div>
+                              </div>
+                            ) : (
+                              <div className="p-5 md:p-6 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 mb-6 text-center">
+                                  <p className="text-[13px] font-bold text-slate-400">이 종목에 대한 포지션사이징 데이터가 없습니다.</p>
+                              </div>
+                            )}
+
+                            {/* 거래 비용 가정 */}
+                            <div className="p-5 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 mb-6">
+                                <p className="text-[12px] font-extrabold text-slate-500 mb-3">거래 비용 가정</p>
+                                <div className="flex justify-between text-[13px] font-black text-slate-700 dark:text-slate-300">
+                                    <span>진입 {backtestResult.cost_assumptions?.entry_cost_pct}%</span>
+                                    <span>청산 {backtestResult.cost_assumptions?.exit_cost_pct}%</span>
                                 </div>
                             </div>
 
-                            {/* 지표 비교 테이블 */}
-                            <div className="mb-6 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                                <div className="grid grid-cols-3 bg-slate-50 dark:bg-[#111827] px-5 py-3 border-b border-slate-200 dark:border-slate-800">
-                                    <div className="text-[12px] font-extrabold text-slate-500">지표</div>
-                                    <div className="text-[12px] font-extrabold text-slate-500 text-right">구 전략</div>
-                                    <div className="text-[12px] font-extrabold text-[#FF4B4B] text-right">신 전략</div>
-                                </div>
-                                {backtestMetrics.map((m) => {
-                                    const oldVal = backtestResult.old?.[m.key];
-                                    const newVal = backtestResult.new?.[m.key];
-                                    const fmt = (v) => {
-                                        if (v === null || v === undefined || isNaN(v)) return "N/A";
-                                        const num = m.pct100 ? v * 100 : v;
-                                        const decimals = (m.suffix === '%' || m.key === 'payoff_ratio') ? 2 : 1;
-                                        return `${num > 0 && m.suffix === '%' ? '+' : ''}${num.toFixed(decimals)}${m.suffix}`;
-                                    };
-                                    return (
-                                        <div key={m.key} className="grid grid-cols-3 px-5 py-3 border-b last:border-b-0 border-slate-100 dark:border-slate-800/80">
-                                            <div className="text-[13px] font-extrabold text-slate-600 dark:text-slate-300">{m.label}</div>
-                                            <div className="text-[13px] font-black text-slate-500 text-right">{fmt(oldVal)}</div>
-                                            <div className={`text-[13px] font-black text-right ${(newVal || 0) >= (oldVal || 0) ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{fmt(newVal)}</div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* 진입가 비교 & 비용 가정 */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                <div className="p-5 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800">
-                                    <p className="text-[12px] font-extrabold text-slate-500 mb-3">진입가 비교</p>
-                                    {backtestEntryMatch ? (
-                                        <div className="flex justify-between text-[13px] font-black text-slate-700 dark:text-slate-300">
-                                            <span>가격 차이 {backtestEntryMatch.price_delta_pct?.toFixed(2)}%</span>
-                                            <span>진입 지연 {backtestEntryMatch.day_delay}일</span>
-                                        </div>
-                                    ) : (
-                                        <p className="text-[13px] font-bold text-slate-400">비교 데이터 없음</p>
-                                    )}
-                                </div>
-                                <div className="p-5 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800">
-                                    <p className="text-[12px] font-extrabold text-slate-500 mb-3">거래 비용 가정</p>
-                                    <div className="flex justify-between text-[13px] font-black text-slate-700 dark:text-slate-300">
-                                        <span>진입 {backtestResult.cost_assumptions?.entry_cost_pct}%</span>
-                                        <span>청산 {backtestResult.cost_assumptions?.exit_cost_pct}%</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 매매 내역 */}
+                            {/* 이 종목 자체의 과거 신호 이력 (참고용, 신뢰도 근거 아님) */}
                             <div>
-                                <p className="text-[14px] font-black text-slate-900 dark:text-white mb-3">신 전략 매매 내역 ({backtestNewTrades.length}건)</p>
-                                {backtestNewTrades.length === 0 ? (
-                                    <p className="text-[13px] font-bold text-slate-400 mb-6">해당 종목에 대한 신 전략 거래 내역이 없습니다.</p>
-                                ) : (
-                                    <div className="space-y-2 mb-6">
-                                        {backtestNewTrades.map((t, i) => (
-                                            <div key={i} className="flex flex-wrap items-center justify-between gap-2 p-4 bg-slate-50 dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800">
-                                                <div className="text-[12px] font-extrabold text-slate-500">{t.entry_date} → {t.exit_date} ({t.hold_days}일 보유)</div>
-                                                <div className="text-[13px] font-black text-slate-700 dark:text-slate-300">₩{formatNumber(t.entry_price)} → ₩{formatNumber(t.exit_price)}</div>
-                                                <div className={`text-[14px] font-black ${(t.return_pct || 0) >= 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(t.return_pct || 0) > 0 ? '+' : ''}{t.return_pct?.toFixed(2)}%</div>
-                                                <div className="text-[12px] font-extrabold text-slate-400 w-full md:w-auto">{t.reason}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                <p className="text-[14px] font-black text-slate-900 dark:text-white mb-3">구 전략 매매 내역 ({backtestOldTrades.length}건)</p>
-                                {backtestOldTrades.length === 0 ? (
-                                    <p className="text-[13px] font-bold text-slate-400">해당 종목에 대한 구 전략 거래 내역이 없습니다.</p>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <p className="text-[14px] font-black text-slate-900 dark:text-white">📌 이 종목 자체의 과거 신호 이력 ({backtestOwnTrades.length}건)</p>
+                                    <Info size={14} className="text-slate-400" />
+                                </div>
+                                <p className="text-[12px] font-extrabold text-slate-500 mb-4 leading-relaxed">
+                                    {backtestSymbolReport?.own_history_note || '표본이 매우 작을 수 있어 참고용 보조지표로만 사용하세요. 신뢰도 판단은 위 전략 트랙레코드를 기준으로 합니다.'}
+                                </p>
+                                {backtestOwnTrades.length === 0 ? (
+                                    <p className="text-[13px] font-bold text-slate-400">해당 종목의 과거 신호 이력이 없습니다.</p>
                                 ) : (
                                     <div className="space-y-2">
-                                        {backtestOldTrades.map((t, i) => (
+                                        {backtestOwnTrades.map((t, i) => (
                                             <div key={i} className="flex flex-wrap items-center justify-between gap-2 p-4 bg-slate-50 dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800">
                                                 <div className="text-[12px] font-extrabold text-slate-500">{t.entry_date} → {t.exit_date} ({t.hold_days}일 보유)</div>
                                                 <div className="text-[13px] font-black text-slate-700 dark:text-slate-300">₩{formatNumber(t.entry_price)} → ₩{formatNumber(t.exit_price)}</div>
