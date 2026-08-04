@@ -783,7 +783,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                             <div className="text-[10.5px] font-bold text-slate-400 truncate">{r.symbol}</div>
                           </td>
                           {/* 🌟 현재가: 천원 단위로 마스킹 표시 */}
-                          <td className="px-3 py-3 text-left text-[12.5px] font-black text-slate-900 dark:text-white whitespace-nowrap">
+                          <td className="px-3 py-3 text-right text-[12.5px] font-black text-slate-900 dark:text-white whitespace-nowrap">
                             {formatPriceMasked(r.current_price)}
                           </td>
                           <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{formatNum(r.per)}</td>
