@@ -747,9 +747,9 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                         <th
                           key={col.key}
                           onClick={() => col.sortable && toggleSort(col.key)}
-                          className={`px-3 py-3 text-[11.5px] font-extrabold text-slate-500 whitespace-nowrap ${
-                            col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
-                          } ${col.sortable ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white select-none' : ''}`}
+                          className={`px-3 py-3 text-[11.5px] font-extrabold text-slate-500 whitespace-nowrap text-center ${
+                            col.sortable ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white select-none' : ''
+                          }`}
                         >
                           {col.label}{sortKey === col.key && (sortDir === 'desc' ? ' ▼' : ' ▲')}
                         </th>
@@ -772,7 +772,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                           className="qs-dock-row border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40"
                         >
                           {/* 🌟 종목명: 최소폭 확보 + 말줄임 + 클릭 시 리포트 팝업 */}
-                          <td className="px-3 py-3 min-w-[120px] max-w-[200px]">
+                          <td className="px-3 py-3 min-w-[60px] max-w-[120]">
                             <div
                               onClick={() => handleNameClick(r)}
                               className="qs-name-link text-[13.5px] font-black text-slate-900 dark:text-white"
