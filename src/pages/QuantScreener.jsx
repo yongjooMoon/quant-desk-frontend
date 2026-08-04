@@ -772,7 +772,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                           className="qs-dock-row border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40"
                         >
                           {/* 🌟 종목명: 최소폭 확보 + 말줄임 + 클릭 시 리포트 팝업 */}
-                          <td className="px-3 py-3 min-w-[160px] max-w-[220px]">
+                          <td className="px-3 py-3 min-w-[120px] max-w-[200px]">
                             <div
                               onClick={() => handleNameClick(r)}
                               className="qs-name-link text-[13.5px] font-black text-slate-900 dark:text-white"
@@ -783,7 +783,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                             <div className="text-[10.5px] font-bold text-slate-400 truncate">{r.symbol}</div>
                           </td>
                           {/* 🌟 현재가: 천원 단위로 마스킹 표시 */}
-                          <td className="px-3 py-3 text-right text-[12.5px] font-black text-slate-900 dark:text-white whitespace-nowrap">
+                          <td className="px-3 py-3 text-left text-[12.5px] font-black text-slate-900 dark:text-white whitespace-nowrap">
                             {formatPriceMasked(r.current_price)}
                           </td>
                           <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{formatNum(r.per)}</td>
