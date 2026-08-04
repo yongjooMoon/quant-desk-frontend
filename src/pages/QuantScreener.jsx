@@ -139,7 +139,6 @@ const MICRO_STYLES = `
   .qs-preset-chip:hover { transform: translateY(-1px); }
   .qs-vertex-glow { filter: drop-shadow(0 0 5px currentColor); }
 
-  /* 🌟 육각형 위 클릭 가능한 부채꼴(wedge) — 호버 시 은은하게, 클릭 시 확 밝아짐 */
   .qs-wedge { cursor: pointer; transition: fill-opacity 0.15s ease; }
   .qs-wedge-pressed { animation: qsWedgeFlash 0.28s ease-out; }
   @keyframes qsWedgeFlash {
@@ -153,7 +152,6 @@ const MICRO_STYLES = `
     100% { r: 4; }
   }
 
-  /* 🌟 종목명 — 한 줄 고정 + 말줄임, hover 시 밑줄 & 색 변화로 클릭 가능함을 표시 */
   .qs-name-link {
     display: block;
     max-width: 100%;
@@ -164,16 +162,14 @@ const MICRO_STYLES = `
     transition: color 0.15s ease;
   }
   .qs-name-link:hover { color: #3B82F6; text-decoration: underline; text-underline-offset: 2px; }
-
-  /* 🌟 현재가 마스킹 — 기본은 블러 처리, 셀에 마우스 올리면 해제 */
-  .qs-price-mask {
-    filter: blur(5px);
-    transition: filter 0.15s ease;
-    cursor: pointer;
-    user-select: none;
-  }
-  .qs-price-mask:hover { filter: blur(0); }
 `;
+
+// 🌟 현재가 마스킹 — 정확한 원 단위 대신 천원 단위로 반올림해서 표시
+function formatPriceMasked(v) {
+  if (v === null || v === undefined || isNaN(v)) return "N/A";
+  const thousands = Math.round(Number(v) / 1000);
+  return `${thousands.toLocaleString()}천원`;
+}
 
 function formatMarcap(val) {
   if (val === null || val === undefined || isNaN(val)) return "N/A";
@@ -521,7 +517,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   );
   const [sector, setSector] = useState('전체');
   const [search, setSearch] = useState('');
-  const [sortKey, setSortKey] = useState('marcap_억');
+  const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('desc');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -557,7 +553,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const filteredSorted = useMemo(() => {
     if (!hasAnyFilter) return [];
     const q = search.trim().toLowerCase();
-
+  
     let rows = (screenerData || []).filter(r => {
       for (const ax of AXES) {
         const th = thresholds[ax.key];
@@ -573,7 +569,10 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
       }
       return true;
     });
-
+  
+    // 🌟 sortKey가 없으면(사용자가 헤더를 클릭하기 전) 정렬하지 않고 원본 순서 그대로 반환
+    if (!sortKey) return rows;
+  
     rows = [...rows].sort((a, b) => {
       const av = a[sortKey];
       const bv = b[sortKey];
@@ -584,7 +583,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
       if (bNull) return -1;
       return sortDir === 'desc' ? bv - av : av - bv;
     });
-
+  
     return rows;
   }, [screenerData, thresholds, sector, search, sortKey, sortDir, hasAnyFilter]);
 
@@ -742,11 +741,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
               </div>
 
               <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-x-auto md:shadow-sm">
-                <table className="w-full min-w-[760px] table-fixed">
-                  <colgroup>
-                    <col style={{ width: '22%' }} />
-                    {columns.slice(1).map(col => <col key={col.key} />)}
-                  </colgroup>
+                <table className="w-full min-w-[900px]">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
                       {columns.map(col => (
@@ -777,8 +772,8 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                           style={{ transform: `translateY(${dock.lift}px) scale(${dock.scale})` }}
                           className="qs-dock-row border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40"
                         >
-                          {/* 🌟 종목명: 한 줄 고정 + 말줄임 + 클릭 시 리포트 팝업 */}
-                          <td className="px-3 py-3 max-w-0">
+                          {/* 🌟 종목명: 최소폭 확보 + 말줄임 + 클릭 시 리포트 팝업 */}
+                          <td className="px-3 py-3 min-w-[160px] max-w-[220px]">
                             <div
                               onClick={() => handleNameClick(r)}
                               className="qs-name-link text-[13.5px] font-black text-slate-900 dark:text-white"
@@ -788,19 +783,19 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                             </div>
                             <div className="text-[10.5px] font-bold text-slate-400 truncate">{r.symbol}</div>
                           </td>
-                          {/* 🌟 현재가: 기본 블러 마스킹, hover 시 해제 */}
-                          <td className="px-3 py-3 text-right text-[12.5px] font-black text-slate-900 dark:text-white">
-                            <span className="qs-price-mask inline-block" title="마우스를 올리면 표시됩니다">₩{formatNum(r.current_price, 0)}</span>
+                          {/* 🌟 현재가: 천원 단위로 마스킹 표시 */}
+                          <td className="px-3 py-3 text-right text-[12.5px] font-black text-slate-900 dark:text-white whitespace-nowrap">
+                            {formatPriceMasked(r.current_price)}
                           </td>
-                          <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300">{formatNum(r.per)}</td>
-                          <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300">{formatNum(r.pbr)}</td>
+                          <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{formatNum(r.per)}</td>
+                          <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{formatNum(r.pbr)}</td>
                           <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{formatMarcap(r.marcap_억)}</td>
-                          <td className={`px-3 py-3 text-right text-[12.5px] font-black ${retColor}`}>{formatPct(r.ret_1m)}</td>
-                          <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300">{formatNum(r.rs_score, 1)}</td>
-                          <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300">{formatPct(r.op_margin)}</td>
-                          <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300">{formatPct(r.roe)}</td>
-                          <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300">{formatPct(r.debt_ratio)}</td>
-                          <td className="px-3 py-3 text-center">
+                          <td className={`px-3 py-3 text-right text-[12.5px] font-black whitespace-nowrap ${retColor}`}>{formatPct(r.ret_1m)}</td>
+                          <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{formatNum(r.rs_score, 1)}</td>
+                          <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{formatPct(r.op_margin)}</td>
+                          <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{formatPct(r.roe)}</td>
+                          <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{formatPct(r.debt_ratio)}</td>
+                          <td className="px-3 py-3 text-center whitespace-nowrap">
                             <span className="text-[11px] font-black px-2 py-0.5 rounded-full" style={{ color: gateColor, backgroundColor: `${gateColor}1A` }}>
                               {r.entry_gate_pass_count ?? 0}/6
                             </span>
