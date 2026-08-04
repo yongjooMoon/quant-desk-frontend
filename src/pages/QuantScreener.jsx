@@ -167,8 +167,7 @@ const MICRO_STYLES = `
 // 🌟 현재가 마스킹 — 정확한 원 단위 대신 천원 단위로 반올림해서 표시
 function formatPriceMasked(v) {
   if (v === null || v === undefined || isNaN(v)) return "N/A";
-  const thousands = Math.round(Number(v) / 1000);
-  return `${thousands.toLocaleString()}천원`;
+  return `${Number(v).toLocaleString()}원`;
 }
 
 function formatMarcap(val) {
