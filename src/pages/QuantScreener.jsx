@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { X, Search, ChevronDown, SlidersHorizontal, Sparkles } from 'lucide-react';
 
 // =========================================================================
