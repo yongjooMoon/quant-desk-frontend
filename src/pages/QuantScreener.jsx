@@ -1,6 +1,5 @@
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { RefreshCcw, X, Search, ChevronDown, SlidersHorizontal, Sparkles } from 'lucide-react';
-import { useRenderApi } from '../hooks/useRenderApi';
+import { useState, useMemo, useCallback } from 'react';
+import { X, Search, ChevronDown, SlidersHorizontal, Sparkles } from 'lucide-react';
 
 // =========================================================================
 // 🌟 6축(Snowflake) 정의 — quant_screener_scores 테이블 컬럼명과 1:1 매칭
@@ -16,6 +15,7 @@ const AXES = [
 ];
 const AXIS_COUNT = AXES.length;
 const PRESET_VALUES = [50, 60, 70, 80];
+const PAGE_SIZE = 50;
 
 // 한 번에 여러 축을 채우는 "전략 프리셋" — 육각형이 시그니처 요소인 만큼,
 // 이 버튼들이 "누르면 반응해서 채워지는" 재미를 가장 잘 보여주는 진입점.
@@ -240,10 +240,19 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
 
 // =========================================================================
 // 🌟 메인 스크리너 화면
+//    🌟 [수정] 더 이상 자체적으로 /api/screener를 호출하지 않습니다.
+//    QuantDesk가 fetchQuantData() 시점에 macro와 함께 병렬로 한 번에 조회해서
+//    내려주는 `screenerData`(전체 유니버스 배열)를 그대로 받아, 임계값/업종/검색/정렬은
+//    전부 클라이언트에서 즉시 계산합니다. (Watchlist 탭이 filWatchlist를 client-side로
+//    걸러내는 것과 동일한 패턴)
+//
+//    기대하는 screenerData 각 항목 shape:
+//    { symbol, name, sector, market, per, pbr, marcap_억, current_price, ret_1m, rs_score,
+//      rev_yoy, op_yoy, np_yoy, op_margin, roe, debt_ratio, growth_score, quality_score,
+//      health_score, value_score, momentum_score, track_record_score,
+//      entry_gate_pass_count, updated_at }
 // =========================================================================
-export default function QuantScreener({ onSelectSymbol }) {
-  const { callApi } = useRenderApi();
-
+export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const [thresholds, setThresholds] = useState(
     Object.fromEntries(AXES.map(ax => [ax.key, null]))
   );
@@ -251,12 +260,7 @@ export default function QuantScreener({ onSelectSymbol }) {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState('marcap_억');
   const [sortDir, setSortDir] = useState('desc');
-
-  const [results, setResults] = useState([]);
-  const [sectors, setSectors] = useState(['전체']);
-  const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const [hoverRowIdx, setHoverRowIdx] = useState(null);
 
@@ -265,6 +269,7 @@ export default function QuantScreener({ onSelectSymbol }) {
 
   const handleAxisChange = useCallback((key, value) => {
     setThresholds(prev => ({ ...prev, [key]: value }));
+    setVisibleCount(PAGE_SIZE);
   }, []);
 
   const applyPreset = (preset) => {
@@ -274,53 +279,53 @@ export default function QuantScreener({ onSelectSymbol }) {
       Object.entries(preset.values).forEach(([k, v]) => { next[k] = v; });
       return next;
     });
+    setVisibleCount(PAGE_SIZE);
   };
 
-  // 💡 [백엔드 연동 지점] POST /api/screener
-  //    요청 바디: { thresholds: {growth_score:70,...}, sector, search, sort:{key,dir}, page:1, page_size:50 }
-  //    기대 응답: { status:"success", data: { count, sectors:[...], results:[ {symbol,name,sector,market,
-  //                per,pbr,marcap_억,current_price,ret_1m,rs_score,rev_yoy,op_yoy,np_yoy,op_margin,roe,
-  //                debt_ratio,growth_score,quality_score,health_score,value_score,momentum_score,
-  //                track_record_score,entry_gate_pass_count,updated_at} ] } }
-  //    지금은 백엔드가 없어 자리만 잡아두고, 다음 단계에서 이 fetch 로직만 채운다.
-  useEffect(() => {
-    if (!hasAnyFilter) {
-      setResults([]);
-      setTotalCount(0);
-      setHasSearched(false);
-      return;
-    }
-    setHasSearched(true);
-    const timer = setTimeout(() => {
-      setLoading(true);
-      callApi('/api/screener', {
-        method: 'POST',
-        body: {
-          thresholds,
-          sector: sector === '전체' ? null : sector,
-          search: search.trim() || null,
-          sort: { key: sortKey, dir: sortDir },
-          page: 1, page_size: 50,
-        },
-      })
-        .then(res => {
-          if (res?.status === 'success' && res.data) {
-            setResults(res.data.results || []);
-            setTotalCount(res.data.count || 0);
-            if (Array.isArray(res.data.sectors) && res.data.sectors.length > 0) {
-              setSectors(['전체', ...res.data.sectors]);
-            }
-          } else {
-            setResults([]);
-            setTotalCount(0);
-          }
-          setLoading(false);
-        })
-        .catch(() => { setResults([]); setTotalCount(0); setLoading(false); });
-    }, 350);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [thresholds, sector, search, sortKey, sortDir]);
+  // 🌟 screenerData에서 업종 목록 추출 (백엔드가 내려주는 sectors 필드가 있으면 그걸 우선 사용)
+  const sectors = useMemo(() => {
+    const uniq = Array.from(new Set((screenerData || []).map(r => r.sector).filter(Boolean))).sort();
+    return ['전체', ...uniq];
+  }, [screenerData]);
+
+  // 🌟 임계값 + 업종 + 검색어 조건으로 클라이언트 필터링, 이후 정렬까지 한 번에 계산
+  const filteredSorted = useMemo(() => {
+    if (!hasAnyFilter) return [];
+    const q = search.trim().toLowerCase();
+
+    let rows = (screenerData || []).filter(r => {
+      for (const ax of AXES) {
+        const th = thresholds[ax.key];
+        if (th === null || th === undefined) continue;
+        const v = r[ax.key];
+        if (v === null || v === undefined || v < th) return false;
+      }
+      if (sector !== '전체' && r.sector !== sector) return false;
+      if (q) {
+        const nameMatch = (r.name || '').toLowerCase().includes(q);
+        const symbolMatch = (r.symbol || '').toLowerCase().includes(q);
+        if (!nameMatch && !symbolMatch) return false;
+      }
+      return true;
+    });
+
+    rows = [...rows].sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      const aNull = av === null || av === undefined || isNaN(av);
+      const bNull = bv === null || bv === undefined || isNaN(bv);
+      if (aNull && bNull) return 0;
+      if (aNull) return 1;
+      if (bNull) return -1;
+      return sortDir === 'desc' ? bv - av : av - bv;
+    });
+
+    return rows;
+  }, [screenerData, thresholds, sector, search, sortKey, sortDir, hasAnyFilter]);
+
+  const totalCount = filteredSorted.length;
+  const results = filteredSorted.slice(0, visibleCount);
+  const hasMore = totalCount > visibleCount;
 
   const toggleSort = (key) => {
     if (sortKey === key) {
@@ -329,6 +334,7 @@ export default function QuantScreener({ onSelectSymbol }) {
       setSortKey(key);
       setSortDir('desc');
     }
+    setVisibleCount(PAGE_SIZE);
   };
 
   const columns = [
@@ -368,7 +374,7 @@ export default function QuantScreener({ onSelectSymbol }) {
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setVisibleCount(PAGE_SIZE); }}
             placeholder="종목명 또는 코드로 검색"
             className="w-full pl-11 pr-4 py-3 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl text-[14px] font-bold text-slate-900 dark:text-white placeholder:text-slate-500 placeholder:font-semibold focus:outline-none focus:border-blue-400 dark:focus:border-slate-600 transition-colors"
           />
@@ -376,7 +382,7 @@ export default function QuantScreener({ onSelectSymbol }) {
         <div className="relative">
           <select
             value={sector}
-            onChange={e => setSector(e.target.value)}
+            onChange={e => { setSector(e.target.value); setVisibleCount(PAGE_SIZE); }}
             className="appearance-none w-full md:w-[180px] pl-4 pr-9 py-3 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl text-[14px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-400 dark:focus:border-slate-600 cursor-pointer"
           >
             {sectors.map(s => <option key={s} value={s}>{s}</option>)}
@@ -406,7 +412,15 @@ export default function QuantScreener({ onSelectSymbol }) {
 
         {/* 오른쪽: 결과 */}
         <div>
-          {!hasSearched ? (
+          {(screenerData || []).length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl">
+              <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-[#151924] flex items-center justify-center mb-4">
+                <Sparkles className="text-slate-400" size={24} />
+              </div>
+              <p className="text-[16px] font-black text-slate-900 dark:text-white mb-1">스크리너 데이터가 없습니다</p>
+              <p className="text-[13px] font-bold text-slate-500">다음 배치(Cron) 실행 후 다시 확인해 주세요.</p>
+            </div>
+          ) : !hasAnyFilter ? (
             <div className="flex flex-col items-center justify-center py-24 text-center bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl">
               <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-[#151924] flex items-center justify-center mb-4">
                 <Sparkles className="text-slate-400" size={24} />
@@ -418,9 +432,8 @@ export default function QuantScreener({ onSelectSymbol }) {
             <>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[14px] font-black text-slate-900 dark:text-white">
-                  {loading ? '검색 중...' : `${totalCount}개 종목 매칭`}
+                  {totalCount}개 종목 매칭
                 </p>
-                {loading && <RefreshCcw className="animate-spin text-blue-500" size={16} />}
               </div>
 
               <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-x-auto md:shadow-sm">
@@ -441,7 +454,7 @@ export default function QuantScreener({ onSelectSymbol }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {results.length === 0 && !loading ? (
+                    {results.length === 0 ? (
                       <tr><td colSpan={columns.length} className="p-10 text-center text-slate-500 font-extrabold">조건에 맞는 종목이 없습니다.</td></tr>
                     ) : results.map((r, idx) => {
                       const dock = getDockScale(idx, hoverRowIdx);
@@ -481,6 +494,17 @@ export default function QuantScreener({ onSelectSymbol }) {
                   </tbody>
                 </table>
               </div>
+
+              {hasMore && (
+                <div className="flex justify-center mt-4">
+                  <button
+                    onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+                    className="px-5 py-2.5 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl text-[13px] font-black text-slate-700 dark:text-slate-300 hover:border-blue-400 dark:hover:border-slate-500 cursor-pointer shadow-sm"
+                  >
+                    더 보기 ({totalCount - visibleCount}개 남음)
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
