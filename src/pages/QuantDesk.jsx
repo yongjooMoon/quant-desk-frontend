@@ -7,6 +7,7 @@ import {
 import { AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ComposedChart, LineChart } from 'recharts';
 import { useRenderApi } from '../hooks/useRenderApi';
 import MacroPage from './MacroPage';
+import QuantScreener from './QuantScreener';
 // =========================================================================
 
 // 🌟 숫자 카운트업 애니메이션 훅 (ease-out cubic)
@@ -234,7 +235,7 @@ function writeQuantMacroCache(payload) {
 
 export default function QuantDesk() {
   const [activeTab, setActiveTab] = useState("Macro");
-  const [data, setData] = useState({ holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null, macro: [] });
+  const [data, setData] = useState({ holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null, macro: [], screener: [] });
   const [kospiData, setKospiData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -373,7 +374,7 @@ export default function QuantDesk() {
     if (!forceRefresh) {
       const cached = readQuantMacroCache();
       if (cached) {
-        setData(cached.quantData || { holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null, macro: [] });
+        setData(cached.quantData || { holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null, macro: [], screener: [] });
         setKospiData(cached.kospiData || []);
         setLoading(false);
         return;
@@ -384,27 +385,34 @@ export default function QuantDesk() {
     Promise.allSettled([
       callApi("/api/quant-dashboard"),
       callApi("/api/search/KS11"),
-      callApi("/api/macro")
+      callApi("/api/macro"),
+      callApi("/api/screener")          // 🌟 추가
     ])
     .then((results) => {
       const quantResult = results[0].status === 'fulfilled' ? results[0].value : null;
       const kospiResult = results[1].status === 'fulfilled' ? results[1].value : null;
       const macroResult = results[2].status === 'fulfilled' ? results[2].value : null;
-
+      const screenerResult = results[3].status === 'fulfilled' ? results[3].value : null;  // 🌟 추가
+    
       let mergedDataForCache = null;
       let processedKospiForCache = [];
-
-      // 🌟 데이터 병합 처리: quant-dashboard 데이터에 macro 데이터를 붙여서 한 번에 세팅
+    
       if (quantResult && quantResult.status === "success" && quantResult.data) {
         const mergedData = { ...quantResult.data };
-        
-        // 매크로 데이터를 성공적으로 받아왔다면 병합
+    
         if (macroResult && macroResult.status === "success" && macroResult.data) {
             mergedData.macro = macroResult.data;
         } else {
-            mergedData.macro = []; // 실패 시 빈 배열로 안전하게 초기화
+            mergedData.macro = [];
         }
-        
+    
+        // 🌟 추가: 스크리너 데이터 병합
+        if (screenerResult && screenerResult.status === "success" && screenerResult.data) {
+            mergedData.screener = screenerResult.data;
+        } else {
+            mergedData.screener = [];
+        }
+    
         setData(mergedData);
         mergedDataForCache = mergedData;
       }
@@ -743,6 +751,7 @@ export default function QuantDesk() {
         {[{id: "Macro", label: "Macro"},
           {id: "Portfolio", label: `Portfolio (${holdings.length})`},
           {id: "Watchlist", label: `Watchlist (${filWatchlist.length})`},
+          {id: "Screener", label: "Screener"},
           {id: "History", label: "History"},
           {id: "Whitepaper", label: "Explain"}].map(t => (
             <button
@@ -981,6 +990,11 @@ export default function QuantDesk() {
                     </div>
                 </div>
               </div>
+          )}
+
+          {/* ===================== SCREENER TAB ===================== */}
+          {activeTab === "Screener" && (
+              <QuantScreener screenerData={data.screener} />
           )}
 
           {/* ===================== HISTORY TAB ===================== */}
