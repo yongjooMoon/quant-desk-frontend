@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { X, Search, ChevronDown, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { RefreshCcw, X, Search, ChevronDown, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
 // 🌟 6축(Snowflake) 정의 — quant_screener_scores 테이블 컬럼명과 1:1 매칭
@@ -43,7 +45,6 @@ function polygonPoints(radiusFractions, maxR = 88, cx = 120, cy = 120) {
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
 }
-
 // 🌟 부채꼴(wedge) 경계선/클릭 좌표 계산용 — hexPoint과 달리 임의의 각도를 받는다
 function polarPoint(angleDeg, radius, cx = 120, cy = 120) {
   const rad = (angleDeg - 90) * (Math.PI / 180);
@@ -51,7 +52,6 @@ function polarPoint(angleDeg, radius, cx = 120, cy = 120) {
 }
 
 // 🌟 값이 바뀔 때 육각형이 스냅되지 않고 부드럽게 채워지도록 하는 보간 훅
-//    (기존 QuantDesk의 useCountUp과 같은 ease-out cubic 원리를 배열 전체에 적용)
 function useAnimatedRadii(target, duration = 550) {
   const [values, setValues] = useState(target);
   const fromRef = useRef(target);
@@ -84,6 +84,46 @@ function useAnimatedRadii(target, duration = 550) {
   return values;
 }
 
+// 🌟 리포트 모달 게이지용 숫자 카운트업 (QuantDesk와 동일 원리)
+function useCountUp(target, duration = 1100) {
+  const [value, setValue] = useState(0);
+  const rafRef = useRef(null);
+  const fromRef = useRef(0);
+
+  useEffect(() => {
+    const safeTarget = Number.isFinite(target) ? target : 0;
+    const from = fromRef.current;
+    const start = performance.now();
+    cancelAnimationFrame(rafRef.current);
+
+    const tick = (now) => {
+      const progress = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = from + (safeTarget - from) * eased;
+      setValue(current);
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        fromRef.current = safeTarget;
+      }
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, duration]);
+
+  return value;
+}
+
+// 🌟 반원 게이지 위 특정 percent 지점 좌표 계산 (M 20 100 A 80 80 0 0 1 180 100 기준)
+function getGaugePoint(percent) {
+  const clamped = Math.max(0, Math.min(100, percent || 0));
+  const t = (180 - 1.8 * clamped) * (Math.PI / 180);
+  const x = 100 + 80 * Math.cos(t);
+  const y = 100 - 80 * Math.sin(t);
+  return { x, y };
+}
+
 // 🌟 리스트 행 dock-hover 확대 (QuantDesk와 동일 패턴 재사용)
 function getDockScale(index, hoverIndex) {
   if (hoverIndex === null || hoverIndex === undefined) return { scale: 1, lift: 0 };
@@ -112,6 +152,27 @@ const MICRO_STYLES = `
     35% { r: 8; }
     100% { r: 4; }
   }
+
+  /* 🌟 종목명 — 한 줄 고정 + 말줄임, hover 시 밑줄 & 색 변화로 클릭 가능함을 표시 */
+  .qs-name-link {
+    display: block;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: color 0.15s ease;
+  }
+  .qs-name-link:hover { color: #3B82F6; text-decoration: underline; text-underline-offset: 2px; }
+
+  /* 🌟 현재가 마스킹 — 기본은 블러 처리, 셀에 마우스 올리면 해제 */
+  .qs-price-mask {
+    filter: blur(5px);
+    transition: filter 0.15s ease;
+    cursor: pointer;
+    user-select: none;
+  }
+  .qs-price-mask:hover { filter: blur(0); }
 `;
 
 function formatMarcap(val) {
@@ -140,29 +201,29 @@ function formatNum(v, digits = 2) {
 function SnowflakeChart({ thresholds, onAxisChange }) {
   const targetRadii = AXES.map(ax => {
     const v = thresholds[ax.key];
-    return v === null || v === undefined ? 0.08 : v / 100;   // "any"는 중심 근처 점으로 표시
+    return v === null || v === undefined ? 0.08 : v / 100;
   });
   const animated = useAnimatedRadii(targetRadii);
   const activeCount = AXES.filter(ax => thresholds[ax.key] !== null && thresholds[ax.key] !== undefined).length;
 
   const ringFractions = [0.25, 0.5, 0.75, 1.0];
   const maxR = 88;
-  const wedgeAngleStep = 360 / AXIS_COUNT; // 60도
+  const wedgeAngleStep = 360 / AXIS_COUNT;
 
   const svgRef = useRef(null);
   const [hoveredAxis, setHoveredAxis] = useState(null);
   const [pressedAxis, setPressedAxis] = useState(null);
   const pressTimerRef = useRef(null);
 
-  // 🌟 클릭한 지점의 중심 거리 → 가장 가까운 프리셋 값(50/60/70/80)으로 스냅.
-  //    중심에서 너무 가까우면(45 미만) "초기화(null)"로 처리 → 프리셋 버튼과 동일한 토글 로직.
+  // 🌟 클릭한 지점의 중심 거리 → 가장 가까운 프리셋 값(50/60/70/80)으로 스냅
   const handleWedgeClick = (ax) => (e) => {
     const svg = svgRef.current;
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
-    const scale = 240 / rect.width; // viewBox(240x240) 기준으로 환산
-    const localX = (e.clientX - rect.left) * scale;
-    const localY = (e.clientY - rect.top) * scale;
+    const scaleX = 240 / rect.width;
+    const scaleY = 240 / rect.height;
+    const localX = (e.clientX - rect.left) * scaleX;
+    const localY = (e.clientY - rect.top) * scaleY;
     const dist = Math.hypot(localX - 120, localY - 120);
     const frac = Math.max(0, Math.min(1, dist / maxR));
     const rawValue = frac * 100;
@@ -178,7 +239,6 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
     const current = thresholds[ax.key];
     onAxisChange(ax.key, current === nextValue ? null : nextValue);
 
-    // 🌟 버튼을 누른 듯한 플래시 + 꼭짓점 팝 애니메이션
     setPressedAxis(ax.key);
     clearTimeout(pressTimerRef.current);
     pressTimerRef.current = setTimeout(() => setPressedAxis(null), 280);
@@ -205,7 +265,6 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
       </div>
 
       <svg ref={svgRef} viewBox="0 0 240 240" className="w-full max-w-[280px] mx-auto select-none">
-        {/* 배경 동심 육각형 (25/50/75/100%) */}
         {ringFractions.map((rf, ri) => (
           <polygon
             key={ri}
@@ -215,13 +274,11 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
             strokeWidth="1"
           />
         ))}
-        {/* 중심에서 각 축으로 뻗는 라인 */}
         {AXES.map((ax, i) => {
           const { x, y } = hexPoint(i, 1.0);
           return <line key={ax.key} x1="120" y1="120" x2={x} y2={y} stroke="#1E293B" strokeWidth="1" />;
         })}
 
-        {/* 현재 임계값 채움 폴리곤 */}
         <polygon
           className="qs-snowflake-fill"
           points={polygonPoints(animated)}
@@ -231,7 +288,6 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
           strokeWidth="2"
         />
 
-        {/* 각 축 꼭짓점 점 */}
         {AXES.map((ax, i) => {
           const { x, y } = hexPoint(i, animated[i]);
           const isActive = thresholds[ax.key] !== null && thresholds[ax.key] !== undefined;
@@ -246,7 +302,6 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
           );
         })}
 
-        {/* 축 라벨 + 현재값 */}
         {AXES.map((ax, i) => {
           const { x, y } = hexPoint(i, 1.32);
           const isActive = thresholds[ax.key] !== null && thresholds[ax.key] !== undefined;
@@ -263,7 +318,6 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
           );
         })}
 
-        {/* 🌟 클릭 가능한 부채꼴(wedge) — 맨 위에 그려서 클릭/호버를 캡처 */}
         {AXES.map((ax, i) => {
           const centerAngle = i * wedgeAngleStep;
           const p1 = polarPoint(centerAngle - wedgeAngleStep / 2, maxR);
@@ -285,7 +339,6 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
         })}
       </svg>
 
-      {/* 축별 임계값 프리셋 버튼 */}
       <div className="mt-3 space-y-2.5">
         {AXES.map(ax => {
           const current = thresholds[ax.key];
@@ -320,20 +373,149 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
 }
 
 // =========================================================================
+// 🌟 종목 리포트 모달 — QuantDesk의 REPORT MODAL 로직을 그대로 가져온 버전.
+//    스크리너 행(row) 자체 데이터를 기본값으로 먼저 보여주고, /api/search/{symbol}로
+//    상세(재무/차트/게이트 사유)를 채워 넣는다.
+// =========================================================================
+function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
+  const animatedScore = useCountUp(selectedStock ? (selectedStock.score || 0) : 0, 1300);
+  if (!selectedStock) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+      <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[1200px] min-h-[60vh] md:min-h-[75vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+
+        <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
+          <div className="flex gap-2 items-center">
+            <span className="text-[14px] md:text-[14.5px] font-black text-slate-500 dark:text-slate-400">{selectedStock.symbol} · {selectedStock.market || "KOSPI"}</span>
+            {selectedStock.sector && <span className="text-[12px] md:text-[13.5px] font-extrabold px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{selectedStock.sector}</span>}
+          </div>
+          <button onClick={onClose} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors cursor-pointer"><X size={20}/></button>
+        </div>
+
+        <div className="p-6 md:p-10 overflow-y-auto flex-1">
+          {reportLoading || selectedStock.isLoading ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-500">
+              <RefreshCcw className="animate-spin mb-4 text-blue-500" size={40} />
+              <p className="font-black text-[15px] md:text-lg animate-pulse text-slate-700 dark:text-slate-300 text-center">최신 재무 데이터와 실시간 지표를 융합하여 리포트를 생성 중입니다...</p>
+            </div>
+          ) : selectedStock.fetchError ? (
+            <div className="flex flex-col items-center justify-center h-full text-[#FF4B4B]">
+              <X size={40} className="mb-4" />
+              <p className="font-black text-[15px] md:text-lg text-center">해당 종목의 데이터(API)를 불러오는데 실패했습니다.</p>
+            </div>
+          ) : (
+            <>
+              <div className="mb-8 md:mb-10">
+                <h2 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-white mb-2 md:mb-4 leading-tight tracking-tight">
+                  {selectedStock.name}
+                </h2>
+                <h1 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight flex items-baseline">
+                  {formatNum(selectedStock.current_price, 0)} 원 <span className={`text-[16px] md:text-[24px] ml-2 md:ml-3 ${(selectedStock.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(selectedStock.ret_1m || 0) > 0 ? '+' : ''}{formatPct(selectedStock.ret_1m || 0)} (1M)</span>
+                </h1>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+                <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">⚡ Quant Scores</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">퀀트 랭킹 스코어</p><p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">{(selectedStock.score || 0).toFixed(2)}점</p></div>
+                    <div>
+                      <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">생존 필터 통과</p>
+                      <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
+                        {selectedStock.total_pass !== undefined ? selectedStock.total_pass : (selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0)} / 6
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[11px] md:text-[12px] font-extrabold text-slate-500 mt-6 p-3 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/50">💡 평가 지표(점수/게이트)는 가장 최근 배치(Cron) 시점을 기준으로 고정 표시됩니다. (재무 및 차트는 최신 반영)</p>
+                </div>
+
+                <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-center items-center relative">
+                  <div className="relative w-48 md:w-56 h-28 md:h-32 mb-2 flex justify-center items-end">
+                    <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
+                      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="18" strokeLinecap="round" />
+                      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#00B464" strokeWidth="18" strokeLinecap="round"
+                            strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * animatedScore / 100)} />
+                      {(() => {
+                        const { x, y } = getGaugePoint(animatedScore);
+                        return <circle cx={x} cy={y} r="5" fill="#00B464" style={{ color: '#00B464', filter: 'drop-shadow(0 0 6px currentColor)' }} />;
+                      })()}
+                    </svg>
+                    <div className="absolute bottom-0 w-full flex flex-col items-center justify-end pb-2">
+                      <p className="text-4xl md:text-5xl font-black text-[#00B464] tracking-tighter">{animatedScore.toFixed(1)}</p>
+                    </div>
+                  </div>
+                  <p className="text-[13px] md:text-[14px] font-extrabold text-slate-500 mt-2">퀀트 랭킹 스코어</p>
+                </div>
+              </div>
+
+              <div className="mb-10">
+                <h5 className="text-xl font-black text-slate-900 dark:text-white mb-4 md:mb-6">Entry Gates (6 conditions)</h5>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+                  {['A', 'B', 'C', 'D', 'E', 'F'].map((label, idx) => {
+                    const gateKeys = selectedStock.gates ? Object.keys(selectedStock.gates) : [];
+                    const gate = gateKeys.length > idx ? selectedStock.gates[gateKeys[idx]] : { pass: false, name: '-', reason: '-' };
+                    const passed = gate.pass;
+
+                    return (
+                    <div key={label} className={`p-4 rounded-2xl border ${passed ? 'bg-[#00B464]/10 border-[#00B464]/50 shadow-sm' : 'bg-slate-50 dark:bg-[#1E2329] border-slate-200 dark:border-slate-800'} flex flex-col justify-between h-24 md:h-28`}>
+                        <div className="flex justify-between items-center mb-2">
+                            <span className={`font-black text-[15px] md:text-[16px] ${passed ? 'text-[#00B464]' : 'text-slate-400'}`}>{label}</span>
+                            <span className="text-[12px]">{passed ? '✔️' : '❌'}</span>
+                        </div>
+                        <div className={`h-1 md:h-1.5 rounded-full w-full mb-2 md:mb-3 ${passed ? 'bg-[#00B464]' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                        <p className={`text-[11px] md:text-[12px] font-extrabold truncate ${passed ? 'text-[#00B464]' : 'text-slate-500'}`} title={gate.reason || gate.name}>{gate.name}</p>
+                    </div>
+                  )})}
+                </div>
+              </div>
+
+              <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-10">
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📊 Financials & Valuation</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 md:gap-y-8 gap-x-4 md:gap-x-6">
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">매출액</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.revenue_cur)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">영업이익</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.op_profit_cur)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">영업이익률</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.fundamental?.op_margin)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">ROE</p><p className="text-[15px] md:text-[16px] font-black text-[#FF4B4B]">{formatPct(selectedStock.fundamental?.roe)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">시가총액</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.marcap_억)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">PER</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatNum(selectedStock.fundamental?.per)} 배</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">PBR</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatNum(selectedStock.fundamental?.pbr)} 배</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">부채비율</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.fundamental?.debt_ratio)}</p></div>
+                </div>
+              </div>
+
+              <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📈 가격 차트 (최근 120일)</h3>
+                <div className="w-full h-[250px] md:h-[300px]">
+                  {selectedStock.chart_data && selectedStock.chart_data.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={selectedStock.chart_data} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
+                        <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={30} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''}/>
+                        <YAxis domain={['auto', 'auto']} tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(value) => value !== undefined && value !== null ? value.toLocaleString() : ''} />
+                        <Tooltip contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900'}} itemStyle={{color: '#FF4B4B'}} labelStyle={{color: '#94A3B8', marginBottom: '4px'}} formatter={(value) => [value !== undefined && value !== null ? value.toLocaleString() : '', "종가"]} />
+                        <Line type="monotone" dataKey="price" stroke="#FF4B4B" strokeWidth={2.5} dot={false} activeDot={{r: 5, fill: '#FF4B4B', strokeWidth: 0}} isAnimationActive={true} animationDuration={1700} animationEasing="ease-out" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center font-extrabold text-slate-500">차트 데이터가 없습니다.</div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
 // 🌟 메인 스크리너 화면
-//    🌟 [수정] 더 이상 자체적으로 /api/screener를 호출하지 않습니다.
-//    QuantDesk가 fetchQuantData() 시점에 macro와 함께 병렬로 한 번에 조회해서
-//    내려주는 `screenerData`(전체 유니버스 배열)를 그대로 받아, 임계값/업종/검색/정렬은
-//    전부 클라이언트에서 즉시 계산합니다. (Watchlist 탭이 filWatchlist를 client-side로
-//    걸러내는 것과 동일한 패턴)
-//
-//    기대하는 screenerData 각 항목 shape:
-//    { symbol, name, sector, market, per, pbr, marcap_억, current_price, ret_1m, rs_score,
-//      rev_yoy, op_yoy, np_yoy, op_margin, roe, debt_ratio, growth_score, quality_score,
-//      health_score, value_score, momentum_score, track_record_score,
-//      entry_gate_pass_count, updated_at }
 // =========================================================================
 export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
+  const { callApi } = useRenderApi();
+
   const [thresholds, setThresholds] = useState(
     Object.fromEntries(AXES.map(ax => [ax.key, null]))
   );
@@ -344,6 +526,10 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const [hoverRowIdx, setHoverRowIdx] = useState(null);
+
+  // 🌟 리포트 모달 상태 — QuantDesk의 handleReportClick과 동일한 흐름
+  const [selectedStock, setSelectedStock] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
   const activeAxisCount = AXES.filter(ax => thresholds[ax.key] !== null).length;
   const hasAnyFilter = activeAxisCount > 0 || sector !== '전체' || search.trim().length > 0;
@@ -363,13 +549,11 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
     setVisibleCount(PAGE_SIZE);
   };
 
-  // 🌟 screenerData에서 업종 목록 추출 (백엔드가 내려주는 sectors 필드가 있으면 그걸 우선 사용)
   const sectors = useMemo(() => {
     const uniq = Array.from(new Set((screenerData || []).map(r => r.sector).filter(Boolean))).sort();
     return ['전체', ...uniq];
   }, [screenerData]);
 
-  // 🌟 임계값 + 업종 + 검색어 조건으로 클라이언트 필터링, 이후 정렬까지 한 번에 계산
   const filteredSorted = useMemo(() => {
     if (!hasAnyFilter) return [];
     const q = search.trim().toLowerCase();
@@ -418,9 +602,49 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
     setVisibleCount(PAGE_SIZE);
   };
 
+  // 🌟 종목명 클릭 → 리포트 팝업 오픈 (QuantDesk의 handleReportClick과 동일 로직)
+  const handleNameClick = (row) => {
+    setReportLoading(true);
+
+    setSelectedStock({
+      ...row,
+      score: row.factor_score !== undefined ? row.factor_score : row.score,
+      isLoading: true,
+    });
+
+    callApi(`/api/search/${row.symbol}`)
+      .then(result => {
+        if (result.status === "success") {
+          const fetchedData = result.data;
+          const finalScore = row.factor_score !== undefined ? row.factor_score : fetchedData.score;
+          const finalGates = fetchedData.gates;
+          const finalPass = row.entry_gate_pass_count !== undefined ? row.entry_gate_pass_count : (fetchedData.gates ? Object.values(fetchedData.gates).filter(g => g.pass).length : 0);
+
+          setSelectedStock({
+            ...row,
+            ...fetchedData,
+            name: fetchedData.name || row.name,
+            score: finalScore,
+            gates: finalGates,
+            total_pass: finalPass,
+            isLoading: false,
+          });
+        } else {
+          setSelectedStock(prev => ({ ...prev, isLoading: false, fetchError: true }));
+        }
+        setReportLoading(false);
+      })
+      .catch(() => {
+        setSelectedStock(prev => ({ ...prev, isLoading: false, fetchError: true }));
+        setReportLoading(false);
+      });
+
+    if (onSelectSymbol) onSelectSymbol(row.symbol, row);
+  };
+
+  // 🌟 업종 컬럼 제거됨 — 필터(드롭다운)는 그대로 유지, 표에만 안 보이게
   const columns = [
     { key: 'name', label: '종목', sortable: false, align: 'left' },
-    { key: 'sector', label: '업종', sortable: false, align: 'left' },
     { key: 'current_price', label: '현재가', sortable: true, align: 'right' },
     { key: 'per', label: 'PER', sortable: true, align: 'right' },
     { key: 'pbr', label: 'PBR', sortable: true, align: 'right' },
@@ -518,7 +742,11 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
               </div>
 
               <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-x-auto md:shadow-sm">
-                <table className="w-full min-w-[860px]">
+                <table className="w-full min-w-[760px] table-fixed">
+                  <colgroup>
+                    <col style={{ width: '22%' }} />
+                    {columns.slice(1).map(col => <col key={col.key} />)}
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
                       {columns.map(col => (
@@ -546,16 +774,24 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                           key={r.symbol}
                           onMouseEnter={() => setHoverRowIdx(idx)}
                           onMouseLeave={() => setHoverRowIdx(null)}
-                          onClick={() => onSelectSymbol && onSelectSymbol(r.symbol, r)}
                           style={{ transform: `translateY(${dock.lift}px) scale(${dock.scale})` }}
-                          className="qs-dock-row border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer"
+                          className="qs-dock-row border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40"
                         >
-                          <td className="px-3 py-3">
-                            <div className="text-[13.5px] font-black text-slate-900 dark:text-white">{r.name}</div>
-                            <div className="text-[10.5px] font-bold text-slate-400">{r.symbol}</div>
+                          {/* 🌟 종목명: 한 줄 고정 + 말줄임 + 클릭 시 리포트 팝업 */}
+                          <td className="px-3 py-3 max-w-0">
+                            <div
+                              onClick={() => handleNameClick(r)}
+                              className="qs-name-link text-[13.5px] font-black text-slate-900 dark:text-white"
+                              title={`${r.name} (${r.symbol}) — 클릭해서 리포트 보기`}
+                            >
+                              {r.name}
+                            </div>
+                            <div className="text-[10.5px] font-bold text-slate-400 truncate">{r.symbol}</div>
                           </td>
-                          <td className="px-3 py-3 text-[12px] font-bold text-slate-500 whitespace-nowrap">{r.sector || '-'}</td>
-                          <td className="px-3 py-3 text-right text-[12.5px] font-black text-slate-900 dark:text-white">₩{formatNum(r.current_price, 0)}</td>
+                          {/* 🌟 현재가: 기본 블러 마스킹, hover 시 해제 */}
+                          <td className="px-3 py-3 text-right text-[12.5px] font-black text-slate-900 dark:text-white">
+                            <span className="qs-price-mask inline-block" title="마우스를 올리면 표시됩니다">₩{formatNum(r.current_price, 0)}</span>
+                          </td>
                           <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300">{formatNum(r.per)}</td>
                           <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300">{formatNum(r.pbr)}</td>
                           <td className="px-3 py-3 text-right text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{formatMarcap(r.marcap_억)}</td>
@@ -590,6 +826,13 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
           )}
         </div>
       </div>
+
+      {/* 🌟 리포트 모달 */}
+      <ScreenerReportModal
+        selectedStock={selectedStock}
+        reportLoading={reportLoading}
+        onClose={() => setSelectedStock(null)}
+      />
     </div>
   );
 }
