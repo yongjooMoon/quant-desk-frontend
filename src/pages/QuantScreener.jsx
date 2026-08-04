@@ -44,6 +44,12 @@ function polygonPoints(radiusFractions, maxR = 88, cx = 120, cy = 120) {
   }).join(' ');
 }
 
+// 🌟 부채꼴(wedge) 경계선/클릭 좌표 계산용 — hexPoint과 달리 임의의 각도를 받는다
+function polarPoint(angleDeg, radius, cx = 120, cy = 120) {
+  const rad = (angleDeg - 90) * (Math.PI / 180);
+  return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
+}
+
 // 🌟 값이 바뀔 때 육각형이 스냅되지 않고 부드럽게 채워지도록 하는 보간 훅
 //    (기존 QuantDesk의 useCountUp과 같은 ease-out cubic 원리를 배열 전체에 적용)
 function useAnimatedRadii(target, duration = 550) {
@@ -92,6 +98,20 @@ const MICRO_STYLES = `
   .qs-preset-chip { transition: all 0.18s ease; }
   .qs-preset-chip:hover { transform: translateY(-1px); }
   .qs-vertex-glow { filter: drop-shadow(0 0 5px currentColor); }
+
+  /* 🌟 육각형 위 클릭 가능한 부채꼴(wedge) — 호버 시 은은하게, 클릭 시 확 밝아짐 */
+  .qs-wedge { cursor: pointer; transition: fill-opacity 0.15s ease; }
+  .qs-wedge-pressed { animation: qsWedgeFlash 0.28s ease-out; }
+  @keyframes qsWedgeFlash {
+    0% { fill-opacity: 0.5; }
+    100% { fill-opacity: 0; }
+  }
+  .qs-vertex-pressed { animation: qsVertexPop 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+  @keyframes qsVertexPop {
+    0% { r: 4; }
+    35% { r: 8; }
+    100% { r: 4; }
+  }
 `;
 
 function formatMarcap(val) {
@@ -126,6 +146,43 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
   const activeCount = AXES.filter(ax => thresholds[ax.key] !== null && thresholds[ax.key] !== undefined).length;
 
   const ringFractions = [0.25, 0.5, 0.75, 1.0];
+  const maxR = 88;
+  const wedgeAngleStep = 360 / AXIS_COUNT; // 60도
+
+  const svgRef = useRef(null);
+  const [hoveredAxis, setHoveredAxis] = useState(null);
+  const [pressedAxis, setPressedAxis] = useState(null);
+  const pressTimerRef = useRef(null);
+
+  // 🌟 클릭한 지점의 중심 거리 → 가장 가까운 프리셋 값(50/60/70/80)으로 스냅.
+  //    중심에서 너무 가까우면(45 미만) "초기화(null)"로 처리 → 프리셋 버튼과 동일한 토글 로직.
+  const handleWedgeClick = (ax) => (e) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const scale = 240 / rect.width; // viewBox(240x240) 기준으로 환산
+    const localX = (e.clientX - rect.left) * scale;
+    const localY = (e.clientY - rect.top) * scale;
+    const dist = Math.hypot(localX - 120, localY - 120);
+    const frac = Math.max(0, Math.min(1, dist / maxR));
+    const rawValue = frac * 100;
+
+    let nextValue = null;
+    if (rawValue >= 45) {
+      nextValue = PRESET_VALUES.reduce((closest, v) =>
+        Math.abs(v - rawValue) < Math.abs(closest - rawValue) ? v : closest,
+        PRESET_VALUES[0]
+      );
+    }
+
+    const current = thresholds[ax.key];
+    onAxisChange(ax.key, current === nextValue ? null : nextValue);
+
+    // 🌟 버튼을 누른 듯한 플래시 + 꼭짓점 팝 애니메이션
+    setPressedAxis(ax.key);
+    clearTimeout(pressTimerRef.current);
+    pressTimerRef.current = setTimeout(() => setPressedAxis(null), 280);
+  };
 
   return (
     <div className="p-5 bg-[#0B1120] rounded-2xl border border-slate-800">
@@ -147,7 +204,7 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
         )}
       </div>
 
-      <svg viewBox="0 0 240 240" className="w-full max-w-[280px] mx-auto">
+      <svg ref={svgRef} viewBox="0 0 240 240" className="w-full max-w-[280px] mx-auto select-none">
         {/* 배경 동심 육각형 (25/50/75/100%) */}
         {ringFractions.map((rf, ri) => (
           <polygon
@@ -173,15 +230,17 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
           stroke={activeCount > 0 ? "#60A5FA" : "#475569"}
           strokeWidth="2"
         />
+
         {/* 각 축 꼭짓점 점 */}
         {AXES.map((ax, i) => {
           const { x, y } = hexPoint(i, animated[i]);
           const isActive = thresholds[ax.key] !== null && thresholds[ax.key] !== undefined;
+          const isPressed = pressedAxis === ax.key;
           return (
             <circle
               key={ax.key} cx={x} cy={y} r={isActive ? 4 : 3}
               fill={isActive ? ax.color : '#475569'}
-              className={isActive ? 'qs-vertex-glow' : ''}
+              className={`${isActive ? 'qs-vertex-glow' : ''} ${isPressed ? 'qs-vertex-pressed' : ''}`}
               style={{ color: ax.color }}
             />
           );
@@ -197,9 +256,31 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
               textAnchor="middle" dominantBaseline="middle"
               fontSize="10.5" fontWeight="800"
               fill={isActive ? ax.color : '#64748B'}
+              style={{ pointerEvents: 'none' }}
             >
               {ax.short}
             </text>
+          );
+        })}
+
+        {/* 🌟 클릭 가능한 부채꼴(wedge) — 맨 위에 그려서 클릭/호버를 캡처 */}
+        {AXES.map((ax, i) => {
+          const centerAngle = i * wedgeAngleStep;
+          const p1 = polarPoint(centerAngle - wedgeAngleStep / 2, maxR);
+          const p2 = polarPoint(centerAngle + wedgeAngleStep / 2, maxR);
+          const isHovered = hoveredAxis === ax.key;
+          const isPressed = pressedAxis === ax.key;
+          return (
+            <path
+              key={ax.key}
+              d={`M120,120 L${p1.x},${p1.y} L${p2.x},${p2.y} Z`}
+              className={`qs-wedge ${isPressed ? 'qs-wedge-pressed' : ''}`}
+              fill={ax.color}
+              fillOpacity={isPressed ? undefined : (isHovered ? 0.16 : 0)}
+              onMouseEnter={() => setHoveredAxis(ax.key)}
+              onMouseLeave={() => setHoveredAxis(null)}
+              onClick={handleWedgeClick(ax)}
+            />
           );
         })}
       </svg>
