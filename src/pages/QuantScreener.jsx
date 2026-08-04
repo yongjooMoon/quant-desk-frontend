@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { RefreshCcw, X, Search, ChevronDown, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useRenderApi } from '../hooks/useRenderApi';
 
@@ -383,7 +383,6 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
         <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
           <div className="flex gap-2 items-center">
             <span className="text-[14px] md:text-[14.5px] font-black text-slate-500 dark:text-slate-400">{selectedStock.symbol} · {selectedStock.market || "KOSPI"}</span>
-            {selectedStock.sector && <span className="text-[12px] md:text-[13.5px] font-extrabold px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{selectedStock.sector}</span>}
           </div>
           <button onClick={onClose} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors cursor-pointer"><X size={20}/></button>
         </div>
@@ -514,7 +513,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const [thresholds, setThresholds] = useState(
     Object.fromEntries(AXES.map(ax => [ax.key, null]))
   );
-  const [sector, setSector] = useState('전체');
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('desc');
@@ -527,7 +525,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const [reportLoading, setReportLoading] = useState(false);
 
   const activeAxisCount = AXES.filter(ax => thresholds[ax.key] !== null).length;
-  const hasAnyFilter = activeAxisCount > 0 || sector !== '전체' || search.trim().length > 0;
+  const hasAnyFilter = activeAxisCount > 0 || search.trim().length > 0;
 
   const handleAxisChange = useCallback((key, value) => {
     setThresholds(prev => ({ ...prev, [key]: value }));
@@ -544,15 +542,10 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
     setVisibleCount(PAGE_SIZE);
   };
 
-  const sectors = useMemo(() => {
-    const uniq = Array.from(new Set((screenerData || []).map(r => r.sector).filter(Boolean))).sort();
-    return ['전체', ...uniq];
-  }, [screenerData]);
-
   const filteredSorted = useMemo(() => {
     if (!hasAnyFilter) return [];
     const q = search.trim().toLowerCase();
-  
+
     let rows = (screenerData || []).filter(r => {
       for (const ax of AXES) {
         const th = thresholds[ax.key];
@@ -560,7 +553,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
         const v = r[ax.key];
         if (v === null || v === undefined || v < th) return false;
       }
-      if (sector !== '전체' && r.sector !== sector) return false;
       if (q) {
         const nameMatch = (r.name || '').toLowerCase().includes(q);
         const symbolMatch = (r.symbol || '').toLowerCase().includes(q);
@@ -568,10 +560,10 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
       }
       return true;
     });
-  
+
     // 🌟 sortKey가 없으면(사용자가 헤더를 클릭하기 전) 정렬하지 않고 원본 순서 그대로 반환
     if (!sortKey) return rows;
-  
+
     rows = [...rows].sort((a, b) => {
       const av = a[sortKey];
       const bv = b[sortKey];
@@ -582,9 +574,9 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
       if (bNull) return -1;
       return sortDir === 'desc' ? bv - av : av - bv;
     });
-  
+
     return rows;
-  }, [screenerData, thresholds, sector, search, sortKey, sortDir, hasAnyFilter]);
+  }, [screenerData, thresholds, search, sortKey, sortDir, hasAnyFilter]);
 
   const totalCount = filteredSorted.length;
   const results = filteredSorted.slice(0, visibleCount);
@@ -640,19 +632,18 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
     if (onSelectSymbol) onSelectSymbol(row.symbol, row);
   };
 
-  // 🌟 업종 컬럼 제거됨 — 필터(드롭다운)는 그대로 유지, 표에만 안 보이게
   const columns = [
-    { key: 'name', label: '종목', sortable: false, align: 'left' },
-    { key: 'current_price', label: '현재가', sortable: true, align: 'right' },
-    { key: 'per', label: 'PER', sortable: true, align: 'right' },
-    { key: 'pbr', label: 'PBR', sortable: true, align: 'right' },
-    { key: 'marcap_억', label: '시총', sortable: true, align: 'right' },
-    { key: 'ret_1m', label: '1M %', sortable: true, align: 'right' },
-    { key: 'rs_score', label: 'RS', sortable: true, align: 'right' },
-    { key: 'op_margin', label: '영업이익률', sortable: true, align: 'right' },
-    { key: 'roe', label: 'ROE', sortable: true, align: 'right' },
-    { key: 'debt_ratio', label: '부채비율', sortable: true, align: 'right' },
-    { key: 'entry_gate_pass_count', label: '관문', sortable: true, align: 'center' },
+    { key: 'name', label: '종목', sortable: false },
+    { key: 'current_price', label: '현재가', sortable: true },
+    { key: 'per', label: 'PER', sortable: true },
+    { key: 'pbr', label: 'PBR', sortable: true },
+    { key: 'marcap_억', label: '시총', sortable: true },
+    { key: 'ret_1m', label: '1M %', sortable: true },
+    { key: 'rs_score', label: 'RS', sortable: true },
+    { key: 'op_margin', label: '영업이익률', sortable: true },
+    { key: 'roe', label: 'ROE', sortable: true },
+    { key: 'debt_ratio', label: '부채비율', sortable: true },
+    { key: 'entry_gate_pass_count', label: '관문', sortable: true },
   ];
 
   return (
@@ -671,7 +662,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
         </div>
       </div>
 
-      {/* 검색 + 업종 */}
+      {/* 검색 */}
       <div className="flex flex-col md:flex-row gap-3 mb-4">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -681,16 +672,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
             placeholder="종목명 또는 코드로 검색"
             className="w-full pl-11 pr-4 py-3 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl text-[14px] font-bold text-slate-900 dark:text-white placeholder:text-slate-500 placeholder:font-semibold focus:outline-none focus:border-blue-400 dark:focus:border-slate-600 transition-colors"
           />
-        </div>
-        <div className="relative">
-          <select
-            value={sector}
-            onChange={e => { setSector(e.target.value); setVisibleCount(PAGE_SIZE); }}
-            className="appearance-none w-full md:w-[180px] pl-4 pr-9 py-3 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl text-[14px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-400 dark:focus:border-slate-600 cursor-pointer"
-          >
-            {sectors.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
         </div>
       </div>
 
@@ -772,7 +753,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                           className="qs-dock-row border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40"
                         >
                           {/* 🌟 종목명: 최소폭 확보 + 말줄임 + 클릭 시 리포트 팝업 */}
-                          <td className="px-3 py-3 min-w-[60px] max-w-[120]">
+                          <td className="px-3 py-3 min-w-[60px] max-w-[120px]">
                             <div
                               onClick={() => handleNameClick(r)}
                               className="qs-name-link text-[13.5px] font-black text-slate-900 dark:text-white"
