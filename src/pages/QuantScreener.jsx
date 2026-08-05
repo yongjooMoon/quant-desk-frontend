@@ -205,6 +205,11 @@ function formatNum(v, digits = 2) {
   if (v === null || v === undefined || isNaN(v)) return "N/A";
   return Number(v).toFixed(digits);
 }
+// 🌟 원 단위 금액용 — 천 단위 콤마 표시 (QuantDesk의 formatNumber와 동일 규칙)
+function formatWon(v) {
+  if (v === null || v === undefined || isNaN(v)) return "N/A";
+  return Math.round(Number(v)).toLocaleString();
+}
 
 // =========================================================================
 // 🌟 육각형(Snowflake) 컴포넌트
@@ -428,7 +433,7 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
                   {selectedStock.name}
                 </h2>
                 <h1 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight flex items-baseline">
-                  {formatNum(selectedStock.current_price, 0)} 원 <span className={`text-[16px] md:text-[24px] ml-2 md:ml-3 ${(selectedStock.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(selectedStock.ret_1m || 0) > 0 ? '+' : ''}{formatPct(selectedStock.ret_1m || 0)} (1M)</span>
+                  {formatWon(selectedStock.current_price)} 원 <span className={`text-[16px] md:text-[24px] ml-2 md:ml-3 ${(selectedStock.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>{(selectedStock.ret_1m || 0) > 0 ? '+' : ''}{formatPct(selectedStock.ret_1m || 0)} (1M)</span>
                 </h1>
               </div>
 
