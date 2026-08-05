@@ -162,6 +162,22 @@ const MICRO_STYLES = `
     transition: color 0.15s ease;
   }
   .qs-name-link:hover { color: #3B82F6; text-decoration: underline; text-underline-offset: 2px; }
+
+  .qs-gauge-glow { filter: drop-shadow(0 0 6px currentColor); animation: qsGaugePulse 1.8s ease-in-out infinite; }
+  @keyframes qsGaugePulse {
+    0%, 100% { opacity: 0.85; r: 5; }
+    50% { opacity: 1; r: 6.5; }
+  }
+
+  .qs-sector-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 14px;
+  }
 `;
 
 // 🌟 현재가 마스킹 — 정확한 원 단위 대신 천원 단위로 반올림해서 표시
@@ -374,6 +390,12 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
 // =========================================================================
 function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
   const animatedScore = useCountUp(selectedStock ? (selectedStock.score || 0) : 0, 1300);
+  const passCountTarget = selectedStock
+    ? (selectedStock.total_pass !== undefined
+        ? selectedStock.total_pass
+        : (selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0))
+    : 0;
+  const animatedPassCount = useCountUp(passCountTarget, 1300);
   if (!selectedStock) return null;
 
   return (
@@ -383,6 +405,7 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
         <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
           <div className="flex gap-2 items-center">
             <span className="text-[14px] md:text-[14.5px] font-black text-slate-500 dark:text-slate-400">{selectedStock.symbol} · {selectedStock.market || "KOSPI"}</span>
+            {selectedStock.sector && <span className="text-[12px] md:text-[13.5px] font-extrabold px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{selectedStock.sector}</span>}
           </div>
           <button onClick={onClose} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors cursor-pointer"><X size={20}/></button>
         </div>
@@ -413,11 +436,11 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
                 <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                   <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">⚡ Quant Scores</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">퀀트 랭킹 스코어</p><p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">{(selectedStock.score || 0).toFixed(2)}점</p></div>
+                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">퀀트 랭킹 스코어</p><p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">{animatedScore.toFixed(2)}점</p></div>
                     <div>
                       <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">생존 필터 통과</p>
                       <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
-                        {selectedStock.total_pass !== undefined ? selectedStock.total_pass : (selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0)} / 6
+                        {animatedPassCount.toFixed(0)} / 6
                       </p>
                     </div>
                   </div>
@@ -432,7 +455,7 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
                             strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * animatedScore / 100)} />
                       {(() => {
                         const { x, y } = getGaugePoint(animatedScore);
-                        return <circle cx={x} cy={y} r="5" fill="#00B464" style={{ color: '#00B464', filter: 'drop-shadow(0 0 6px currentColor)' }} />;
+                        return <circle cx={x} cy={y} r="5" fill="#00B464" className="qs-gauge-glow" style={{ color: '#00B464' }} />;
                       })()}
                     </svg>
                     <div className="absolute bottom-0 w-full flex flex-col items-center justify-end pb-2">
@@ -514,6 +537,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
     Object.fromEntries(AXES.map(ax => [ax.key, null]))
   );
   const [search, setSearch] = useState('');
+  const [sector, setSector] = useState('ALL');
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('desc');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -525,10 +549,29 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const [reportLoading, setReportLoading] = useState(false);
 
   const activeAxisCount = AXES.filter(ax => thresholds[ax.key] !== null).length;
-  const hasAnyFilter = activeAxisCount > 0 || search.trim().length > 0;
+  const hasAnyFilter = activeAxisCount > 0 || search.trim().length > 0 || sector !== 'ALL';
+
+  // 🌟 실제 데이터에 존재하는 섹터만 콤보박스에 노출 (가나다순), 'Unknown'은 맨 뒤로
+  const sectorOptions = useMemo(() => {
+    const set = new Set();
+    (screenerData || []).forEach(r => {
+      if (r.sector) set.add(r.sector);
+    });
+    const list = Array.from(set).sort((a, b) => {
+      if (a === 'Unknown') return 1;
+      if (b === 'Unknown') return -1;
+      return a.localeCompare(b, 'ko');
+    });
+    return list;
+  }, [screenerData]);
 
   const handleAxisChange = useCallback((key, value) => {
     setThresholds(prev => ({ ...prev, [key]: value }));
+    setVisibleCount(PAGE_SIZE);
+  }, []);
+
+  const handleSectorChange = useCallback((value) => {
+    setSector(value);
     setVisibleCount(PAGE_SIZE);
   }, []);
 
@@ -553,6 +596,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
         const v = r[ax.key];
         if (v === null || v === undefined || v < th) return false;
       }
+      if (sector !== 'ALL' && r.sector !== sector) return false;
       if (q) {
         const nameMatch = (r.name || '').toLowerCase().includes(q);
         const symbolMatch = (r.symbol || '').toLowerCase().includes(q);
@@ -576,7 +620,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
     });
 
     return rows;
-  }, [screenerData, thresholds, search, sortKey, sortDir, hasAnyFilter]);
+  }, [screenerData, thresholds, search, sector, sortKey, sortDir, hasAnyFilter]);
 
   const totalCount = filteredSorted.length;
   const results = filteredSorted.slice(0, visibleCount);
@@ -614,6 +658,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
             ...row,
             ...fetchedData,
             name: fetchedData.name || row.name,
+            sector: row.sector || fetchedData.sector,
             score: finalScore,
             gates: finalGates,
             total_pass: finalPass,
@@ -634,6 +679,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
 
   const columns = [
     { key: 'name', label: '종목', sortable: false },
+    { key: 'sector', label: '섹터', sortable: true },
     { key: 'current_price', label: '현재가', sortable: true },
     { key: 'per', label: 'PER', sortable: true },
     { key: 'pbr', label: 'PBR', sortable: true },
@@ -662,7 +708,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
         </div>
       </div>
 
-      {/* 검색 */}
+      {/* 검색 + 섹터 필터 */}
       <div className="flex flex-col md:flex-row gap-3 mb-4">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -672,6 +718,20 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
             placeholder="종목명 또는 코드로 검색"
             className="w-full pl-11 pr-4 py-3 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl text-[14px] font-bold text-slate-900 dark:text-white placeholder:text-slate-500 placeholder:font-semibold focus:outline-none focus:border-blue-400 dark:focus:border-slate-600 transition-colors"
           />
+        </div>
+
+        {/* 🌟 섹터 콤보박스 — 스크린샷의 "All sectors" 드롭다운과 동일 위치/역할 */}
+        <div className="relative md:w-[220px] shrink-0">
+          <select
+            value={sector}
+            onChange={e => handleSectorChange(e.target.value)}
+            className="qs-sector-select w-full pl-4 pr-10 py-3 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl text-[14px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-400 dark:focus:border-slate-600 transition-colors cursor-pointer"
+          >
+            <option value="ALL">전체 섹터</option>
+            {sectorOptions.map(s => (
+              <option key={s} value={s}>{s === 'Unknown' ? '섹터 미상' : s}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -710,7 +770,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                 <Sparkles className="text-slate-400" size={24} />
               </div>
               <p className="text-[16px] font-black text-slate-900 dark:text-white mb-1">조건을 하나 이상 설정해보세요</p>
-              <p className="text-[13px] font-bold text-slate-500">축 프리셋을 누르거나, 위의 전략 버튼으로 바로 시작할 수 있어요.</p>
+              <p className="text-[13px] font-bold text-slate-500">축 프리셋을 누르거나, 위의 전략 버튼 또는 섹터 필터로 바로 시작할 수 있어요.</p>
             </div>
           ) : (
             <>
@@ -721,7 +781,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
               </div>
 
               <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-x-auto md:shadow-sm">
-                <table className="w-full min-w-[900px]">
+                <table className="w-full min-w-[980px]">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
                       {columns.map(col => (
@@ -762,6 +822,10 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                               {r.name}
                             </div>
                             <div className="text-[10.5px] font-bold text-slate-400 truncate">{r.symbol}</div>
+                          </td>
+                          {/* 🌟 섹터명 — 없으면 '-' 표시 */}
+                          <td className="px-3 py-3 text-center text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap max-w-[140px] truncate" title={r.sector || ''}>
+                            {r.sector && r.sector !== 'Unknown' ? r.sector : '-'}
                           </td>
                           {/* 🌟 현재가: 천원 단위로 마스킹 표시 */}
                           <td className="px-3 py-3 text-right text-[12.5px] font-black text-slate-900 dark:text-white whitespace-nowrap">
