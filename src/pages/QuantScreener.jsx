@@ -6,6 +6,9 @@ import { useRenderApi } from '../hooks/useRenderApi';
 // =========================================================================
 // 🌟 6축(Snowflake) 정의 — quant_screener_scores 테이블 컬럼명과 1:1 매칭
 //    quant_screener.py의 compute_screener_scores()가 이 6개 컬럼을 계산해서 저장한다.
+//    ⚠️ track_record_score는 v3부터 의미가 바뀌었다: 가격 게이트 통과 개수(구 Track
+//    Record) 대신 최근 60일 일간수익률 표준편차 기반 "저변동성" 점수를 담는다
+//    (컬럼명은 DB 마이그레이션을 피하려고 그대로 재사용 — 실제 의미는 Low Volatility).
 // =========================================================================
 const AXES = [
   { key: 'growth_score', label: 'Growth', short: '성장', color: '#FF4B4B' },
@@ -13,7 +16,7 @@ const AXES = [
   { key: 'health_score', label: 'Health', short: '재무건전성', color: '#20C997' },
   { key: 'value_score', label: 'Value', short: '가치', color: '#3B82F6' },
   { key: 'momentum_score', label: 'Momentum', short: '모멘텀', color: '#A78BFA' },
-  { key: 'track_record_score', label: 'Track Record', short: '신호근접도', color: '#F472B6' },
+  { key: 'track_record_score', label: 'Low Volatility', short: '저변동성', color: '#F472B6' },
 ];
 const AXIS_COUNT = AXES.length;
 const PRESET_VALUES = [50, 60, 70, 80];
@@ -24,7 +27,7 @@ const PAGE_SIZE = 50;
 const STRATEGY_PRESETS = [
   { label: '고성장 우량주', icon: '🚀', values: { growth_score: 70, quality_score: 70 } },
   { label: '저평가 방어주', icon: '🛡️', values: { value_score: 70, health_score: 70 } },
-  { label: '돌파 임박', icon: '⚡', values: { momentum_score: 70, track_record_score: 60 } },
+  { label: '안정적 상승', icon: '🌊', values: { momentum_score: 70, track_record_score: 60 } },
   { label: '올라운드 우량주', icon: '💎', values: { growth_score: 60, quality_score: 60, health_score: 60, value_score: 50 } },
 ];
 
