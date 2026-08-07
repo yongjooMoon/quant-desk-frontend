@@ -660,19 +660,20 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const activeAxisCount = AXES.filter(ax => thresholds[ax.key] !== null).length;
   const hasAnyFilter = activeAxisCount > 0 || search.trim().length > 0 || sector !== 'ALL';
 
-  // 🌟 실제 데이터에 존재하는 섹터만 콤보박스에 노출 (가나다순), 'Unknown'은 맨 뒤로
-  const sectorOptions = useMemo(() => {
-    const set = new Set();
-    (screenerData || []).forEach(r => {
-      if (r.sector) set.add(r.sector);
-    });
-    const list = Array.from(set).sort((a, b) => {
-      if (a === 'Unknown') return 1;
-      if (b === 'Unknown') return -1;
-      return a.localeCompare(b, 'ko');
-    });
-    return list;
-  }, [screenerData]);
+  // 🌟 현재 thresholds가 어떤 프리셋의 조합과 정확히 일치하는지 매번 재계산.
+  //    프리셋 버튼을 누르면 그 프리셋이 활성으로 표시되고, Snowflake를 손으로
+  //    조작해 조합이 달라지면 별도 처리 없이 자동으로 활성 표시가 사라진다.
+  const activePresetLabel = useMemo(() => {
+    for (const preset of STRATEGY_PRESETS) {
+      const matches = AXES.every(ax => {
+        const expected = preset.values[ax.key] ?? null;
+        const actual = thresholds[ax.key] ?? null;
+        return expected === actual;
+      });
+      if (matches) return preset.label;
+    }
+    return null;
+  }, [thresholds]);
 
   const handleAxisChange = useCallback((key, value) => {
     setThresholds(prev => ({ ...prev, [key]: value }));
