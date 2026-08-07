@@ -153,7 +153,7 @@ function App() {
           </button>
 
           {/* 컨텐츠 래퍼 (너무 좁지도 넓지도 않게 폭 제한) */}
-          <div className="w-full max-w-[1150px] min-h-full px-4 md:px-8 py-6 md:py-10 pb-24 md:pb-10">
+          <div className="w-full max-w-[1250px] min-h-full px-4 md:px-8 py-6 md:py-10 pb-24 md:pb-10">
             <Routes>
               <Route path="/" element={<Navigate to="/news" replace />} />
               <Route path="/news" element={<NewsDesk />} />
