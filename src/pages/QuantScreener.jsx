@@ -685,7 +685,10 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
             ...row,
             ...fetchedData,
             name: fetchedData.name || row.name,
-            sector: row.sector || fetchedData.sector,
+            // 🌟 sector는 스코어 축(배치 고정)이 아니라 종목 기본정보 — 재무/차트와 같은
+            //    "최신 반영" 범주에 속한다. /api/search가 더 정확한 소스(네이버 등)를 쓰므로
+            //    fetchedData를 우선하고, 그마저 없을 때만 배치 데이터(row.sector)로 폴백한다.
+            sector: fetchedData.sector || row.sector,
             score: finalScore,
             gates: finalGates,
             total_pass: finalPass,
