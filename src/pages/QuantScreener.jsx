@@ -161,6 +161,21 @@ const MICRO_STYLES = `
   .qs-preset-chip:hover { transform: translateY(-1px); }
   .qs-vertex-glow { filter: drop-shadow(0 0 5px currentColor); }
 
+  /* 🌟 활성화된 전략 프리셋 — 눌렀을 때 어떤 프리셋인지 명확히 표시.
+     thresholds가 이 프리셋의 조합과 정확히 일치할 때만 붙는다(자동 해제 포함). */
+  .qs-preset-chip-active {
+    color: #fff !important;
+    border-color: transparent !important;
+    background: linear-gradient(135deg, #3B82F6, #6366F1);
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.30), 0 6px 16px rgba(59,130,246,0.35);
+    animation: qsPresetPop 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes qsPresetPop {
+    0% { transform: scale(0.94); }
+    55% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+
   .qs-wedge { cursor: pointer; transition: fill-opacity 0.15s ease; }
   .qs-wedge-pressed { animation: qsWedgeFlash 0.28s ease-out; }
   @keyframes qsWedgeFlash {
