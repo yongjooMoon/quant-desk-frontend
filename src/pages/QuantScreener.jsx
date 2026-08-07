@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles, Check } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useRenderApi } from '../hooks/useRenderApi';
 
