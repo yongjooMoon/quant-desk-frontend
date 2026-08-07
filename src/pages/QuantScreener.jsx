@@ -791,7 +791,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   ];
 
   return (
-    <div className="relative w-full pb-20 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
+    <div className="relative w-full min-w-0 pb-20 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
       <style>{MICRO_STYLES}</style>
 
       {/* Header */}
@@ -846,14 +846,14 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 min-w-0">
         {/* 왼쪽: Snowflake */}
         <div className="lg:sticky lg:top-4 lg:self-start">
           <SnowflakeChart thresholds={thresholds} onAxisChange={handleAxisChange} />
         </div>
 
         {/* 오른쪽: 결과 */}
-        <div>
+        <div className="min-w-0">
           {(screenerData || []).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl">
               <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-[#151924] flex items-center justify-center mb-4">
@@ -879,7 +879,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
               </div>
 
               {/* 🌟 데스크톱: 기존 테이블 (md 미만에서는 숨김 — 모바일은 아래 카드 리스트 사용) */}
-              <div className="hidden md:block w-full border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto shadow-sm">
+              <div className="hidden md:block w-full max-w-full min-w-0 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto shadow-sm">
                 <table className="w-full min-w-[1180px]">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
