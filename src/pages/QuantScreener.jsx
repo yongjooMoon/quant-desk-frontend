@@ -842,7 +842,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
             className="qs-sector-select w-full pl-4 pr-10 py-3 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl text-[14px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-400 dark:focus:border-slate-600 transition-colors cursor-pointer"
           >
             <option value="ALL">전체 섹터</option>
-            <option key={s} value={s}>{s === 'Unknown' ? '섹터 미상' : s}</option>
           </select>
         </div>
       </div>
