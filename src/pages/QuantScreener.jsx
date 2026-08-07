@@ -660,6 +660,20 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const activeAxisCount = AXES.filter(ax => thresholds[ax.key] !== null).length;
   const hasAnyFilter = activeAxisCount > 0 || search.trim().length > 0 || sector !== 'ALL';
 
+  // 🌟 실제 데이터에 존재하는 섹터만 콤보박스에 노출 (가나다순), 'Unknown'은 맨 뒤로
+  const sectorOptions = useMemo(() => {
+    const set = new Set();
+    (screenerData || []).forEach(r => {
+      if (r.sector) set.add(r.sector);
+    });
+    const list = Array.from(set).sort((a, b) => {
+      if (a === 'Unknown') return 1;
+      if (b === 'Unknown') return -1;
+      return a.localeCompare(b, 'ko');
+    });
+    return list;
+  }, [screenerData]);
+  
   // 🌟 현재 thresholds가 어떤 프리셋의 조합과 정확히 일치하는지 매번 재계산.
   //    프리셋 버튼을 누르면 그 프리셋이 활성으로 표시되고, Snowflake를 손으로
   //    조작해 조합이 달라지면 별도 처리 없이 자동으로 활성 표시가 사라진다.
@@ -842,6 +856,11 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
             className="qs-sector-select w-full pl-4 pr-10 py-3 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl text-[14px] font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-400 dark:focus:border-slate-600 transition-colors cursor-pointer"
           >
             <option value="ALL">전체 섹터</option>
+            {sectors.map(s => (
+              <option key={s} value={s}>
+                {s === 'Unknown' ? '섹터 미상' : s}
+              </option>
+            ))}
           </select>
         </div>
       </div>
