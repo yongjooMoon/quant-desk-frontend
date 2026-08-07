@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { Newspaper, TrendingUp, Building2, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays } from 'lucide-react';
 
 import NewsDesk from './pages/NewsDesk';
@@ -8,12 +8,29 @@ import HousingCalendar from './pages/HousingCalendar';
 import RealEstate from './pages/RealEstate';
 import StockSearch from './pages/StockSearch';
 
+// 🌟 메뉴(경로) 전환 시 스크롤을 맨 위로 리셋하는 컴포넌트.
+//    이 앱은 window가 아니라 <main>(overflow-y-auto)이 실제 스크롤 컨테이너이므로
+//    window.scrollTo가 아니라 containerRef가 가리키는 <main> 엘리먼트를 직접 스크롤한다.
+//    useLocation()은 <BrowserRouter> 자식에서만 호출 가능해서 별도 컴포넌트로 분리했다.
+function ScrollToTop({ containerRef }) {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    containerRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [pathname, containerRef]);
+
+  return null;
+}
+
 function App() {
   // 🌟 기본 모드를 다크 모드로 설정 (true)
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   // 🌟 사이드바 기본 상태를 '접힘'으로 변경
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // 🌟 실제 스크롤이 일어나는 <main> 엘리먼트 참조
+  const mainRef = useRef(null);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -32,6 +49,9 @@ function App() {
 
   return (
     <BrowserRouter>
+      {/* 🌟 경로가 바뀔 때마다 <main> 스크롤을 맨 위로 리셋 — BrowserRouter 자식 위치에 있어야 useLocation 사용 가능 */}
+      <ScrollToTop containerRef={mainRef} />
+
       {/* 🔥 Vite 기본 index.css의 찌그러짐 속성을 강제로 무력화 및 다크모드 버그 강제 픽스 🔥 */}
       <style>{`
         #root { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; text-align: left !important; }
@@ -146,7 +166,7 @@ function App() {
 
         {}
         {/* 🌟 메인 컨텐츠 영역 (가운데 정렬) */}
-        <main className="flex-1 h-full overflow-y-auto relative scroll-smooth flex justify-center w-full">
+        <main ref={mainRef} className="flex-1 h-full overflow-y-auto relative scroll-smooth flex justify-center w-full">
           {/* 모바일 상단 테마 버튼 */}
           <button onClick={toggleTheme} className="md:hidden fixed top-4 right-4 z-50 p-2.5 bg-white dark:bg-[#1E293B] rounded-full shadow-lg text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-slate-700/50 hover:scale-105 transition-transform">
             {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
