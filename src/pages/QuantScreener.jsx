@@ -849,15 +849,23 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
 
       {/* 전략 프리셋 */}
       <div className="flex flex-wrap gap-2 mb-8">
-        {STRATEGY_PRESETS.map(p => (
-          <button
-            key={p.label}
-            onClick={() => applyPreset(p)}
-            className="qs-preset-chip flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-full text-[12.5px] font-black text-slate-700 dark:text-slate-300 hover:border-blue-400 dark:hover:border-slate-500 cursor-pointer shadow-sm"
-          >
-            <span>{p.icon}</span>{p.label}
-          </button>
-        ))}
+        {STRATEGY_PRESETS.map(p => {
+          const isActive = activePresetLabel === p.label;
+          return (
+            <button
+              key={p.label}
+              onClick={() => applyPreset(p)}
+              className={`qs-preset-chip flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-black cursor-pointer shadow-sm border ${
+                isActive
+                  ? 'qs-preset-chip-active'
+                  : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-400 dark:hover:border-slate-500'
+              }`}
+            >
+              {isActive ? <Check size={13} strokeWidth={3} /> : <span>{p.icon}</span>}
+              {p.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 min-w-0">
