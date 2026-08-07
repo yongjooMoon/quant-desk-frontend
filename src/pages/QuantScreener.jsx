@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles, Check } from 'lucide-react';
+import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useRenderApi } from '../hooks/useRenderApi';
 
@@ -160,21 +160,6 @@ const MICRO_STYLES = `
   .qs-preset-chip { transition: all 0.18s ease; }
   .qs-preset-chip:hover { transform: translateY(-1px); }
   .qs-vertex-glow { filter: drop-shadow(0 0 5px currentColor); }
-
-  /* 🌟 활성화된 전략 프리셋 — 눌렀을 때 어떤 프리셋인지 명확히 표시.
-     thresholds가 이 프리셋의 조합과 정확히 일치할 때만 붙는다(자동 해제 포함). */
-  .qs-preset-chip-active {
-    color: #fff !important;
-    border-color: transparent !important;
-    background: linear-gradient(135deg, #3B82F6, #6366F1);
-    box-shadow: 0 0 0 2px rgba(59,130,246,0.30), 0 6px 16px rgba(59,130,246,0.35);
-    animation: qsPresetPop 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  @keyframes qsPresetPop {
-    0% { transform: scale(0.94); }
-    55% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-  }
 
   .qs-wedge { cursor: pointer; transition: fill-opacity 0.15s ease; }
   .qs-wedge-pressed { animation: qsWedgeFlash 0.28s ease-out; }
@@ -660,20 +645,19 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const activeAxisCount = AXES.filter(ax => thresholds[ax.key] !== null).length;
   const hasAnyFilter = activeAxisCount > 0 || search.trim().length > 0 || sector !== 'ALL';
 
-  // 🌟 현재 thresholds가 어떤 프리셋의 조합과 정확히 일치하는지 매번 재계산.
-  //    프리셋 버튼을 누르면 그 프리셋이 활성으로 표시되고, Snowflake를 손으로
-  //    조작해 조합이 달라지면 별도 처리 없이 자동으로 활성 표시가 사라진다.
-  const activePresetLabel = useMemo(() => {
-    for (const preset of STRATEGY_PRESETS) {
-      const matches = AXES.every(ax => {
-        const expected = preset.values[ax.key] ?? null;
-        const actual = thresholds[ax.key] ?? null;
-        return expected === actual;
-      });
-      if (matches) return preset.label;
-    }
-    return null;
-  }, [thresholds]);
+  // 🌟 실제 데이터에 존재하는 섹터만 콤보박스에 노출 (가나다순), 'Unknown'은 맨 뒤로
+  const sectorOptions = useMemo(() => {
+    const set = new Set();
+    (screenerData || []).forEach(r => {
+      if (r.sector) set.add(r.sector);
+    });
+    const list = Array.from(set).sort((a, b) => {
+      if (a === 'Unknown') return 1;
+      if (b === 'Unknown') return -1;
+      return a.localeCompare(b, 'ko');
+    });
+    return list;
+  }, [screenerData]);
 
   const handleAxisChange = useCallback((key, value) => {
     setThresholds(prev => ({ ...prev, [key]: value }));
@@ -851,23 +835,15 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
 
       {/* 전략 프리셋 */}
       <div className="flex flex-wrap gap-2 mb-8">
-        {STRATEGY_PRESETS.map(p => {
-          const isActive = activePresetLabel === p.label;
-          return (
-            <button
-              key={p.label}
-              onClick={() => applyPreset(p)}
-              className={`qs-preset-chip flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-black cursor-pointer shadow-sm border ${
-                isActive
-                  ? 'qs-preset-chip-active'
-                  : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-400 dark:hover:border-slate-500'
-              }`}
-            >
-              {isActive ? <Check size={13} strokeWidth={3} /> : <span>{p.icon}</span>}
-              {p.label}
-            </button>
-          );
-        })}
+        {STRATEGY_PRESETS.map(p => (
+          <button
+            key={p.label}
+            onClick={() => applyPreset(p)}
+            className="qs-preset-chip flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-full text-[12.5px] font-black text-slate-700 dark:text-slate-300 hover:border-blue-400 dark:hover:border-slate-500 cursor-pointer shadow-sm"
+          >
+            <span>{p.icon}</span>{p.label}
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 min-w-0">
