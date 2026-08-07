@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useMemo } from 'react';
 import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles, Check } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useRenderApi } from '../hooks/useRenderApi';
