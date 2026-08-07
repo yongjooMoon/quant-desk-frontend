@@ -242,25 +242,60 @@ function getCoverageMeta(pct) {
   return { color: '#EF4444' };
 }
 
-// 🌟 6축 스코어를 축약 배지로 나열 — 테이블(데스크톱)과 카드(모바일) 양쪽에서 재사용.
-//    라이트/다크 모두 자체 색상(ax.color) + 반투명 배경이라 별도 dark: 처리가 필요 없다.
-function AxisScorePills({ row }) {
+// =========================================================================
+// 🌟 미니 Snowflake 아이콘 — 왼쪽 사이드바의 육각형과 동일한 시각 언어(모양)를
+//    리스트 뷰에 축소 재사용한다 (Simply Wall St 리스트 뷰 패턴).
+//    - 모양(폴리곤 형태): 어느 축이 강하고 약한지 한눈에 파악
+//    - 숫자(평균): 전반적인 크기감(좋다/나쁘다)을 즉시 전달
+//    - 정확한 축별 값: title 툴팁으로만 노출 (표를 숫자로 뒤덮지 않기 위함)
+// =========================================================================
+function MiniSnowflake({ row }) {
+  const size = 34;
+  const maxR = 14;
+  const cx = 17, cy = 17;
+
+  const pt = (i, frac) => {
+    const angle = (-90 + i * (360 / AXIS_COUNT)) * (Math.PI / 180);
+    const r = Math.max(0, Math.min(1, frac)) * maxR;
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  };
+
+  const validScores = AXES
+    .map(ax => row[ax.key])
+    .filter(v => v !== null && v !== undefined && !isNaN(v));
+  const avg = validScores.length ? validScores.reduce((a, b) => a + b, 0) / validScores.length : null;
+
+  const avgColor = avg === null ? '#94A3B8' : avg >= 70 ? '#00B464' : avg >= 50 ? '#F8B12A' : '#EF4444';
+
+  const shapePoints = AXES.map((ax, i) => {
+    const v = row[ax.key];
+    const frac = (v === null || v === undefined || isNaN(v)) ? 0.08 : v / 100;
+    const { x, y } = pt(i, frac);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  const bgPoints = AXES.map((_, i) => {
+    const { x, y } = pt(i, 1);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  const tooltipText = AXES
+    .map(ax => {
+      const v = row[ax.key];
+      const has = v !== null && v !== undefined && !isNaN(v);
+      return `${ax.label}: ${has ? v.toFixed(1) : 'N/A'}`;
+    })
+    .join('\n');
+
   return (
-    <div className="flex flex-wrap gap-1">
-      {AXES.map(ax => {
-        const v = row[ax.key];
-        const has = v !== null && v !== undefined && !isNaN(v);
-        return (
-          <span
-            key={ax.key}
-            className="text-[10px] font-black px-1.5 py-0.5 rounded whitespace-nowrap"
-            style={{ color: ax.color, backgroundColor: `${ax.color}1A` }}
-            title={`${ax.label}: ${has ? v.toFixed(1) : 'N/A'}`}
-          >
-            {ax.short} {has ? Math.round(v) : '-'}
-          </span>
-        );
-      })}
+    <div className="flex items-center gap-2" title={tooltipText}>
+      <svg width={size} height={size} viewBox="0 0 34 34" className="shrink-0">
+        <polygon points={bgPoints} fill="none" className="stroke-slate-200 dark:stroke-slate-700" strokeWidth="1" />
+        <polygon points={shapePoints} fill={avgColor} fillOpacity="0.32" stroke={avgColor} strokeWidth="1.4" />
+      </svg>
+      <span className="text-[13px] font-black tabular-nums" style={{ color: avgColor }}>
+        {avg !== null ? avg.toFixed(0) : '-'}
+      </span>
     </div>
   );
 }
@@ -901,9 +936,9 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                           <td className="px-3 py-3 text-center text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap max-w-[140px] truncate" title={r.sector || ''}>
                             {r.sector && r.sector !== 'Unknown' ? r.sector : '-'}
                           </td>
-                          {/* 🌟 6축 스코어 배지 — Snowflake로 필터링한 기준이 실제로 몇 점이었는지 바로 확인 */}
-                          <td className="px-3 py-3 min-w-[220px] max-w-[260px]">
-                            <AxisScorePills row={r} />
+                          {/* 🌟 6축 스코어 미니 Snowflake — Snowflake로 필터링한 기준이 실제로 몇 점이었는지 바로 확인 */}
+                          <td className="px-3 py-3 min-w-[90px]">
+                            <MiniSnowflake row={r} />
                           </td>
                           {/* 🌟 현재가: 천원 단위로 마스킹 표시 */}
                           <td className="px-3 py-3 text-right text-[12.5px] font-black text-slate-900 dark:text-white whitespace-nowrap">
@@ -966,7 +1001,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                         </div>
                       </div>
 
-                      <AxisScorePills row={r} />
+                      <MiniSnowflake row={r} />
 
                       <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/60">
                         <div>
