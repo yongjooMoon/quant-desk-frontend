@@ -233,6 +233,38 @@ function formatWon(v) {
   return Math.round(Number(v)).toLocaleString();
 }
 
+// 🌟 data_coverage_pct(6축 계산에 실제 쓰인 원자료 비율) → 신뢰도 배지 색상.
+//    낮은 커버리지는 결측 축이 많아 50점(중립)으로 채워졌을 가능성이 크다는 신호.
+function getCoverageMeta(pct) {
+  if (pct === null || pct === undefined || isNaN(pct)) return null;
+  if (pct >= 80) return { color: '#00B464' };
+  if (pct >= 50) return { color: '#F8B12A' };
+  return { color: '#EF4444' };
+}
+
+// 🌟 6축 스코어를 축약 배지로 나열 — 테이블(데스크톱)과 카드(모바일) 양쪽에서 재사용.
+//    라이트/다크 모두 자체 색상(ax.color) + 반투명 배경이라 별도 dark: 처리가 필요 없다.
+function AxisScorePills({ row }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {AXES.map(ax => {
+        const v = row[ax.key];
+        const has = v !== null && v !== undefined && !isNaN(v);
+        return (
+          <span
+            key={ax.key}
+            className="text-[10px] font-black px-1.5 py-0.5 rounded whitespace-nowrap"
+            style={{ color: ax.color, backgroundColor: `${ax.color}1A` }}
+            title={`${ax.label}: ${has ? v.toFixed(1) : 'N/A'}`}
+          >
+            {ax.short} {has ? Math.round(v) : '-'}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 // =========================================================================
 // 🌟 육각형(Snowflake) 컴포넌트
 // =========================================================================
@@ -283,11 +315,11 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
   };
 
   return (
-    <div className="p-5 bg-[#0B1120] rounded-2xl border border-slate-800">
+    <div className="p-5 bg-white dark:bg-[#0B1120] rounded-2xl border border-slate-200 dark:border-slate-800">
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
-          <SlidersHorizontal size={14} className="text-slate-400" />
-          <span className="text-[13px] font-black text-slate-300 tracking-tight">SNOWFLAKE</span>
+          <SlidersHorizontal size={14} className="text-slate-500 dark:text-slate-400" />
+          <span className="text-[13px] font-black text-slate-700 dark:text-slate-300 tracking-tight">SNOWFLAKE</span>
           {activeCount > 0 && (
             <span className="text-[11px] font-black text-white bg-[#FF4B4B] rounded-full w-5 h-5 flex items-center justify-center">{activeCount}</span>
           )}
@@ -295,7 +327,7 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
         {activeCount > 0 && (
           <button
             onClick={() => AXES.forEach(ax => onAxisChange(ax.key, null))}
-            className="text-[11px] font-extrabold text-slate-500 hover:text-white transition-colors cursor-pointer underline underline-offset-2"
+            className="text-[11px] font-extrabold text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer underline underline-offset-2"
           >
             초기화
           </button>
@@ -308,13 +340,13 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
             key={ri}
             points={polygonPoints(Array(AXIS_COUNT).fill(rf))}
             fill="none"
-            stroke="#1E293B"
+            className="stroke-slate-200 dark:stroke-[#1E293B]"
             strokeWidth="1"
           />
         ))}
         {AXES.map((ax, i) => {
           const { x, y } = hexPoint(i, 1.0);
-          return <line key={ax.key} x1="120" y1="120" x2={x} y2={y} stroke="#1E293B" strokeWidth="1" />;
+          return <line key={ax.key} x1="120" y1="120" x2={x} y2={y} className="stroke-slate-200 dark:stroke-[#1E293B]" strokeWidth="1" />;
         })}
 
         <polygon
@@ -393,7 +425,7 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
                       className={`qs-preset-chip flex-1 text-[10.5px] font-black py-1 rounded-lg border cursor-pointer ${
                         isSelected
                           ? 'text-white border-transparent'
-                          : 'text-slate-400 border-slate-700 bg-[#151924] hover:border-slate-500'
+                          : 'text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-[#151924] hover:border-slate-400 dark:hover:border-slate-500'
                       }`}
                       style={isSelected ? { backgroundColor: ax.color } : {}}
                     >
@@ -710,6 +742,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const columns = [
     { key: 'name', label: '종목', sortable: false },
     { key: 'sector', label: '섹터', sortable: true },
+    { key: 'axis_scores', label: '6축 스코어', sortable: false },
     { key: 'current_price', label: '현재가', sortable: true },
     { key: 'per', label: 'PER', sortable: true },
     { key: 'pbr', label: 'PBR', sortable: true },
@@ -810,8 +843,9 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                 </p>
               </div>
 
-              <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-x-auto md:shadow-sm">
-                <table className="w-full min-w-[980px]">
+              {/* 🌟 데스크톱: 기존 테이블 (md 미만에서는 숨김 — 모바일은 아래 카드 리스트 사용) */}
+              <div className="hidden md:block w-full border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto shadow-sm">
+                <table className="w-full min-w-[1180px]">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
                       {columns.map(col => (
@@ -834,6 +868,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                       const dock = getDockScale(idx, hoverRowIdx);
                       const retColor = (r.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : (r.ret_1m || 0) < 0 ? 'text-[#3B82F6]' : 'text-slate-500';
                       const gateColor = (r.entry_gate_pass_count || 0) >= 5 ? '#00B464' : (r.entry_gate_pass_count || 0) >= 3 ? '#F8B12A' : '#64748B';
+                      const coverageMeta = getCoverageMeta(r.data_coverage_pct);
                       return (
                         <tr
                           key={r.symbol}
@@ -842,20 +877,33 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                           style={{ transform: `translateY(${dock.lift}px) scale(${dock.scale})` }}
                           className="qs-dock-row border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40"
                         >
-                          {/* 🌟 종목명: 최소폭 확보 + 말줄임 + 클릭 시 리포트 팝업 */}
+                          {/* 🌟 종목명: 최소폭 확보 + 말줄임 + 클릭 시 리포트 팝업 + 데이터 커버리지 점 */}
                           <td className="px-3 py-3 min-w-[60px] max-w-[120px]">
-                            <div
-                              onClick={() => handleNameClick(r)}
-                              className="qs-name-link text-[13.5px] font-black text-slate-900 dark:text-white"
-                              title={`${r.name} (${r.symbol}) — 클릭해서 리포트 보기`}
-                            >
-                              {r.name}
+                            <div className="flex items-center gap-1.5">
+                              <div
+                                onClick={() => handleNameClick(r)}
+                                className="qs-name-link text-[13.5px] font-black text-slate-900 dark:text-white"
+                                title={`${r.name} (${r.symbol}) — 클릭해서 리포트 보기`}
+                              >
+                                {r.name}
+                              </div>
+                              {coverageMeta && (
+                                <span
+                                  className="shrink-0 w-1.5 h-1.5 rounded-full"
+                                  style={{ backgroundColor: coverageMeta.color }}
+                                  title={`데이터 커버리지 ${r.data_coverage_pct}% (6축 계산에 실제 반영된 원자료 비율)`}
+                                />
+                              )}
                             </div>
                             <div className="text-[10.5px] font-bold text-slate-400 truncate">{r.symbol}</div>
                           </td>
                           {/* 🌟 섹터명 — 없으면 '-' 표시 */}
                           <td className="px-3 py-3 text-center text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap max-w-[140px] truncate" title={r.sector || ''}>
                             {r.sector && r.sector !== 'Unknown' ? r.sector : '-'}
+                          </td>
+                          {/* 🌟 6축 스코어 배지 — Snowflake로 필터링한 기준이 실제로 몇 점이었는지 바로 확인 */}
+                          <td className="px-3 py-3 min-w-[220px] max-w-[260px]">
+                            <AxisScorePills row={r} />
                           </td>
                           {/* 🌟 현재가: 천원 단위로 마스킹 표시 */}
                           <td className="px-3 py-3 text-right text-[12.5px] font-black text-slate-900 dark:text-white whitespace-nowrap">
@@ -880,6 +928,76 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                   </tbody>
                 </table>
               </div>
+
+              {/* 🌟 모바일: 카드 리스트 (QuantDesk Portfolio/Watchlist와 동일한 카드 패턴) */}
+              <div className="md:hidden space-y-3">
+                {results.length === 0 ? (
+                  <div className="p-10 text-center text-slate-500 font-extrabold bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-xl">
+                    조건에 맞는 종목이 없습니다.
+                  </div>
+                ) : results.map((r) => {
+                  const retColor = (r.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : (r.ret_1m || 0) < 0 ? 'text-[#3B82F6]' : 'text-slate-500';
+                  const gateColor = (r.entry_gate_pass_count || 0) >= 5 ? '#00B464' : (r.entry_gate_pass_count || 0) >= 3 ? '#F8B12A' : '#64748B';
+                  const coverageMeta = getCoverageMeta(r.data_coverage_pct);
+                  return (
+                    <div
+                      key={r.symbol}
+                      className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="min-w-0 cursor-pointer" onClick={() => handleNameClick(r)}>
+                          <div className="flex items-center gap-1.5">
+                            <span className="qs-name-link text-[14.5px] font-black text-slate-900 dark:text-white">{r.name}</span>
+                            {coverageMeta && (
+                              <span
+                                className="shrink-0 w-1.5 h-1.5 rounded-full"
+                                style={{ backgroundColor: coverageMeta.color }}
+                                title={`데이터 커버리지 ${r.data_coverage_pct}%`}
+                              />
+                            )}
+                          </div>
+                          <div className="text-[11px] font-bold text-slate-400 truncate">
+                            {r.symbol}{r.sector && r.sector !== 'Unknown' ? ` · ${r.sector}` : ''}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-[14px] font-black text-slate-900 dark:text-white whitespace-nowrap">{formatPriceMasked(r.current_price)}</div>
+                          <div className={`text-[12px] font-black whitespace-nowrap ${retColor}`}>{formatPct(r.ret_1m)}</div>
+                        </div>
+                      </div>
+
+                      <AxisScorePills row={r} />
+
+                      <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/60">
+                        <div>
+                          <p className="text-[9.5px] font-bold text-slate-400">PER</p>
+                          <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatNum(r.per)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9.5px] font-bold text-slate-400">PBR</p>
+                          <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatNum(r.pbr)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9.5px] font-bold text-slate-400">ROE</p>
+                          <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatPct(r.roe)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9.5px] font-bold text-slate-400">부채비율</p>
+                          <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatPct(r.debt_ratio)}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-3">
+                        <span className="text-[10.5px] font-bold text-slate-400">시총 {formatMarcap(r.marcap_억)}</span>
+                        <span className="text-[11px] font-black px-2 py-0.5 rounded-full" style={{ color: gateColor, backgroundColor: `${gateColor}1A` }}>
+                          관문 {r.entry_gate_pass_count ?? 0}/6
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
 
               {hasMore && (
                 <div className="flex justify-center mt-4">
