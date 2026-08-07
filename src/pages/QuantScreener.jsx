@@ -24,11 +24,30 @@ const PAGE_SIZE = 50;
 
 // 한 번에 여러 축을 채우는 "전략 프리셋" — 육각형이 시그니처 요소인 만큼,
 // 이 버튼들이 "누르면 반응해서 채워지는" 재미를 가장 잘 보여주는 진입점.
+//
+// 🌟 설계 원칙: 프리셋 이름이 약속하는 것(예: "우량주")과 실제 threshold 조합이
+//    항상 일치해야 한다. "우량주"라면서 재무건전성 조건이 없거나, "저평가"라면서
+//    퀄리티 조건이 전혀 없으면(밸류 트랩 위험) 이름-필터 불일치가 생긴다. 아래는
+//    그 기준으로 검증 후 최소 안전장치(floor)를 넣은 버전이다.
 const STRATEGY_PRESETS = [
-  { label: '고성장 우량주', icon: '🚀', values: { growth_score: 70, quality_score: 70 } },
-  { label: '저평가 방어주', icon: '🛡️', values: { value_score: 70, health_score: 70 } },
+  // 성장 + 수익성 + 최소한의 재무 안전판(health 50) — "우량주" 표기에 맞게 부채 리스크 배제
+  { label: '고성장 우량주', icon: '🚀', values: { growth_score: 70, quality_score: 70, health_score: 50 } },
+  // 저평가 + 안전 + 최소 퀄리티 40 — 밸류 트랩(싸기만 하고 계속 나빠지는 종목) 방지용 하한선
+  { label: '저평가 방어주', icon: '🛡️', values: { value_score: 70, health_score: 70, quality_score: 40 } },
+  // 순수 기술적 스타일(모멘텀+저변동) — 펀더멘털 조건 의도적으로 없음
   { label: '안정적 상승', icon: '🌊', values: { momentum_score: 70, track_record_score: 60 } },
-  { label: '올라운드 우량주', icon: '💎', values: { growth_score: 60, quality_score: 60, health_score: 60, value_score: 50 } },
+  // 올라운드 + 최소 모멘텀 40 — 펀더멘털은 좋은데 주가만 계속 빠지는 "떨어지는 칼날" 배제
+  { label: '올라운드 우량주', icon: '💎', values: { growth_score: 60, quality_score: 60, health_score: 60, value_score: 50, momentum_score: 40 } },
+  // Buffett/Munger식 컴파운더 — 가격보다 퀄리티와 안전성, 성장은 완만해도 OK
+  { label: '퀄리티 컴파운더', icon: '🏛️', values: { quality_score: 75, health_score: 65, growth_score: 50 } },
+  // Graham Net-Net식 — 극단적으로 싼 대신 퀄리티는 요구하지 않음 (의도된 트레이드오프)
+  { label: '딥 밸류 컨트래리언', icon: '🔻', values: { value_score: 80, health_score: 50 } },
+  // O'Neil/Zweig식 순수 추세추종 — 펀더멘털 무시, 가격 강도만
+  { label: '순수 모멘텀', icon: '⚡', values: { momentum_score: 80 } },
+  // Robeco 저변동성 이상현상 기반 방어적 배분용
+  { label: '저변동 방어주', icon: '🧊', values: { track_record_score: 75, health_score: 60 } },
+  // 실적 개선이 막 시작되고 주가가 반응하기 시작했지만 아직 안 비싼 구간
+  { label: '턴어라운드 후보', icon: '🔄', values: { growth_score: 70, momentum_score: 60, value_score: 50 } },
 ];
 
 // =========================================================================
