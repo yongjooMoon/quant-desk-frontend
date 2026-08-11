@@ -2,8 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
 // 🌟 BASE_URL을 훅 내부에 직접 정의
-// const BASE_URL = "https://moon-bbh0.onrender.com";
-const BASE_URL = "";
+const BASE_URL = "https://moon-bbh0.onrender.com";
 
 // ══════════════════════════════════════════
 // 🎮 대기화면 재미 요소 ① 탭 캔들 게임
