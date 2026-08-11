@@ -452,7 +452,7 @@ const RegimeSummary = ({ regimeData }) => {
     <div className="relative w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl px-5 md:px-6 py-3.5 shadow-sm mb-8 flex items-center flex-wrap gap-x-3 gap-y-1.5">
 
       <span className="text-[12px] md:text-[13px] font-black text-slate-500 dark:text-slate-400 tracking-tight">
-        Current Market Regime
+        America Market Regime
       </span>
 
       <LiveDot size={10} />
