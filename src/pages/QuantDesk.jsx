@@ -129,9 +129,9 @@ function MacroTicker({ macroData, onNavigate }) {
 
 // 🌟 레짐(시장 국면) 색상/라벨 매핑 — 전략 신뢰도 바 & 팝업에서 공용으로 사용
 const REGIME_META = {
-  BULL:    { label: '상승 국면', color: '#FF4B4B', bg: 'bg-red-50 dark:bg-red-950/20', border: 'border-red-200 dark:border-red-900/50' },
-  BEAR:    { label: '하락 국면', color: '#3B82F6', bg: 'bg-blue-50 dark:bg-blue-950/20', border: 'border-blue-200 dark:border-blue-900/50' },
-  NEUTRAL: { label: '중립 국면', color: '#94A3B8', bg: 'bg-slate-100 dark:bg-slate-800/40', border: 'border-slate-300 dark:border-slate-700' },
+  BULL:    { label: 'BULL', color: '#FF4B4B', bg: 'bg-red-50 dark:bg-red-950/20', border: 'border-red-200 dark:border-red-900/50' },
+  BEAR:    { label: 'BEAR', color: '#3B82F6', bg: 'bg-blue-50 dark:bg-blue-950/20', border: 'border-blue-200 dark:border-blue-900/50' },
+  NEUTRAL: { label: 'NEUTRAL', color: '#94A3B8', bg: 'bg-slate-100 dark:bg-slate-800/40', border: 'border-slate-300 dark:border-slate-700' },
 };
 const getRegimeMeta = (r) => REGIME_META[r] || REGIME_META.NEUTRAL;
 
