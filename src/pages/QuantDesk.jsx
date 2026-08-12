@@ -874,7 +874,7 @@ export default function QuantDesk() {
                                     <div className="flex flex-col md:w-1/3 items-end">
                                         <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">수량</span>
                                         <button
-                                            onClick={() => handleStockClick(h.symbol, h)}
+                                            onClick={() => handlePositionSizingClick(h.symbol, h)}
                                             title={`${h.name} 상세 보기`}
                                             className="qd-qty-chip inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[14px] md:text-[15px] font-extrabold text-slate-600 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
                                         >
@@ -890,7 +890,7 @@ export default function QuantDesk() {
                                     </div>
                                     <div className="flex justify-end md:w-[72%] md:justify-center gap-2 flex-wrap">
                                         <button onClick={() => setRiskStock({...h, exit_risk: (h.exit_risk || dummyRisk)})} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-orange-600 dark:hover:text-orange-400 hover:border-orange-400 dark:hover:border-orange-500 transition-all cursor-pointer shadow-sm hover:shadow-md">🚨 Risk</button>
-                                        <button onClick={() => handlePositionSizingClick(h.symbol, h)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-400 dark:hover:border-emerald-500 transition-all cursor-pointer shadow-sm hover:shadow-md">📐 포지션사이징</button>
+                                        <button onClick={() => handleStockClick(h.symbol, h)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-400 dark:hover:border-emerald-500 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
                                     </div>
                                 </div>
                             </div>
