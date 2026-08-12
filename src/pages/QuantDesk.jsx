@@ -77,10 +77,8 @@ function formatMacroValue(item) {
     ? val.toLocaleString(undefined, { maximumFractionDigits: 2 })
     : val.toFixed(2);
 
-  // 통화 기호는 앞에 붙임
   if (["$", "₩", "£", "€"].includes(unit)) return `${unit}${formatted}`;
 
-  // 값 뒤에 그대로 노출하고 싶지 않은 unit 텍스트 목록 (영문 코드성 단위는 숨김)
   const hiddenUnits = ["usd", "krw", "index", "slope", "pt", "point"];
   if (!unit || hiddenUnits.includes(unit.toLowerCase())) return formatted;
 
@@ -112,9 +110,7 @@ function MacroTickerItem({ item, onClick }) {
 function MacroTicker({ macroData, onNavigate }) {
   if (!macroData || macroData.length === 0) return null;
 
-  // 이음새 없는(seamless) 무한 루프를 위해 동일한 리스트를 두 번 이어붙임
   const items = [...macroData, ...macroData];
-  // 항목 수에 비례해 속도(시간) 조절 — 너무 빠르거나 느리지 않게
   const duration = Math.max(30, macroData.length * 4);
 
   return (
@@ -130,6 +126,14 @@ function MacroTicker({ macroData, onNavigate }) {
     </div>
   );
 }
+
+// 🌟 레짐(시장 국면) 색상/라벨 매핑 — 전략 신뢰도 바 & 팝업에서 공용으로 사용
+const REGIME_META = {
+  BULL:    { label: '상승 국면', color: '#FF4B4B', bg: 'bg-red-50 dark:bg-red-950/20', border: 'border-red-200 dark:border-red-900/50' },
+  BEAR:    { label: '하락 국면', color: '#3B82F6', bg: 'bg-blue-50 dark:bg-blue-950/20', border: 'border-blue-200 dark:border-blue-900/50' },
+  NEUTRAL: { label: '중립 국면', color: '#94A3B8', bg: 'bg-slate-100 dark:bg-slate-800/40', border: 'border-slate-300 dark:border-slate-700' },
+};
+const getRegimeMeta = (r) => REGIME_META[r] || REGIME_META.NEUTRAL;
 
 // 🌟 전역 마이크로 인터랙션 스타일 (스포트라이트 호버, 글로우, 배경 텍스처, 매크로 티커)
 const MICRO_INTERACTION_STYLES = `
@@ -181,6 +185,16 @@ const MICRO_INTERACTION_STYLES = `
     0% { transform: translateX(0); }
     100% { transform: translateX(-50%); }
   }
+
+  /* 🌟 전략 신뢰도 바의 레짐 펄스 점 */
+  @keyframes qdRegimePing {
+    75%, 100% { transform: scale(2.2); opacity: 0; }
+  }
+  .qd-regime-ping { animation: qdRegimePing 1.8s cubic-bezier(0, 0, 0.2, 1) infinite; }
+
+  /* 🌟 수량 칩 — 클릭 가능한 종목 상세 트리거 */
+  .qd-qty-chip { transition: all 0.15s ease; }
+  .qd-qty-chip:hover { transform: translateY(-1px); }
 `;
 
 // =========================================================================
@@ -188,13 +202,10 @@ const MICRO_INTERACTION_STYLES = `
 //    - 배치가 매일 14:30 시작, 약 10~20분 내 완료되므로 15:10을 만료 시각으로 사용
 //    - 새로고침 버튼은 이 캐시를 거치지 않고 항상 API를 호출합니다 (fetchQuantData(true))
 // =========================================================================
-const QUANT_CACHE_KEY = 'qd_quant_macro_cache_v1';
+const QUANT_CACHE_KEY = 'qd_quant_macro_cache_v2';
 const CACHE_EXPIRE_HOUR = 15;
 const CACHE_EXPIRE_MINUTE = 10;
 
-// 다음 만료 시각을 계산합니다.
-// - 오늘 15:10 이전이면 => 오늘 15:10
-// - 오늘 15:10 이후(이미 지남)라면 => 다음날 15:10
 function getNextExpireAt() {
   const now = new Date();
   const expire = new Date(now);
@@ -205,7 +216,6 @@ function getNextExpireAt() {
   return expire.toISOString();
 }
 
-// 캐시를 읽어옵니다. expireAt 이전이면 데이터를 반환하고, 만료되었거나 없으면 null을 반환합니다.
 function readQuantMacroCache() {
   try {
     const raw = window.localStorage.getItem(QUANT_CACHE_KEY);
@@ -223,7 +233,6 @@ function readQuantMacroCache() {
   }
 }
 
-// 캐시를 저장합니다. 저장 시점 기준으로 다음 만료 시각(expireAt)을 새로 계산해 함께 저장합니다.
 function writeQuantMacroCache(payload) {
   try {
     const expireAt = getNextExpireAt();
@@ -233,9 +242,11 @@ function writeQuantMacroCache(payload) {
   }
 }
 
+const EMPTY_QUANT_DATA = { holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null, macro: [], screener: [], strategyReport: null };
+
 export default function QuantDesk() {
   const [activeTab, setActiveTab] = useState("Macro");
-  const [data, setData] = useState({ holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null, macro: [], screener: [] });
+  const [data, setData] = useState(EMPTY_QUANT_DATA);
   const [kospiData, setKospiData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -243,11 +254,13 @@ export default function QuantDesk() {
   const [selectedStock, setSelectedStock] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [riskStock, setRiskStock] = useState(null);
+
+  // 🌟 [변경] 종목별 "포지션사이징" 팝업 — 더 이상 여기서 전략 전체 통계(트랙레코드)를
+  //    따로 fetch하지 않는다. data.strategyReport(최초 로드 시 함께 받아옴)를 그대로 참조한다.
   const [backtestStock, setBacktestStock] = useState(null);
 
-  // 🌟 [수정] /api/backtesting/result 조회 결과 — "전략 트랙레코드 + 확정종목 신뢰도/포지션사이징" 리포트 원본 전체를 담아둠
-  const [backtestResult, setBacktestResult] = useState(null);
-  const [backtestLoading, setBacktestLoading] = useState(false);
+  // 🌟 [추가] "전략 신뢰도" 상단 바 클릭 시 여는 전략 검증 리포트 팝업
+  const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
 
   const [timeRange, setTimeRange] = useState("All");
 
@@ -257,7 +270,6 @@ export default function QuantDesk() {
   const [isEntryOpen, setIsEntryOpen] = useState(true);
   const [isExitOpen, setIsExitOpen] = useState(true);
 
-  // 🌟 Dock 스타일 리스트 호버 확대 효과용 인덱스 상태
   const [hoverHoldingIdx, setHoverHoldingIdx] = useState(null);
   const [hoverWatchIdx, setHoverWatchIdx] = useState(null);
   const [hoverHistoryIdx, setHoverHistoryIdx] = useState(null);
@@ -266,7 +278,6 @@ export default function QuantDesk() {
 
   const initialLoadRef = useRef({ kr: false, us: false });
 
-  // 🌟 리포트 모달 게이지용 애니메이션 점수 (모달이 닫혀 있으면 0)
   const animatedScore = useCountUp(selectedStock ? (selectedStock.score || 0) : 0, 1300);
 
   useEffect(() => {
@@ -276,7 +287,7 @@ export default function QuantDesk() {
       const now = new Date();
       const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
       const kst = new Date(utc + (9 * 3600000));
-      const day = kst.getDay(); 
+      const day = kst.getDay();
       const hour = kst.getHours();
       const minute = kst.getMinutes();
       const timeNum = hour * 100 + minute;
@@ -341,78 +352,47 @@ export default function QuantDesk() {
     };
   }, [callApi]);
 
-  // 🌟 [수정] 백테스트 팝업(backtestStock)이 열릴 때마다 /api/backtesting/result를 호출해서
-  //    "전략 트랙레코드(track_record_used) + 오늘 확정 종목별 신뢰도·포지션사이징(per_symbol)" 리포트를 backtestResult에 담는다.
-  //    (예전처럼 old/new 비교 객체가 아니라, generated_at/track_record_used/per_symbol/name_map 등을 담은
-  //     하나의 리포트 객체로 내려오므로 그대로 저장하고, 화면에서 종목(symbol) 기준으로 걸러서 사용한다.)
-  useEffect(() => {
-    if (!backtestStock) {
-      setBacktestResult(null);
-      return;
-    }
-    setBacktestLoading(true);
-    callApi('/api/backtesting/result')
-      .then((res) => {
-        if (res.status === 'success' && res.data) {
-          setBacktestResult(res.data);
-        } else {
-          setBacktestResult(null);
-        }
-        setBacktestLoading(false);
-      })
-      .catch(() => {
-        setBacktestResult(null);
-        setBacktestLoading(false);
-      });
-  }, [backtestStock, callApi]);
-
   // 🌟 forceRefresh = true 인 경우(새로고침 버튼)는 캐시를 무시하고 항상 API를 호출합니다.
-  //    forceRefresh = false(기본, 최초 진입 등)인 경우는 먼저 로컬 캐시를 확인합니다.
   const fetchQuantData = (forceRefresh = false) => {
     setLoading(true);
 
     if (!forceRefresh) {
       const cached = readQuantMacroCache();
       if (cached) {
-        setData(cached.quantData || { holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null, macro: [], screener: [] });
+        setData({ ...EMPTY_QUANT_DATA, ...cached });
         setKospiData(cached.kospiData || []);
         setLoading(false);
         return;
       }
     }
 
-    // 🌟 핵심: /api/macro 를 추가하여 백엔드에 3가지를 병렬(동시)로 호출합니다.
+    // 🌟 [변경] /api/backtesting/result를 5번째 병렬 호출로 추가 — 전략 신뢰도 바가
+    //    종목 클릭을 기다리지 않고 최초 로드 시점부터 바로 표시되도록 함.
     Promise.allSettled([
       callApi("/api/quant-dashboard"),
       callApi("/api/search/KS11"),
       callApi("/api/macro"),
-      callApi("/api/screener")          // 🌟 추가
+      callApi("/api/screener"),
+      callApi("/api/backtesting/result"),
     ])
     .then((results) => {
       const quantResult = results[0].status === 'fulfilled' ? results[0].value : null;
       const kospiResult = results[1].status === 'fulfilled' ? results[1].value : null;
       const macroResult = results[2].status === 'fulfilled' ? results[2].value : null;
-      const screenerResult = results[3].status === 'fulfilled' ? results[3].value : null;  // 🌟 추가
-    
+      const screenerResult = results[3].status === 'fulfilled' ? results[3].value : null;
+      const strategyResult = results[4].status === 'fulfilled' ? results[4].value : null;
+
       let mergedDataForCache = null;
       let processedKospiForCache = [];
-    
+
       if (quantResult && quantResult.status === "success" && quantResult.data) {
         const mergedData = { ...quantResult.data };
-    
-        if (macroResult && macroResult.status === "success" && macroResult.data) {
-            mergedData.macro = macroResult.data;
-        } else {
-            mergedData.macro = [];
-        }
-    
-        // 🌟 추가: 스크리너 데이터 병합
-        if (screenerResult && screenerResult.status === "success" && screenerResult.data) {
-            mergedData.screener = screenerResult.data;
-        } else {
-            mergedData.screener = [];
-        }
-    
+
+        mergedData.macro = (macroResult && macroResult.status === "success" && macroResult.data) ? macroResult.data : [];
+        mergedData.screener = (screenerResult && screenerResult.status === "success" && screenerResult.data) ? screenerResult.data : [];
+        mergedData.strategyReport = (strategyResult && strategyResult.status === "success" && strategyResult.data
+          && strategyResult.data.track_record_used) ? strategyResult.data : null;
+
         setData(mergedData);
         mergedDataForCache = mergedData;
       }
@@ -437,11 +417,9 @@ export default function QuantDesk() {
         processedKospiForCache = [];
       }
 
-      // 🌟 Quant 데이터 조회에 성공한 경우에만 로컬 캐시를 갱신합니다.
-      //    (다음날 15:10 이전까지 유효 — 하루 최대 1회만 자동 조회되도록)
       if (mergedDataForCache) {
         writeQuantMacroCache({
-          quantData: mergedDataForCache,
+          ...mergedDataForCache,
           kospiData: processedKospiForCache
         });
       }
@@ -455,12 +433,14 @@ export default function QuantDesk() {
   const handleRefresh = () => {
     setSyncing(true);
     setTimeout(() => {
-        fetchQuantData(true); // 🌟 새로고침 버튼은 캐시를 무시하고 무조건 API 호출 + 캐시 갱신
+        fetchQuantData(true);
         setSyncing(false);
     }, 1500);
   };
 
-  const handleReportClick = (symbol, basicData) => {
+  // 🌟 [변경] 트리거 이름은 그대로 두되(내부 함수명), 실제 진입점은 "수량 칩" 클릭으로 이동.
+  //    종목 얘기(스코어/게이트/재무/차트)만 보여준다 — "리포트"라는 이름은 UI 어디에도 노출하지 않는다.
+  const handleStockClick = (symbol, basicData) => {
     setReportLoading(true);
 
     let mappedGates = null;
@@ -505,9 +485,9 @@ export default function QuantDesk() {
       });
   };
 
-  // 🌟 [수정] 팝업 열 때 이전 종목의 backtestResult가 잠깐 보이지 않도록 먼저 비워줌
-  const handleBacktestClick = (symbol, basicData) => {
-    setBacktestResult(null);
+  // 🌟 [변경] 더 이상 API를 새로 부르지 않는다 — data.strategyReport.per_symbol에서
+  //    이 종목분만 뽑아서 보여주는 순수 로컬 팝업 오픈.
+  const handlePositionSizingClick = (symbol, basicData) => {
     setBacktestStock({ symbol, name: basicData.name });
   };
 
@@ -598,34 +578,32 @@ export default function QuantDesk() {
     return chartData.slice(Math.max(chartData.length - days, 0));
   }, [chartData, timeRange]);
 
-  // 🌟 [수정] 현재 백테스트 팝업이 보고 있는 종목 코드
+  // 🌟 [변경] 종목별 포지션사이징 팝업이 참조하는 데이터 — data.strategyReport에서 바로 유도
   const backtestSymbol = backtestStock?.symbol;
-  // 🌟 name_map에 종목명이 있으면 그걸 우선 사용 (없으면 클릭 당시의 이름 사용)
-  const backtestDisplayName = (backtestResult?.name_map && backtestSymbol && backtestResult.name_map[backtestSymbol]) || backtestStock?.name;
+  const backtestDisplayName = (data.strategyReport?.name_map && backtestSymbol && data.strategyReport.name_map[backtestSymbol]) || backtestStock?.name;
 
-  // 🌟 [수정] 헤드라인 신뢰도·통계 근거인 "전략 트랙레코드" (전체 유니버스 기준, quant_backTesting.build_track_record 결과)
-  const backtestTrackRecord = backtestResult?.track_record_used || null;
-
-  // 🌟 [수정] per_symbol 배열에서 지금 보고 있는 종목의 리포트(포지션사이징 + 이 종목만의 own_history)를 추출
   const backtestSymbolReport = useMemo(() => {
-    if (!backtestResult || !backtestSymbol) return null;
-    return (backtestResult.per_symbol || []).find(p => p.symbol === backtestSymbol) || null;
-  }, [backtestResult, backtestSymbol]);
+    if (!data.strategyReport || !backtestSymbol) return null;
+    return (data.strategyReport.per_symbol || []).find(p => p.symbol === backtestSymbol) || null;
+  }, [data.strategyReport, backtestSymbol]);
 
   const backtestSizing = backtestSymbolReport?.position_sizing || null;
   const backtestOwnHistory = backtestSymbolReport?.own_history || null;
   const backtestOwnTrades = backtestOwnHistory?.trades || [];
 
-  // 🌟 [수정] 전략 트랙레코드의 equity_curve(기준값 1.0)를 누적 수익률(%)로 변환 + 벤치마크(코스피/코스닥) 비교선
-  const backtestEquityChartData = useMemo(() => {
-    if (!backtestTrackRecord?.equity_curve) return [];
-    return backtestTrackRecord.equity_curve.map(pt => ({
+  // 🌟 전략 검증 리포트(상단 바 팝업)용 파생 데이터
+  const strategyTrackRecord = data.strategyReport?.track_record_used || null;
+  const strategyRegime = data.strategyReport?.per_symbol?.[0]?.regime || null;
+  const strategyWalkForward = data.strategyReport?.walk_forward || null;
+
+  const strategyEquityChartData = useMemo(() => {
+    if (!strategyTrackRecord?.equity_curve) return [];
+    return strategyTrackRecord.equity_curve.map(pt => ({
       date: pt.date,
       strategy: (pt.value - 1) * 100,
     }));
-  }, [backtestTrackRecord]);
+  }, [strategyTrackRecord]);
 
-  // 🌟 신뢰도 라벨 한글 매핑 + 색상
   const CONFIDENCE_LABEL = {
     insufficient: { text: '표본 부족', color: '#94A3B8', bg: 'bg-slate-100 dark:bg-slate-800', border: 'border-slate-300 dark:border-slate-700' },
     reference: { text: '참고 가능', color: '#3B82F6', bg: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-300 dark:border-blue-800' },
@@ -633,18 +611,17 @@ export default function QuantDesk() {
   };
   const getConfidenceMeta = (level) => CONFIDENCE_LABEL[level] || CONFIDENCE_LABEL.insufficient;
 
-  // 🌟 [수정] 전략 트랙레코드 핵심 지표 리스트 (승률/기대값은 95% 신뢰구간을 함께 표기)
-  const backtestHeadlineMetrics = backtestTrackRecord ? [
-    { label: '표본(트레이드) 수', value: `${backtestTrackRecord.trade_count}건` },
-    { label: '승률', value: `${backtestTrackRecord.win_rate?.toFixed(1)}%`, sub: `95% CI ${backtestTrackRecord.win_rate_ci95?.[0]?.toFixed(1)}~${backtestTrackRecord.win_rate_ci95?.[1]?.toFixed(1)}%` },
-    { label: '기대값 (Expectancy)', value: `${backtestTrackRecord.expectancy_pct > 0 ? '+' : ''}${backtestTrackRecord.expectancy_pct?.toFixed(2)}%`, sub: `95% CI ${backtestTrackRecord.expectancy_ci95?.[0]?.toFixed(2)}~${backtestTrackRecord.expectancy_ci95?.[1]?.toFixed(2)}%` },
-    { label: 'Profit Factor', value: backtestTrackRecord.profit_factor?.toFixed(2) },
-    { label: '손익비 (Payoff)', value: backtestTrackRecord.payoff_ratio?.toFixed(2) },
-    { label: '트레이드 샤프', value: backtestTrackRecord.return_sharpe?.toFixed(2) },
-    { label: '평균 보유일', value: `${backtestTrackRecord.avg_hold_days?.toFixed(1)}일` },
-    { label: 'MDD', value: `${backtestTrackRecord.mdd_pct?.toFixed(1)}%` },
-    { label: '누적수익률', value: `${backtestTrackRecord.cum_return_pct > 0 ? '+' : ''}${backtestTrackRecord.cum_return_pct?.toFixed(1)}%` },
-    { label: '벤치마크 대비 초과수익', value: `${backtestTrackRecord.excess_return_pct > 0 ? '+' : ''}${backtestTrackRecord.excess_return_pct?.toFixed(1)}%` },
+  const strategyHeadlineMetrics = strategyTrackRecord ? [
+    { label: '표본(트레이드) 수', value: `${strategyTrackRecord.trade_count}건` },
+    { label: '승률', value: `${strategyTrackRecord.win_rate?.toFixed(1)}%`, sub: `95% CI ${strategyTrackRecord.win_rate_ci95?.[0]?.toFixed(1)}~${strategyTrackRecord.win_rate_ci95?.[1]?.toFixed(1)}%` },
+    { label: '기대값 (Expectancy)', value: `${strategyTrackRecord.expectancy_pct > 0 ? '+' : ''}${strategyTrackRecord.expectancy_pct?.toFixed(2)}%`, sub: `95% CI ${strategyTrackRecord.expectancy_ci95?.[0]?.toFixed(2)}~${strategyTrackRecord.expectancy_ci95?.[1]?.toFixed(2)}%` },
+    { label: 'Profit Factor', value: strategyTrackRecord.profit_factor?.toFixed(2) },
+    { label: '손익비 (Payoff)', value: strategyTrackRecord.payoff_ratio?.toFixed(2) },
+    { label: '트레이드 샤프', value: strategyTrackRecord.return_sharpe?.toFixed(2) },
+    { label: '평균 보유일', value: `${strategyTrackRecord.avg_hold_days?.toFixed(1)}일` },
+    { label: 'MDD', value: `${strategyTrackRecord.mdd_pct?.toFixed(1)}%` },
+    { label: '누적수익률', value: `${strategyTrackRecord.cum_return_pct > 0 ? '+' : ''}${strategyTrackRecord.cum_return_pct?.toFixed(1)}%` },
+    { label: '벤치마크 대비 초과수익', value: `${strategyTrackRecord.excess_return_pct > 0 ? '+' : ''}${strategyTrackRecord.excess_return_pct?.toFixed(1)}%` },
   ] : [];
 
   const CustomTooltip = ({ active, payload, label }) => {
@@ -694,7 +671,6 @@ export default function QuantDesk() {
   const formatNumber = (val) => (val === null || val === undefined || isNaN(val)) ? "N/A" : Number(val).toLocaleString();
   const formatPct = (val) => (val === null || val === undefined || isNaN(val)) ? "N/A" : `${Number(val).toFixed(2)}%`;
 
-  // 🌟 카드 위 마우스 위치를 CSS 변수로 반영해 스포트라이트 호버 효과를 만드는 핸들러
   const handleSpotlightMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const mx = ((e.clientX - rect.left) / rect.width) * 100;
@@ -708,7 +684,6 @@ export default function QuantDesk() {
 
       <style>{MICRO_INTERACTION_STYLES}</style>
 
-      {/* 🌟 은은한 도트 그리드 배경 텍스처 (깊이감) */}
       <svg className="qd-bg-texture" width="100%" height="100%" aria-hidden="true">
         <defs>
           <pattern id="qdDotGrid" x="0" y="0" width="28" height="28" patternUnits="userSpaceOnUse">
@@ -763,7 +738,6 @@ export default function QuantDesk() {
         ))}
       </div>
 
-      {/* 🌟 매크로 지표 티커: 탭 목록 바로 아래, 모든 탭에서 항상 노출 — hover 시 정지, 클릭 시 Macro 탭 이동 */}
       <MacroTicker macroData={data.macro} onNavigate={() => setActiveTab("Macro")} />
 
       {loading && !syncing ? (
@@ -784,7 +758,7 @@ export default function QuantDesk() {
                 {indices.kospi && (
                   <div
                     onClick={() => setIsIndexModalOpen(true)}
-                    className="mb-8 p-4 md:p-5 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-400 dark:hover:border-slate-600 transition-all group"
+                    className="mb-4 p-4 md:p-5 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-400 dark:hover:border-slate-600 transition-all group"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-inner overflow-hidden border border-slate-200 shrink-0">
@@ -812,6 +786,48 @@ export default function QuantDesk() {
                     </div>
                   </div>
                 )}
+
+                {/* 🌟 [추가] 전략 신뢰도 바 — KOSPI 바로 아래, 같은 톤의 얇은 카드.
+                    레짐 펄스 점 + 레짐/신뢰도 배지 + 승률·초과수익 미리보기. 클릭 시 전략 검증 리포트 팝업. */}
+                {strategyTrackRecord && (() => {
+                  const rMeta = getRegimeMeta(strategyRegime);
+                  const cMeta = getConfidenceMeta(strategyTrackRecord.confidence_level);
+                  const previewColor = strategyTrackRecord.expectancy_pct >= 0 ? '#FF4B4B' : '#3B82F6';
+                  return (
+                    <div
+                      onClick={() => setIsStrategyModalOpen(true)}
+                      className="mb-8 p-4 md:p-5 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-400 dark:hover:border-slate-600 transition-all group gap-3"
+                    >
+                      <div className="flex items-center gap-2.5 md:gap-3 flex-wrap min-w-0">
+                        <span className="relative flex h-2.5 w-2.5 shrink-0">
+                          <span className="qd-regime-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ backgroundColor: rMeta.color }}></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5" style={{ backgroundColor: rMeta.color }}></span>
+                        </span>
+                        <span className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-white whitespace-nowrap">전략 신뢰도</span>
+                        <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border whitespace-nowrap ${rMeta.bg} ${rMeta.border}`} style={{ color: rMeta.color }}>
+                          {strategyRegime ? rMeta.label : '레짐 확인중'}
+                        </span>
+                        <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border whitespace-nowrap ${cMeta.bg} ${cMeta.border}`} style={{ color: cMeta.color }}>
+                          {cMeta.text}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-4 md:gap-6 shrink-0">
+                        <div className="text-right hidden sm:block">
+                          <div className="text-[10.5px] font-extrabold text-slate-500 whitespace-nowrap">표본 {strategyTrackRecord.trade_count}건 승률</div>
+                          <div className="text-[16px] md:text-[17px] font-black" style={{ color: previewColor }}>{strategyTrackRecord.win_rate?.toFixed(1)}%</div>
+                        </div>
+                        <div className="text-right hidden md:block">
+                          <div className="text-[10.5px] font-extrabold text-slate-500 whitespace-nowrap">벤치마크 초과수익</div>
+                          <div className={`text-[16px] md:text-[17px] font-black ${strategyTrackRecord.excess_return_pct >= 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
+                            {strategyTrackRecord.excess_return_pct > 0 ? '+' : ''}{strategyTrackRecord.excess_return_pct?.toFixed(1)}%
+                          </div>
+                        </div>
+                        <ChevronRight className="text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors shrink-0" size={20} />
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm mb-12">
                     <div className="w-full">
@@ -853,9 +869,17 @@ export default function QuantDesk() {
                                         <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">현재가</span>
                                         <span className="text-[14px] md:text-[15px] font-black text-slate-900 dark:text-white">₩{Math.round(h.current_price || 0).toLocaleString()}</span>
                                     </div>
-                                    <div className="flex flex-col md:w-1/3 text-right">
+                                    {/* 🌟 [변경] 수량 = 클릭 가능한 칩. 음영 + hover + pointer 커서로 "버튼처럼" 보이되
+                                        명시적 라벨("리포트" 등)은 없음. 클릭하면 이 종목 얘기(스코어/게이트/재무/차트)만 나오는 팝업. */}
+                                    <div className="flex flex-col md:w-1/3 items-end">
                                         <span className="text-[11px] font-bold text-slate-400 md:hidden mb-0.5">수량</span>
-                                        <span className="text-[14px] md:text-[15px] font-extrabold text-slate-600 dark:text-slate-400">{formatNumber(h.quantity)}주</span>
+                                        <button
+                                            onClick={() => handleStockClick(h.symbol, h)}
+                                            title={`${h.name} 상세 보기`}
+                                            className="qd-qty-chip inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[14px] md:text-[15px] font-extrabold text-slate-600 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
+                                        >
+                                            {formatNumber(h.quantity)}주
+                                        </button>
                                     </div>
                                 </div>
                                 <div className={`hidden md:block w-[13%] text-[16px] font-black text-right ${pnlColor}`}>{ret > 0 ? "+" : ""}{ret.toFixed(2)}%</div>
@@ -866,8 +890,7 @@ export default function QuantDesk() {
                                     </div>
                                     <div className="flex justify-end md:w-[72%] md:justify-center gap-2 flex-wrap">
                                         <button onClick={() => setRiskStock({...h, exit_risk: (h.exit_risk || dummyRisk)})} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-orange-600 dark:hover:text-orange-400 hover:border-orange-400 dark:hover:border-orange-500 transition-all cursor-pointer shadow-sm hover:shadow-md">🚨 Risk</button>
-                                        <button onClick={() => handleBacktestClick(h.symbol, h)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-400 dark:hover:border-emerald-500 transition-all cursor-pointer shadow-sm hover:shadow-md">🧪 백테스팅</button>
-                                        <button onClick={() => handleReportClick(h.symbol, h)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
+                                        <button onClick={() => handlePositionSizingClick(h.symbol, h)} className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-400 dark:hover:border-emerald-500 transition-all cursor-pointer shadow-sm hover:shadow-md">📐 포지션사이징</button>
                                     </div>
                                 </div>
                             </div>
@@ -982,7 +1005,7 @@ export default function QuantDesk() {
                                     </div>
                                 </div>
                                 <div className="w-full md:w-[10%] flex justify-end md:justify-center mt-2 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 px-2">
-                                    <button onClick={() => handleReportClick(c.symbol, c)} className="px-4 md:px-3 py-1.5 md:w-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer shadow-sm hover:shadow-md">📊 리포트</button>
+                                    <button onClick={() => handleStockClick(c.symbol, c)} className="px-4 md:px-3 py-1.5 md:w-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[13px] font-black rounded-lg border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer shadow-sm hover:shadow-md">🔍 상세보기</button>
                                 </div>
                             </div>
                           );
@@ -1265,84 +1288,31 @@ export default function QuantDesk() {
         </div>
       )}
 
-      {/* BACKTEST MODAL — 🌟 [수정] /api/backtesting/result의 "전략 트랙레코드(신뢰도) + 확정종목 포지션사이징" 리포트 기반으로 완전히 새로 작성 */}
+      {/* 🌟 [변경] 종목별 포지션사이징 팝업 — 전략 전체 통계(트랙레코드)는 여기서 뺐다.
+          그 정보는 상단 "전략 신뢰도" 배너/팝업에서 한 번만 보여준다. */}
       {backtestStock && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-            <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[900px] min-h-[50vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[720px] min-h-[40vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
                 <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
-                    <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">🧪 {backtestDisplayName || backtestStock.name} 신뢰도 · 포지션사이징</h3>
+                    <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">📐 {backtestDisplayName || backtestStock.name} 포지션사이징</h3>
                     <button onClick={() => setBacktestStock(null)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors cursor-pointer"><X size={20}/></button>
                 </div>
 
                 <div className="p-6 md:p-8 overflow-y-auto flex-1">
-                    {backtestLoading ? (
+                    {!data.strategyReport ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-500 py-16">
-                            <RefreshCcw className="animate-spin mb-4 text-blue-500" size={36} />
-                            <p className="font-black text-[14px] md:text-[15px]">전략 트랙레코드를 불러오는 중입니다...</p>
-                        </div>
-                    ) : !backtestResult ? (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-500 py-16">
-                            <p className="font-black text-[15px] md:text-lg text-center">전략 트랙레코드 데이터가 없습니다.<br/>다음 배치(Cron) 실행 후 다시 확인해 주세요.</p>
+                            <p className="font-black text-[15px] md:text-lg text-center">전략 데이터가 없습니다.<br/>다음 배치(Cron) 실행 후 다시 확인해 주세요.</p>
                         </div>
                     ) : (
                         <>
-                            <p className="text-[13px] font-extrabold text-slate-500 mb-6">
-                                생성 시각 {backtestResult.generated_at} · 참고 기간 {backtestResult.trading_days}거래일 · 종목코드 {backtestSymbol}
-                            </p>
+                            <button
+                                onClick={() => { setBacktestStock(null); setIsStrategyModalOpen(true); }}
+                                className="text-[12px] font-black text-blue-600 dark:text-blue-400 underline underline-offset-2 mb-6 cursor-pointer"
+                            >
+                                ⚡ 이 전략 자체의 신뢰도(트랙레코드)는 여기서 확인하세요
+                            </button>
 
-                            {/* ── 전략 트랙레코드 (헤드라인 신뢰도 근거) ── */}
-                            {backtestTrackRecord && (
-                              <div className="p-5 md:p-6 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 mb-6">
-                                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                                      <p className="text-[14px] font-black text-slate-900 dark:text-white">📋 전략 트랙레코드 (전체 유니버스 기준)</p>
-                                      {(() => {
-                                          const meta = getConfidenceMeta(backtestTrackRecord.confidence_level);
-                                          return (
-                                              <span className={`text-[12px] font-black px-3 py-1 rounded-full border ${meta.bg} ${meta.border}`} style={{ color: meta.color }}>
-                                                  {meta.text}
-                                              </span>
-                                          );
-                                      })()}
-                                  </div>
-
-                                  <p className="text-[12.5px] font-extrabold text-slate-500 dark:text-slate-400 mb-5 leading-relaxed">
-                                      {backtestTrackRecord.confidence_note}
-                                  </p>
-
-                                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-2">
-                                      {backtestHeadlineMetrics.map((m, i) => (
-                                          <div key={i} className="p-3 bg-white dark:bg-[#0B1120] rounded-xl border border-slate-200 dark:border-slate-800">
-                                              <p className="text-[11px] font-extrabold text-slate-500 mb-1">{m.label}</p>
-                                              <p className="text-[15px] font-black text-slate-900 dark:text-white">{m.value}</p>
-                                              {m.sub && <p className="text-[10.5px] font-bold text-slate-400 mt-0.5">{m.sub}</p>}
-                                          </div>
-                                      ))}
-                                  </div>
-
-                                  {/* Equity Curve */}
-                                  <div className="mt-5">
-                                      <p className="text-[12px] font-black text-slate-500 mb-2">전략 누적 수익률 추이 (벤치마크 대비 초과수익 {backtestTrackRecord.excess_return_pct > 0 ? '+' : ''}{backtestTrackRecord.excess_return_pct?.toFixed(1)}%)</p>
-                                      <div className="w-full h-[200px]">
-                                          {backtestEquityChartData.length > 0 ? (
-                                              <ResponsiveContainer width="100%" height="100%">
-                                                  <ComposedChart data={backtestEquityChartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                                                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
-                                                      <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 10, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''} />
-                                                      <YAxis tick={{fill: '#94A3B8', fontSize: 10, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(v) => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`} />
-                                                      <Tooltip formatter={(value) => [`${value > 0 ? '+' : ''}${value.toFixed(2)}%`, '전략']} contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900'}} labelStyle={{color: '#94A3B8'}} />
-                                                      <Line type="monotone" dataKey="strategy" name="전략" stroke="#FF4B4B" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={1400} />
-                                                  </ComposedChart>
-                                              </ResponsiveContainer>
-                                          ) : (
-                                              <div className="w-full h-full flex items-center justify-center text-[12px] font-bold text-slate-400">차트 데이터가 없습니다</div>
-                                          )}
-                                      </div>
-                                  </div>
-                              </div>
-                            )}
-
-                            {/* ── 이 종목의 권장 포지션사이징 ── */}
                             {backtestSizing ? (
                               <div className="p-5 md:p-6 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 mb-6">
                                   <p className="text-[14px] font-black text-slate-900 dark:text-white mb-4">🎯 {backtestDisplayName} 권장 수량/투입금액</p>
@@ -1401,23 +1371,21 @@ export default function QuantDesk() {
                               </div>
                             )}
 
-                            {/* 거래 비용 가정 */}
                             <div className="p-5 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 mb-6">
                                 <p className="text-[12px] font-extrabold text-slate-500 mb-3">거래 비용 가정</p>
                                 <div className="flex justify-between text-[13px] font-black text-slate-700 dark:text-slate-300">
-                                    <span>진입 {backtestResult.cost_assumptions?.entry_cost_pct}%</span>
-                                    <span>청산 {backtestResult.cost_assumptions?.exit_cost_pct}%</span>
+                                    <span>진입 {data.strategyReport.cost_assumptions?.entry_cost_pct}%</span>
+                                    <span>청산 {data.strategyReport.cost_assumptions?.exit_cost_pct}%</span>
                                 </div>
                             </div>
 
-                            {/* 이 종목 자체의 과거 신호 이력 (참고용, 신뢰도 근거 아님) */}
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <p className="text-[14px] font-black text-slate-900 dark:text-white">📌 이 종목 자체의 과거 신호 이력 ({backtestOwnTrades.length}건)</p>
                                     <Info size={14} className="text-slate-400" />
                                 </div>
                                 <p className="text-[12px] font-extrabold text-slate-500 mb-4 leading-relaxed">
-                                    {backtestSymbolReport?.own_history_note || '표본이 매우 작을 수 있어 참고용 보조지표로만 사용하세요. 신뢰도 판단은 위 전략 트랙레코드를 기준으로 합니다.'}
+                                    {backtestSymbolReport?.own_history_note || '표본이 매우 작을 수 있어 참고용 보조지표로만 사용하세요. 신뢰도 판단은 전략 신뢰도 배너를 기준으로 합니다.'}
                                 </p>
                                 {backtestOwnTrades.length === 0 ? (
                                     <p className="text-[13px] font-bold text-slate-400">해당 종목의 과거 신호 이력이 없습니다.</p>
@@ -1441,7 +1409,93 @@ export default function QuantDesk() {
         </div>
       )}
 
-      {/* REPORT MODAL */}
+      {/* 🌟 [추가] 전략 검증 리포트 팝업 — "전략 신뢰도" 배너 클릭 시 열림.
+          여기가 유일하게 291건 트랙레코드(승률/기대값/Profit Factor/MDD/누적수익률/워크포워드)를 보여주는 곳. */}
+      {isStrategyModalOpen && strategyTrackRecord && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[900px] min-h-[50vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+
+                <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
+                    <div>
+                        <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">⚡ 전략 검증 리포트</h3>
+                        <p className="text-[12px] font-bold text-slate-500 mt-1">생성 시각 {data.strategyReport?.generated_at} · 참고 기간 {data.strategyReport?.trading_days}거래일 · 전체 유니버스 기준</p>
+                    </div>
+                    <button onClick={() => setIsStrategyModalOpen(false)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors cursor-pointer"><X size={20}/></button>
+                </div>
+
+                <div className="p-6 md:p-8 overflow-y-auto flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-5">
+                        {(() => {
+                            const rMeta = getRegimeMeta(strategyRegime);
+                            const cMeta = getConfidenceMeta(strategyTrackRecord.confidence_level);
+                            return (
+                                <>
+                                    <span className={`text-[12px] font-black px-3 py-1.5 rounded-full border ${rMeta.bg} ${rMeta.border}`} style={{ color: rMeta.color }}>● {strategyRegime ? rMeta.label : '레짐 확인중'}</span>
+                                    <span className={`text-[12px] font-black px-3 py-1.5 rounded-full border ${cMeta.bg} ${cMeta.border}`}>{cMeta.text}</span>
+                                </>
+                            );
+                        })()}
+                    </div>
+
+                    <p className="text-[12.5px] font-extrabold text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+                        {strategyTrackRecord.confidence_note} 오늘 확정/보유 중인 종목들은 모두 이 전략(관문 A~F)에서 나온 신호이며, 아래 통계는 특정 종목이 아니라 <b>전략 자체</b>가 지난 {data.strategyReport?.trading_days}거래일 동안 전체 시장에서 어떻게 작동했는지를 보여줍니다.
+                    </p>
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-2">
+                        {strategyHeadlineMetrics.map((m, i) => (
+                            <div key={i} className="p-3 bg-slate-50 dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800">
+                                <p className="text-[11px] font-extrabold text-slate-500 mb-1">{m.label}</p>
+                                <p className="text-[15px] font-black text-slate-900 dark:text-white">{m.value}</p>
+                                {m.sub && <p className="text-[10.5px] font-bold text-slate-400 mt-0.5">{m.sub}</p>}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="mt-5 mb-8">
+                        <p className="text-[12px] font-black text-slate-500 mb-2">전략 누적 수익률 추이 (벤치마크 대비 초과수익 {strategyTrackRecord.excess_return_pct > 0 ? '+' : ''}{strategyTrackRecord.excess_return_pct?.toFixed(1)}%)</p>
+                        <div className="w-full h-[220px]">
+                            {strategyEquityChartData.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <ComposedChart data={strategyEquityChartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
+                                        <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 10, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''} />
+                                        <YAxis tick={{fill: '#94A3B8', fontSize: 10, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(v) => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`} />
+                                        <Tooltip formatter={(value) => [`${value > 0 ? '+' : ''}${value.toFixed(2)}%`, '전략']} contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900'}} labelStyle={{color: '#94A3B8'}} />
+                                        <Line type="monotone" dataKey="strategy" name="전략" stroke="#FF4B4B" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={1400} />
+                                    </ComposedChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[12px] font-bold text-slate-400">차트 데이터가 없습니다</div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 🌟 워크포워드(전반기 vs 후반기) — 얇은 상단 배너에는 넣지 않고 팝업 하단에만 배치.
+                        압축된 배너에 숫자를 더 욱여넣으면 가독성이 떨어지고, 이건 "레짐이 바뀌어도
+                        일관되게 작동하는가"를 확인하는 상세 지표라 여기 붙는 게 정보 위계상 맞다. */}
+                    {strategyWalkForward && (strategyWalkForward.first_half?.trade_count > 0 || strategyWalkForward.second_half?.trade_count > 0) && (
+                        <div>
+                            <p className="text-[14px] font-black text-slate-900 dark:text-white mb-1">전반기 vs 후반기 비교</p>
+                            <p className="text-[11.5px] font-bold text-slate-500 mb-4">{strategyWalkForward.split_date} 기준으로 나눠, 특정 구간에만 잘 맞는 전략(과최적화)인지 최소한으로 점검합니다.</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {[{ label: '전반기', d: strategyWalkForward.first_half }, { label: '후반기', d: strategyWalkForward.second_half }].map((seg, i) => (
+                                    <div key={i} className="p-4 bg-slate-50 dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800">
+                                        <p className="text-[12px] font-black text-slate-700 dark:text-slate-300 mb-2">{seg.label} ({seg.d?.trade_count ?? 0}건)</p>
+                                        <div className="grid grid-cols-2 gap-2 text-[12px]">
+                                            <div><span className="text-slate-500 font-bold">승률 </span><span className="font-black text-slate-900 dark:text-white">{seg.d?.win_rate?.toFixed(1) ?? '-'}%</span></div>
+                                            <div><span className="text-slate-500 font-bold">기대값 </span><span className="font-black text-slate-900 dark:text-white">{seg.d?.expectancy_pct != null ? `${seg.d.expectancy_pct > 0 ? '+' : ''}${seg.d.expectancy_pct.toFixed(2)}%` : '-'}</span></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* REPORT MODAL (종목 얘기 전용 — "리포트"라는 이름 UI에 없음) */}
       {selectedStock && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
             <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[1200px] min-h-[60vh] md:min-h-[75vh] max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -1458,7 +1512,7 @@ export default function QuantDesk() {
                     {reportLoading || selectedStock.isLoading ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-500">
                             <RefreshCcw className="animate-spin mb-4 text-blue-500" size={40} />
-                            <p className="font-black text-[15px] md:text-lg animate-pulse text-slate-700 dark:text-slate-300 text-center">최신 재무 데이터와 실시간 지표를 융합하여 리포트를 생성 중입니다...</p>
+                            <p className="font-black text-[15px] md:text-lg animate-pulse text-slate-700 dark:text-slate-300 text-center">최신 재무 데이터와 실시간 지표를 융합하여 정보를 생성 중입니다...</p>
                         </div>
                     ) : selectedStock.fetchError ? (
                         <div className="flex flex-col items-center justify-center h-full text-[#FF4B4B]">
