@@ -754,74 +754,88 @@ export default function QuantDesk() {
           {activeTab === "Portfolio" && (
             <div className="animate-in fade-in duration-300 w-full">
 
-                {/* 🌟 토스 스타일 지수 티커 */}
-                {indices.kospi && (
-                  <div
-                    onClick={() => setIsIndexModalOpen(true)}
-                    className="mb-4 p-4 md:p-5 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-400 dark:hover:border-slate-600 transition-all group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-inner overflow-hidden border border-slate-200 shrink-0">
-                        <img src="/태극기.png" alt="KR" className="w-full h-full object-cover" />
-                      </div>
-                      <span className="text-[18px] md:text-[20px] font-black text-slate-900 dark:text-white">KOSPI</span>
-
-                      {indices.kospi.market_status === "장중" ? (
-                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100/50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50">● 장중</span>
-                      ) : (
-                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">장마감</span>
+                {/* 🌟 [재설계] 마켓 스냅샷 바 — KOSPI(시장 데이터)와 레짐+전략신뢰도(그 시장에서
+                    내 전략의 현재 상태)를 하나의 카드 안 두 세그먼트로 통합. 각자 다른 모달을 열지만
+                    "오늘 국장이 어떻고, 그래서 내 전략을 믿어도 되는가"라는 하나의 질문에 대한
+                    두 개의 답이라는 관계가 시각적으로 바로 읽히도록 구성. */}
+                {(indices.kospi || strategyTrackRecord) && (
+                  <div className="mb-8 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                    <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800/70">
+                
+                      {/* 세그먼트 1: KOSPI */}
+                      {indices.kospi && (
+                        <button
+                          onClick={() => setIsIndexModalOpen(true)}
+                          className="flex-1 flex items-center justify-between gap-3 p-4 md:p-5 text-left cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-inner overflow-hidden border border-slate-200 shrink-0">
+                              <img src="/태극기.png" alt="KR" className="w-full h-full object-cover" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white whitespace-nowrap">KOSPI</span>
+                                {indices.kospi.market_status === "장중" ? (
+                                  <span className="text-[9.5px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100/50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50 whitespace-nowrap">● 장중</span>
+                                ) : (
+                                  <span className="text-[9.5px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 whitespace-nowrap">장마감</span>
+                                )}
+                              </div>
+                              <div className="text-[11px] font-extrabold text-slate-500 whitespace-nowrap">
+                                전일대비 <span className={(indices.kospi.ret_1d || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}>{(indices.kospi.ret_1d > 0 ? '+' : '')}{indices.kospi.ret_1d?.toFixed(2)}%</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[19px] md:text-[22px] font-black text-slate-900 dark:text-white tracking-tighter">
+                              {indices.kospi.current_price?.toLocaleString()}
+                            </span>
+                            <ChevronRight className="text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" size={18} />
+                          </div>
+                        </button>
                       )}
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="flex flex-col items-end md:flex-row md:items-baseline md:gap-3">
-                        <span className="text-[11px] md:text-[13px] font-extrabold text-slate-500 mb-0.5 md:mb-0">
-                          전일대비 <span className={(indices.kospi.ret_1d || 0) > 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}>{(indices.kospi.ret_1d > 0 ? '+' : '')}{indices.kospi.ret_1d?.toFixed(2)}%</span>
-                        </span>
-                        <span className="text-[22px] md:text-[26px] font-black text-slate-900 dark:text-white tracking-tighter">
-                          {indices.kospi.current_price?.toLocaleString()}
-                        </span>
-                      </div>
-                      <ChevronRight className="text-slate-400 group-hover:text-slate-600 transition-colors" size={20} />
+                
+                      {/* 세그먼트 2: 레짐 + 전략 신뢰도 */}
+                      {strategyTrackRecord && (() => {
+                        const rMeta = getRegimeMeta(strategyRegime);
+                        const cMeta = getConfidenceMeta(strategyTrackRecord.confidence_level);
+                        const previewColor = strategyTrackRecord.expectancy_pct >= 0 ? '#FF4B4B' : '#3B82F6';
+                        return (
+                          <button
+                            onClick={() => setIsStrategyModalOpen(true)}
+                            className="flex-1 flex items-center justify-between gap-3 p-4 md:p-5 text-left cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                                <span className="qd-regime-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ backgroundColor: rMeta.color }}></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5" style={{ backgroundColor: rMeta.color }}></span>
+                              </span>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white whitespace-nowrap">
+                                    {strategyRegime ? rMeta.label : '레짐 확인중'}
+                                  </span>
+                                  <span className={`text-[9.5px] font-black px-1.5 py-0.5 rounded-full border whitespace-nowrap ${cMeta.bg} ${cMeta.border}`} style={{ color: cMeta.color }}>
+                                    {cMeta.text}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] font-extrabold text-slate-500 whitespace-nowrap">전략 신뢰도 · 표본 {strategyTrackRecord.trade_count}건</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <div className="text-right hidden sm:block">
+                                <div className="text-[10.5px] font-extrabold text-slate-500 whitespace-nowrap">승률</div>
+                                <div className="text-[16px] md:text-[18px] font-black" style={{ color: previewColor }}>{strategyTrackRecord.win_rate?.toFixed(1)}%</div>
+                              </div>
+                              <ChevronRight className="text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" size={18} />
+                            </div>
+                          </button>
+                        );
+                      })()}
+                
                     </div>
                   </div>
                 )}
-
-                {/* 🌟 [추가] 전략 신뢰도 바 — KOSPI 바로 아래, 같은 톤의 얇은 카드.
-                    레짐 펄스 점 + 레짐/신뢰도 배지 + 승률·초과수익 미리보기. 클릭 시 전략 검증 리포트 팝업. */}
-                {strategyTrackRecord && (() => {
-                  const rMeta = getRegimeMeta(strategyRegime);
-                  const cMeta = getConfidenceMeta(strategyTrackRecord.confidence_level);
-                  const previewColor = strategyTrackRecord.expectancy_pct >= 0 ? '#FF4B4B' : '#3B82F6';
-                  return (
-                    <div
-                      onClick={() => setIsStrategyModalOpen(true)}
-                      className="mb-8 p-4 md:p-5 bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-400 dark:hover:border-slate-600 transition-all group gap-3"
-                    >
-                      <div className="flex items-center gap-2.5 md:gap-3 flex-wrap min-w-0">
-                        <span className="relative flex h-2.5 w-2.5 shrink-0">
-                          <span className="qd-regime-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ backgroundColor: rMeta.color }}></span>
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5" style={{ backgroundColor: rMeta.color }}></span>
-                        </span>
-                        <span className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-white whitespace-nowrap">{strategyRegime ? rMeta.label : '레짐 확인중'}</span>
-                      </div>
-
-                      <div className="flex items-center gap-4 md:gap-6 shrink-0">
-                        <div className="text-right hidden sm:block">
-                          <div className="text-[10.5px] font-extrabold text-slate-500 whitespace-nowrap">표본 {strategyTrackRecord.trade_count}건 승률</div>
-                          <div className="text-[16px] md:text-[17px] font-black" style={{ color: previewColor }}>{strategyTrackRecord.win_rate?.toFixed(1)}%</div>
-                        </div>
-                        <div className="text-right hidden md:block">
-                          <div className="text-[10.5px] font-extrabold text-slate-500 whitespace-nowrap">벤치마크 초과수익</div>
-                          <div className={`text-[16px] md:text-[17px] font-black ${strategyTrackRecord.excess_return_pct >= 0 ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
-                            {strategyTrackRecord.excess_return_pct > 0 ? '+' : ''}{strategyTrackRecord.excess_return_pct?.toFixed(1)}%
-                          </div>
-                        </div>
-                        <ChevronRight className="text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors shrink-0" size={20} />
-                      </div>
-                    </div>
-                  );
-                })()}
 
                 <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-2xl overflow-hidden md:shadow-sm mb-12">
                     <div className="w-full">
