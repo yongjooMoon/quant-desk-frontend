@@ -803,13 +803,7 @@ export default function QuantDesk() {
                           <span className="qd-regime-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ backgroundColor: rMeta.color }}></span>
                           <span className="relative inline-flex rounded-full h-2.5 w-2.5" style={{ backgroundColor: rMeta.color }}></span>
                         </span>
-                        <span className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-white whitespace-nowrap">전략 신뢰도</span>
-                        <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border whitespace-nowrap ${rMeta.bg} ${rMeta.border}`} style={{ color: rMeta.color }}>
-                          {strategyRegime ? rMeta.label : '레짐 확인중'}
-                        </span>
-                        <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border whitespace-nowrap ${cMeta.bg} ${cMeta.border}`} style={{ color: cMeta.color }}>
-                          {cMeta.text}
-                        </span>
+                        <span className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-white whitespace-nowrap">{strategyRegime ? rMeta.label : '레짐 확인중'}</span>
                       </div>
 
                       <div className="flex items-center gap-4 md:gap-6 shrink-0">
