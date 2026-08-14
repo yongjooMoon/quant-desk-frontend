@@ -1,72 +1,67 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles, Check, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
-// 🌟 6축(Snowflake) 정의 — quant_screener_scores 테이블 컬럼명과 1:1 매칭
-//    quant_screener.py의 compute_screener_scores()가 이 6개 컬럼을 계산해서 저장한다.
-//    ⚠️ track_record_score는 v3부터 의미가 바뀌었다: 가격 게이트 통과 개수(구 Track
-//    Record) 대신 최근 60일 일간수익률 표준편차 기반 "저변동성" 점수를 담는다
-//    (컬럼명은 DB 마이그레이션을 피하려고 그대로 재사용 — 실제 의미는 Low Volatility).
+// 🌟 미네르비니 트렌드 템플릿 6축
+//    /api/screener(백엔드, stock_daily 기반 계산)가 채워주는 컬럼과 1:1 매칭.
+//    ⚠️ 기존 quant_screener_scores와 달리 "가중합 스코어"가 아니라 각 축마다
+//    2~4개의 통과/불통과 체크 항목 비율(0/25/50/75/100 또는 0/50/100)이다.
+//    RS(상대강도)만 유니버스 대비 백분위(1~99)라서 자연스럽게 연속값.
+//    → 필터 로직(≥threshold) 자체는 기존과 동일하게 그대로 쓸 수 있다.
 // =========================================================================
 const AXES = [
-  { key: 'growth_score', label: 'Growth', short: '성장', color: '#FF4B4B' },
-  { key: 'quality_score', label: 'Quality', short: '수익성', color: '#F8B12A' },
-  { key: 'health_score', label: 'Health', short: '재무건전성', color: '#20C997' },
-  { key: 'value_score', label: 'Value', short: '가치', color: '#3B82F6' },
-  { key: 'momentum_score', label: 'Momentum', short: '모멘텀', color: '#A78BFA' },
-  { key: 'track_record_score', label: 'Low Volatility', short: '저변동성', color: '#F472B6' },
+  { key: 'trend_alignment_score', label: 'Trend Alignment', short: '정배열', color: '#FF4B4B',
+    desc: '현재가 > 50일선 > 150일선 > 200일선 (4개 조건 통과 비율)' },
+  { key: 'ma200_trend_score', label: '200MA Uptrend', short: '200일선추세', color: '#F8B12A',
+    desc: '200일선이 1개월·3개월 전보다 상승 중인지' },
+  { key: 'high_proximity_score', label: 'Near 52W High', short: '신고가근접', color: '#20C997',
+    desc: '52주 신고가 대비 25%/10% 이내' },
+  { key: 'low_rise_score', label: 'Off the Low', short: '저점탈출', color: '#3B82F6',
+    desc: '52주 신저가 대비 30%/50% 이상 상승' },
+  { key: 'rs_score', label: 'RS Rating', short: 'RS강도', color: '#A78BFA',
+    desc: '전체 종목 대비 가격 모멘텀 백분위 (IBD 스타일, 1~99)' },
+  { key: 'ma50_momentum_score', label: '50MA Support', short: '50일선지지', color: '#F472B6',
+    desc: '현재가가 50일선 위, 50일선 자체도 상승 중인지' },
 ];
 const AXIS_COUNT = AXES.length;
 const PRESET_VALUES = [50, 60, 70, 80];
 const PAGE_SIZE = 50;
 
-// 🌟 카드 목록 정렬 옵션 — 예전엔 테이블 헤더 클릭으로 정렬했지만, 카드 그리드로
-//    바뀌면서 그 자리를 대체하는 드롭다운에 쓰인다.
+// 🌟 카드 목록 정렬 옵션. marcap/per/pbr는 현재 데이터에 없어서 제외,
+//    대신 트렌드 템플릿 관련 지표(52주 고저가와의 거리 등)를 추가.
 const SORT_OPTIONS = [
-  { key: 'marcap_억', label: '시가총액' },
   { key: 'current_price', label: '현재가' },
-  { key: 'per', label: 'PER' },
-  { key: 'pbr', label: 'PBR' },
   { key: 'ret_1m', label: '1개월 수익률' },
   { key: 'rs_score', label: 'RS(상대강도)' },
-  { key: 'op_margin', label: '영업이익률' },
+  { key: 'pct_from_52w_high', label: '52주 고점과의 거리' },
+  { key: 'pct_above_52w_low', label: '52주 저점 대비 상승률' },
+  { key: 'entry_gate_pass_count', label: '통과 조건 수' },
   { key: 'roe', label: 'ROE' },
   { key: 'debt_ratio', label: '부채비율' },
-  { key: 'entry_gate_pass_count', label: '관문 통과 수' },
+  { key: 'op_margin', label: '영업이익률' },
 ];
 
-// 한 번에 여러 축을 채우는 "전략 프리셋" — 육각형이 시그니처 요소인 만큼,
-// 이 버튼들이 "누르면 반응해서 채워지는" 재미를 가장 잘 보여주는 진입점.
-//
-// 🌟 설계 원칙: 프리셋 이름이 약속하는 것(예: "우량주")과 실제 threshold 조합이
-//    항상 일치해야 한다. "우량주"라면서 재무건전성 조건이 없거나, "저평가"라면서
-//    퀄리티 조건이 전혀 없으면(밸류 트랩 위험) 이름-필터 불일치가 생긴다. 아래는
-//    그 기준으로 검증 후 최소 안전장치(floor)를 넣은 버전이다.
+// 🌟 전략 프리셋 — 미네르비니 트렌드 템플릿의 대표적인 활용 시나리오들.
+//    "완전 정배열"은 원조 Stage 2 셋업, 나머지는 그 하위 신호들.
 const STRATEGY_PRESETS = [
-  // 성장 + 수익성 + 최소한의 재무 안전판(health 50) — "우량주" 표기에 맞게 부채 리스크 배제
-  { label: '고성장 우량주', icon: '🚀', values: { growth_score: 70, quality_score: 70, health_score: 50 } },
-  // 저평가 + 안전 + 최소 퀄리티 40 — 밸류 트랩(싸기만 하고 계속 나빠지는 종목) 방지용 하한선
-  { label: '저평가 방어주', icon: '🛡️', values: { value_score: 70, health_score: 70, quality_score: 40 } },
-  // 순수 기술적 스타일(모멘텀+저변동) — 펀더멘털 조건 의도적으로 없음
-  { label: '안정적 상승', icon: '🌊', values: { momentum_score: 70, track_record_score: 60 } },
-  // 올라운드 + 최소 모멘텀 40 — 펀더멘털은 좋은데 주가만 계속 빠지는 "떨어지는 칼날" 배제
-  { label: '올라운드 우량주', icon: '💎', values: { growth_score: 60, quality_score: 60, health_score: 60, value_score: 50, momentum_score: 40 } },
-  // Buffett/Munger식 컴파운더 — 가격보다 퀄리티와 안전성, 성장은 완만해도 OK
-  { label: '퀄리티 컴파운더', icon: '🏛️', values: { quality_score: 75, health_score: 65, growth_score: 50 } },
-  // Graham Net-Net식 — 극단적으로 싼 대신 퀄리티는 요구하지 않음 (의도된 트레이드오프)
-  { label: '딥 밸류 컨트래리언', icon: '🔻', values: { value_score: 80, health_score: 50 } },
-  // O'Neil/Zweig식 순수 추세추종 — 펀더멘털 무시, 가격 강도만
-  { label: '순수 모멘텀', icon: '⚡', values: { momentum_score: 80 } },
-  // Robeco 저변동성 이상현상 기반 방어적 배분용
-  { label: '저변동 방어주', icon: '🧊', values: { track_record_score: 75, health_score: 60 } },
-  // 실적 개선이 막 시작되고 주가가 반응하기 시작했지만 아직 안 비싼 구간
-  { label: '턴어라운드 후보', icon: '🔄', values: { growth_score: 70, momentum_score: 60, value_score: 50 } },
+  // 미네르비니 8조건의 핵심(정배열 100% + 200일선 상승 + 50일선 지지) — 교과서적 Stage 2
+  { label: '완전 정배열 (Stage 2)', icon: '🚀', values: { trend_alignment_score: 100, ma200_trend_score: 50, ma50_momentum_score: 50 } },
+  // 신고가 돌파 임박 + RS 상위권 — 브레이크아웃 후보
+  { label: '신고가 임박', icon: '🎯', values: { high_proximity_score: 50, rs_score: 70 } },
+  // RS만 강한 종목 — 아직 정배열 전이어도 상대강도로 먼저 스크리닝
+  { label: 'RS 강세주', icon: '⚡', values: { rs_score: 80 } },
+  // 바닥 다지고 막 올라오기 시작 (200일선 상승 전환 + 저점 대비 반등)
+  { label: '바닥 탈출 초기', icon: '🌱', values: { low_rise_score: 50, ma200_trend_score: 50 } },
+  // 6축 전부 70 이상 — 가장 엄격한 필터
+  { label: '완벽한 셋업', icon: '💎', values: { trend_alignment_score: 100, high_proximity_score: 50, low_rise_score: 50, rs_score: 70, ma50_momentum_score: 50, ma200_trend_score: 50 } },
+  // 아직 신고가와는 거리 있지만 추세 전환 초입 — 관찰 리스트용
+  { label: '추세 전환 관찰', icon: '👀', values: { ma200_trend_score: 50, trend_alignment_score: 50 } },
 ];
 
 // =========================================================================
-// 🌟 육각형 좌표 계산 (12시 방향부터 시계방향 60도 간격)
+// 🌟 육각형 좌표 계산 (12시 방향부터 시계방향 60도 간격) — 기존과 동일
 // =========================================================================
 function axisAngleRad(index) {
   return (-90 + index * (360 / AXIS_COUNT)) * (Math.PI / 180);
@@ -82,7 +77,6 @@ function polygonPoints(radiusFractions, maxR = 88, cx = 120, cy = 120) {
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
 }
-// 🌟 부채꼴(wedge) 경계선/클릭 좌표 계산용 — hexPoint과 달리 임의의 각도를 받는다
 function polarPoint(angleDeg, radius, cx = 120, cy = 120) {
   const rad = (angleDeg - 90) * (Math.PI / 180);
   return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
@@ -121,8 +115,8 @@ function useAnimatedRadii(target, duration = 550) {
   return values;
 }
 
-// 🌟 리포트 모달 게이지용 숫자 카운트업 (QuantDesk와 동일 원리)
-function useCountUp(target, duration = 1100) {
+// 🌟 모달의 "통과 조건" 숫자 카운트업 (합성 스코어가 아니라 0~6 사이의 실제 개수)
+function useCountUp(target, duration = 900) {
   const [value, setValue] = useState(0);
   const rafRef = useRef(null);
   const fromRef = useRef(0);
@@ -152,23 +146,12 @@ function useCountUp(target, duration = 1100) {
   return value;
 }
 
-// 🌟 반원 게이지 위 특정 percent 지점 좌표 계산 (M 20 100 A 80 80 0 0 1 180 100 기준)
-function getGaugePoint(percent) {
-  const clamped = Math.max(0, Math.min(100, percent || 0));
-  const t = (180 - 1.8 * clamped) * (Math.PI / 180);
-  const x = 100 + 80 * Math.cos(t);
-  const y = 100 - 80 * Math.sin(t);
-  return { x, y };
-}
-
 const MICRO_STYLES = `
   .qs-snowflake-fill { transition: fill-opacity 0.25s ease, stroke 0.25s ease; }
   .qs-preset-chip { transition: all 0.18s ease; }
   .qs-preset-chip:hover { transform: translateY(-1px); }
   .qs-vertex-glow { filter: drop-shadow(0 0 5px currentColor); }
 
-  /* 🌟 활성화된 전략 프리셋 — 눌렀을 때 어떤 프리셋인지 명확히 표시.
-     thresholds가 이 프리셋의 조합과 정확히 일치할 때만 붙는다(자동 해제 포함). */
   .qs-preset-chip-active {
     color: #fff !important;
     border-color: transparent !important;
@@ -206,12 +189,6 @@ const MICRO_STYLES = `
   }
   .qs-name-link:hover { color: #3B82F6; text-decoration: underline; text-underline-offset: 2px; }
 
-  .qs-gauge-glow { filter: drop-shadow(0 0 6px currentColor); animation: qsGaugePulse 1.8s ease-in-out infinite; }
-  @keyframes qsGaugePulse {
-    0%, 100% { opacity: 0.85; r: 5; }
-    50% { opacity: 1; r: 6.5; }
-  }
-
   .qs-select {
     appearance: none;
     -webkit-appearance: none;
@@ -222,8 +199,6 @@ const MICRO_STYLES = `
     background-size: 14px;
   }
 
-  /* 🌟 카드 그리드 — 모바일 1열, 태블릿 2열, 데스크톱 이상 3열. 카드 자체는
-     모바일/데스크톱 공용 컴포넌트라 별도 breakpoint별 스타일 분기가 필요 없다. */
   .qs-card {
     transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease, border-color 0.18s ease;
   }
@@ -234,24 +209,13 @@ const MICRO_STYLES = `
   .dark .qs-card:hover {
     box-shadow: 0 8px 24px rgba(0,0,0,0.35);
   }
+
+  .qs-gate-pass { background: rgba(0,180,100,0.10); border-color: rgba(0,180,100,0.5); }
 `;
 
-// 🌟 현재가 마스킹 — 정확한 원 단위 대신 천원 단위로 반올림해서 표시
 function formatPriceMasked(v) {
   if (v === null || v === undefined || isNaN(v)) return "N/A";
   return `₩${Number(v).toLocaleString()}`;
-}
-
-function formatMarcap(val) {
-  if (val === null || val === undefined || isNaN(val)) return "N/A";
-  const num = Number(val);
-  if (num === 0) return "0억";
-  if (Math.abs(num) >= 10000) {
-    const jo = Math.floor(Math.abs(num) / 10000);
-    const eok = Math.floor(Math.abs(num) % 10000);
-    return eok > 0 ? `${jo}조 ${eok.toLocaleString()}억` : `${jo}조`;
-  }
-  return `${num.toLocaleString()}억`;
 }
 function formatPct(v, digits = 1) {
   if (v === null || v === undefined || isNaN(v)) return "N/A";
@@ -261,27 +225,22 @@ function formatNum(v, digits = 2) {
   if (v === null || v === undefined || isNaN(v)) return "N/A";
   return Number(v).toFixed(digits);
 }
-// 🌟 원 단위 금액용 — 천 단위 콤마 표시 (QuantDesk의 formatNumber와 동일 규칙)
 function formatWon(v) {
   if (v === null || v === undefined || isNaN(v)) return "N/A";
   return Math.round(Number(v)).toLocaleString();
 }
-
-// 🌟 data_coverage_pct(6축 계산에 실제 쓰인 원자료 비율) → 신뢰도 배지 색상.
-//    낮은 커버리지는 결측 축이 많아 50점(중립)으로 채워졌을 가능성이 크다는 신호.
-function getCoverageMeta(pct) {
-  if (pct === null || pct === undefined || isNaN(pct)) return null;
-  if (pct >= 80) return { color: '#00B464' };
-  if (pct >= 50) return { color: '#F8B12A' };
-  return { color: '#EF4444' };
+// 🌟 revenue_q/op_profit_q/net_income_q의 실제 저장 단위(원/천원/백만원/억원)를
+//    확인하신 뒤 아래 두 값만 맞춰주세요. 기본값은 "단위 변환 없음 + 원본 그대로"입니다.
+const FINANCIAL_UNIT_DIVISOR = 1;
+const FINANCIAL_UNIT_LABEL = '';
+function formatFinancial(v) {
+  if (v === null || v === undefined || isNaN(v)) return "N/A";
+  return `${(Number(v) / FINANCIAL_UNIT_DIVISOR).toLocaleString(undefined, { maximumFractionDigits: 0 })}${FINANCIAL_UNIT_LABEL}`;
 }
 
 // =========================================================================
-// 🌟 미니 Snowflake 아이콘 — 왼쪽 사이드바의 육각형과 동일한 시각 언어(모양)를
-//    카드 뷰에 축소 재사용한다 (Simply Wall St 카드 뷰 패턴).
-//    - 모양(폴리곤 형태): 어느 축이 강하고 약한지 한눈에 파악
-//    - 숫자(평균): 전반적인 크기감(좋다/나쁘다)을 즉시 전달
-//    - 정확한 축별 값: title 툴팁으로만 노출 (카드를 숫자로 뒤덮지 않기 위함)
+// 🌟 미니 Snowflake 아이콘 — 카드 그리드용 축소 육각형. AXES를 그대로 순회하므로
+//    축 정의만 바뀌면(예: 다른 전략으로 또 바꾸더라도) 이 컴포넌트는 손댈 필요 없음.
 // =========================================================================
 function MiniSnowflake({ row, size = 34 }) {
   const maxR = size * 0.41;
@@ -299,7 +258,7 @@ function MiniSnowflake({ row, size = 34 }) {
     .filter(v => v !== null && v !== undefined && !isNaN(v));
   const avg = validScores.length ? validScores.reduce((a, b) => a + b, 0) / validScores.length : null;
 
-  const avgColor = avg === null ? '#94A3B8' : avg >= 70 ? '#00B464' : avg >= 50 ? '#F8B12A' : '#EF4444';
+  const avgColor = avg === null ? '#94A3B8' : avg >= 70 ? '#00B464' : avg >= 40 ? '#F8B12A' : '#EF4444';
 
   const shapePoints = AXES.map((ax, i) => {
     const v = row[ax.key];
@@ -317,7 +276,7 @@ function MiniSnowflake({ row, size = 34 }) {
     .map(ax => {
       const v = row[ax.key];
       const has = v !== null && v !== undefined && !isNaN(v);
-      return `${ax.label}: ${has ? v.toFixed(1) : 'N/A'}`;
+      return `${ax.label}: ${has ? v.toFixed(0) : 'N/A'}`;
     })
     .join('\n');
 
@@ -328,14 +287,14 @@ function MiniSnowflake({ row, size = 34 }) {
         <polygon points={shapePoints} fill={avgColor} fillOpacity="0.32" stroke={avgColor} strokeWidth="1.4" />
       </svg>
       <span className="text-[13px] font-black tabular-nums" style={{ color: avgColor }}>
-        {avg !== null ? avg.toFixed(0) : '-'}
+        {row.entry_gate_pass_count ?? '-'}/6
       </span>
     </div>
   );
 }
 
 // =========================================================================
-// 🌟 육각형(Snowflake) 컴포넌트
+// 🌟 육각형(Snowflake) 필터 컴포넌트 — 인터랙션 로직은 기존과 동일, AXES/의미만 교체됨
 // =========================================================================
 function SnowflakeChart({ thresholds, onAxisChange }) {
   const targetRadii = AXES.map(ax => {
@@ -354,7 +313,6 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
   const [pressedAxis, setPressedAxis] = useState(null);
   const pressTimerRef = useRef(null);
 
-  // 🌟 클릭한 지점의 중심 거리 → 가장 가까운 프리셋 값(50/60/70/80)으로 스냅
   const handleWedgeClick = (ax) => (e) => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -388,7 +346,7 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <SlidersHorizontal size={14} className="text-slate-500 dark:text-slate-400" />
-          <span className="text-[13px] font-black text-slate-700 dark:text-slate-300 tracking-tight">SNOWFLAKE</span>
+          <span className="text-[13px] font-black text-slate-700 dark:text-slate-300 tracking-tight">TREND TEMPLATE</span>
           {activeCount > 0 && (
             <span className="text-[11px] font-black text-white bg-[#FF4B4B] rounded-full w-5 h-5 flex items-center justify-center">{activeCount}</span>
           )}
@@ -482,8 +440,8 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
         {AXES.map(ax => {
           const current = thresholds[ax.key];
           return (
-            <div key={ax.key} className="flex items-center gap-2">
-              <span className="w-[64px] shrink-0 text-[11px] font-extrabold" style={{ color: ax.color }}>{ax.label}</span>
+            <div key={ax.key} className="flex items-center gap-2" title={ax.desc}>
+              <span className="w-[76px] shrink-0 text-[11px] font-extrabold" style={{ color: ax.color }}>{ax.short}</span>
               <div className="flex gap-1 flex-1">
                 {PRESET_VALUES.map(v => {
                   const isSelected = current === v;
@@ -512,29 +470,18 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
 }
 
 // =========================================================================
-// 🌟 종목 카드 — 모바일/데스크톱 공용. 그리드 컬럼 수만 부모(grid-cols-*)에서
-//    반응형으로 조절되고, 카드 자체 마크업은 화면 크기와 무관하게 동일하다.
+// 🌟 종목 카드 — PER/PBR/시가총액(원본 데이터에 없음) 대신 실제 보유 재무 필드로 교체
 // =========================================================================
 function ScreenerCard({ r, onNameClick }) {
   const retColor = (r.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : (r.ret_1m || 0) < 0 ? 'text-[#3B82F6]' : 'text-slate-500';
   const gateColor = (r.entry_gate_pass_count || 0) >= 5 ? '#00B464' : (r.entry_gate_pass_count || 0) >= 3 ? '#F8B12A' : '#64748B';
-  const coverageMeta = getCoverageMeta(r.data_coverage_pct);
 
   return (
     <div className="qs-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
       {/* 상단: 종목명/섹터 + 현재가/수익률 */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="min-w-0 cursor-pointer" onClick={() => onNameClick(r)}>
-          <div className="flex items-center gap-1.5">
-            <span className="qs-name-link text-[15px] font-black text-slate-900 dark:text-white">{r.name}</span>
-            {coverageMeta && (
-              <span
-                className="shrink-0 w-1.5 h-1.5 rounded-full"
-                style={{ backgroundColor: coverageMeta.color }}
-                title={`데이터 커버리지 ${r.data_coverage_pct}% (6축 계산에 실제 반영된 원자료 비율)`}
-              />
-            )}
-          </div>
+          <span className="qs-name-link text-[15px] font-black text-slate-900 dark:text-white">{r.name}</span>
           <div className="text-[11px] font-bold text-slate-400 truncate">
             {r.symbol}{r.sector && r.sector !== 'Unknown' ? ` · ${r.sector}` : ''}
           </div>
@@ -545,24 +492,16 @@ function ScreenerCard({ r, onNameClick }) {
         </div>
       </div>
 
-      {/* 중단: 6축 미니 Snowflake + 관문 배지 (같은 줄에 배치해 시선 이동 최소화) */}
+      {/* 중단: 6축 미니 Snowflake + 통과 조건 배지 */}
       <div className="flex items-center justify-between mb-3">
         <MiniSnowflake row={r} />
         <span className="text-[11px] font-black px-2 py-0.5 rounded-full shrink-0" style={{ color: gateColor, backgroundColor: `${gateColor}1A` }}>
-          관문 {r.entry_gate_pass_count ?? 0}/6
+          52주고점 -{formatNum(r.pct_from_52w_high, 1)}%
         </span>
       </div>
 
-      {/* 하단: 핵심 재무 지표 2x4 그리드 */}
+      {/* 하단: 참고용 재무 지표 (스코어 축 아님) */}
       <div className="grid grid-cols-4 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800/60">
-        <div>
-          <p className="text-[9.5px] font-bold text-slate-400">PER</p>
-          <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatNum(r.per)}</p>
-        </div>
-        <div>
-          <p className="text-[9.5px] font-bold text-slate-400">PBR</p>
-          <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatNum(r.pbr)}</p>
-        </div>
         <div>
           <p className="text-[9.5px] font-bold text-slate-400">ROE</p>
           <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatPct(r.roe)}</p>
@@ -572,16 +511,20 @@ function ScreenerCard({ r, onNameClick }) {
           <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatPct(r.debt_ratio)}</p>
         </div>
         <div>
-          <p className="text-[9.5px] font-bold text-slate-400">RS</p>
-          <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatNum(r.rs_score, 1)}</p>
-        </div>
-        <div>
-          <p className="text-[9.5px] font-bold text-slate-400">영업이익</p>
+          <p className="text-[9.5px] font-bold text-slate-400">영업이익률</p>
           <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatPct(r.op_margin)}</p>
         </div>
+        <div>
+          <p className="text-[9.5px] font-bold text-slate-400">RS</p>
+          <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatNum(r.rs_score, 0)}</p>
+        </div>
         <div className="col-span-2">
-          <p className="text-[9.5px] font-bold text-slate-400">시가총액</p>
-          <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300 whitespace-nowrap">{formatMarcap(r.marcap_억)}</p>
+          <p className="text-[9.5px] font-bold text-slate-400">52주 저점 대비</p>
+          <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatPct(r.pct_above_52w_low)}</p>
+        </div>
+        <div className="col-span-2">
+          <p className="text-[9.5px] font-bold text-slate-400">EPS</p>
+          <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatWon(r.eps_q)}</p>
         </div>
       </div>
     </div>
@@ -589,19 +532,27 @@ function ScreenerCard({ r, onNameClick }) {
 }
 
 // =========================================================================
-// 🌟 종목 리포트 모달 — QuantDesk의 REPORT MODAL 로직을 그대로 가져온 버전.
-//    스크리너 행(row) 자체 데이터를 기본값으로 먼저 보여주고, /api/search/{symbol}로
-//    상세(재무/차트/게이트 사유)를 채워 넣는다.
+// 🌟 종목 리포트 모달 — 합성 스코어 게이지 대신 "6조건 중 통과 개수" + 조건별 체크리스트.
+//    /api/search/{symbol}은 이제 gates/score를 내려줄 필요 없이 chart_data
+//    (이동평균 포함)만 채워주면 된다. gates는 screenerData의 row(6축 점수)로 프론트에서 계산.
 // =========================================================================
 function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
-  const animatedScore = useCountUp(selectedStock ? (selectedStock.score || 0) : 0, 1300);
-  const passCountTarget = selectedStock
-    ? (selectedStock.total_pass !== undefined
-        ? selectedStock.total_pass
-        : (selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0))
-    : 0;
-  const animatedPassCount = useCountUp(passCountTarget, 1300);
+  const passCount = selectedStock ? (selectedStock.entry_gate_pass_count ?? 0) : 0;
+  const animatedPassCount = useCountUp(passCount, 900);
   if (!selectedStock) return null;
+
+  // 🌟 배치(screenerData)에서 이미 계산된 6축 점수로 게이트 통과 여부를 그 자리에서 판정.
+  //    /api/search 응답에 별도 gates 필드가 없어도 항상 일관된 값을 보여줄 수 있음.
+  const gates = AXES.map(ax => {
+    const score = selectedStock[ax.key];
+    return {
+      key: ax.key,
+      label: ax.short,
+      desc: ax.desc,
+      score: score ?? null,
+      pass: score !== null && score !== undefined && score >= 70,
+    };
+  });
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
@@ -610,7 +561,7 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
         <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
           <div className="flex gap-2 items-center">
             <span className="text-[14px] md:text-[14.5px] font-black text-slate-500 dark:text-slate-400">{selectedStock.symbol} · {selectedStock.market || "KOSPI"}</span>
-            {selectedStock.sector && <span className="text-[12px] md:text-[13.5px] font-extrabold px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{selectedStock.sector}</span>}
+            {selectedStock.sector && selectedStock.sector !== 'Unknown' && <span className="text-[12px] md:text-[13.5px] font-extrabold px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{selectedStock.sector}</span>}
           </div>
           <button onClick={onClose} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors cursor-pointer"><X size={20}/></button>
         </div>
@@ -619,7 +570,7 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
           {reportLoading || selectedStock.isLoading ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-500">
               <RefreshCcw className="animate-spin mb-4 text-blue-500" size={40} />
-              <p className="font-black text-[15px] md:text-lg animate-pulse text-slate-700 dark:text-slate-300 text-center">최신 재무 데이터와 실시간 지표를 융합하여 리포트를 생성 중입니다...</p>
+              <p className="font-black text-[15px] md:text-lg animate-pulse text-slate-700 dark:text-slate-300 text-center">최신 가격/이동평균 데이터를 불러오는 중입니다...</p>
             </div>
           ) : selectedStock.fetchError ? (
             <div className="flex flex-col items-center justify-center h-full text-[#FF4B4B]">
@@ -637,86 +588,76 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
                 </h1>
               </div>
 
+              {/* 통과 조건 요약 + 52주 고저가 위치 */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
                 <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">⚡ Quant Scores</h3>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📋 Trend Template 요약</h3>
+                  <div>
+                    <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">통과 조건</p>
+                    <p className="text-4xl md:text-5xl font-black text-[#00B464]">{animatedPassCount.toFixed(0)} <span className="text-2xl text-slate-400">/ 6</span></p>
+                  </div>
+                  <p className="text-[11px] md:text-[12px] font-extrabold text-slate-500 mt-6 p-3 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/50">💡 6축은 가중합 점수가 아니라 각 조건별 통과 비율입니다. 70점 이상이면 해당 축을 "통과"로 표시합니다.</p>
+                </div>
+
+                <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📍 52주 고저가 위치</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">퀀트 랭킹 스코어</p><p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">{animatedScore.toFixed(2)}점</p></div>
-                    <div>
-                      <p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">생존 필터 통과</p>
-                      <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
-                        {animatedPassCount.toFixed(0)} / 6
-                      </p>
-                    </div>
+                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">52주 신고가</p><p className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-white">{formatWon(selectedStock.week52_high)}원</p></div>
+                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">52주 신저가</p><p className="text-[16px] md:text-[18px] font-black text-slate-900 dark:text-white">{formatWon(selectedStock.week52_low)}원</p></div>
+                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">고점과의 거리</p><p className="text-[16px] md:text-[18px] font-black text-[#3B82F6]">-{formatNum(selectedStock.pct_from_52w_high, 1)}%</p></div>
+                    <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">저점 대비 상승</p><p className="text-[16px] md:text-[18px] font-black text-[#FF4B4B]">+{formatNum(selectedStock.pct_above_52w_low, 1)}%</p></div>
                   </div>
-                  <p className="text-[11px] md:text-[12px] font-extrabold text-slate-500 mt-6 p-3 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/50">💡 평가 지표(점수/게이트)는 가장 최근 배치(Cron) 시점을 기준으로 고정 표시됩니다. (재무 및 차트는 최신 반영)</p>
-                </div>
-
-                <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-center items-center relative">
-                  <div className="relative w-48 md:w-56 h-28 md:h-32 mb-2 flex justify-center items-end">
-                    <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
-                      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="18" strokeLinecap="round" />
-                      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#00B464" strokeWidth="18" strokeLinecap="round"
-                            strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * animatedScore / 100)} />
-                      {(() => {
-                        const { x, y } = getGaugePoint(animatedScore);
-                        return <circle cx={x} cy={y} r="5" fill="#00B464" className="qs-gauge-glow" style={{ color: '#00B464' }} />;
-                      })()}
-                    </svg>
-                    <div className="absolute bottom-0 w-full flex flex-col items-center justify-end pb-2">
-                      <p className="text-4xl md:text-5xl font-black text-[#00B464] tracking-tighter">{animatedScore.toFixed(1)}</p>
-                    </div>
-                  </div>
-                  <p className="text-[13px] md:text-[14px] font-extrabold text-slate-500 mt-2">퀀트 랭킹 스코어</p>
                 </div>
               </div>
 
+              {/* Trend Template 6조건 체크리스트 */}
               <div className="mb-10">
-                <h5 className="text-xl font-black text-slate-900 dark:text-white mb-4 md:mb-6">Entry Gates (6 conditions)</h5>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
-                  {['A', 'B', 'C', 'D', 'E', 'F'].map((label, idx) => {
-                    const gateKeys = selectedStock.gates ? Object.keys(selectedStock.gates) : [];
-                    const gate = gateKeys.length > idx ? selectedStock.gates[gateKeys[idx]] : { pass: false, name: '-', reason: '-' };
-                    const passed = gate.pass;
-
-                    return (
-                    <div key={label} className={`p-4 rounded-2xl border ${passed ? 'bg-[#00B464]/10 border-[#00B464]/50 shadow-sm' : 'bg-slate-50 dark:bg-[#1E2329] border-slate-200 dark:border-slate-800'} flex flex-col justify-between h-24 md:h-28`}>
-                        <div className="flex justify-between items-center mb-2">
-                            <span className={`font-black text-[15px] md:text-[16px] ${passed ? 'text-[#00B464]' : 'text-slate-400'}`}>{label}</span>
-                            <span className="text-[12px]">{passed ? '✔️' : '❌'}</span>
-                        </div>
-                        <div className={`h-1 md:h-1.5 rounded-full w-full mb-2 md:mb-3 ${passed ? 'bg-[#00B464]' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
-                        <p className={`text-[11px] md:text-[12px] font-extrabold truncate ${passed ? 'text-[#00B464]' : 'text-slate-500'}`} title={gate.reason || gate.name}>{gate.name}</p>
+                <h5 className="text-xl font-black text-slate-900 dark:text-white mb-4 md:mb-6">Minervini Trend Template (6 conditions)</h5>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+                  {gates.map(gate => (
+                    <div key={gate.key} className={`p-4 rounded-2xl border flex flex-col justify-between h-28 ${gate.pass ? 'qs-gate-pass' : 'bg-slate-50 dark:bg-[#1E2329] border-slate-200 dark:border-slate-800'}`}>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className={`font-black text-[14px] md:text-[15px] ${gate.pass ? 'text-[#00B464]' : 'text-slate-400'}`}>{gate.label}</span>
+                        <span className="text-[12px]">{gate.pass ? '✔️' : '❌'}</span>
+                      </div>
+                      <div className={`h-1.5 rounded-full w-full mb-2 ${gate.pass ? 'bg-[#00B464]' : 'bg-slate-200 dark:bg-slate-700'}`} style={{ width: `${gate.score ?? 0}%` }}></div>
+                      <p className={`text-[10.5px] md:text-[11.5px] font-extrabold ${gate.pass ? 'text-[#00B464]' : 'text-slate-500'}`} title={gate.desc}>{gate.score !== null ? `${gate.score.toFixed(0)}점` : 'N/A'}</p>
                     </div>
-                  )})}
+                  ))}
                 </div>
               </div>
 
+              {/* 재무 (참고 정보) */}
               <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-10">
-                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📊 Financials & Valuation</h3>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📊 Financials (최근 분기, 참고용)</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 md:gap-y-8 gap-x-4 md:gap-x-6">
-                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">매출액</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.revenue_cur)}</p></div>
-                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">영업이익</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.op_profit_cur)}</p></div>
-                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">영업이익률</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.fundamental?.op_margin)}</p></div>
-                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">ROE</p><p className="text-[15px] md:text-[16px] font-black text-[#FF4B4B]">{formatPct(selectedStock.fundamental?.roe)}</p></div>
-                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">시가총액</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatMarcap(selectedStock.fundamental?.marcap_억)}</p></div>
-                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">PER</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatNum(selectedStock.fundamental?.per)} 배</p></div>
-                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">PBR</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatNum(selectedStock.fundamental?.pbr)} 배</p></div>
-                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">부채비율</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.fundamental?.debt_ratio)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">매출액</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatFinancial(selectedStock.revenue_q)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">영업이익</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatFinancial(selectedStock.op_profit_q)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">순이익</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatFinancial(selectedStock.net_income_q)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">EPS</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatWon(selectedStock.eps_q)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">ROE</p><p className="text-[15px] md:text-[16px] font-black text-[#FF4B4B]">{formatPct(selectedStock.roe)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">부채비율</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.debt_ratio)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">유동비율</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatPct(selectedStock.current_ratio)}</p></div>
+                  <div><p className="text-[12px] md:text-[13px] font-extrabold text-slate-500 mb-1">이자보상배율</p><p className="text-[15px] md:text-[16px] font-black text-slate-900 dark:text-white">{formatNum(selectedStock.interest_coverage, 1)}</p></div>
                 </div>
               </div>
 
+              {/* 가격 차트 + 이동평균선 */}
               <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📈 가격 차트 (최근 120일)</h3>
-                <div className="w-full h-[250px] md:h-[300px]">
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📈 가격 차트 & 이동평균선</h3>
+                <div className="w-full h-[280px] md:h-[340px]">
                   {selectedStock.chart_data && selectedStock.chart_data.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={selectedStock.chart_data} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
                         <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={30} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''}/>
                         <YAxis domain={['auto', 'auto']} tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(value) => value !== undefined && value !== null ? value.toLocaleString() : ''} />
-                        <Tooltip contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900'}} itemStyle={{color: '#FF4B4B'}} labelStyle={{color: '#94A3B8', marginBottom: '4px'}} formatter={(value) => [value !== undefined && value !== null ? value.toLocaleString() : '', "종가"]} />
-                        <Line type="monotone" dataKey="price" stroke="#FF4B4B" strokeWidth={2.5} dot={false} activeDot={{r: 5, fill: '#FF4B4B', strokeWidth: 0}} isAnimationActive={true} animationDuration={1700} animationEasing="ease-out" />
+                        <Tooltip contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900'}} labelStyle={{color: '#94A3B8', marginBottom: '4px'}} formatter={(value, name) => [value !== undefined && value !== null ? value.toLocaleString() : '', name]} />
+                        <Legend wrapperStyle={{ fontSize: 11, fontWeight: 800 }} />
+                        <Line type="monotone" dataKey="price" name="종가" stroke="#FF4B4B" strokeWidth={2.5} dot={false} activeDot={{r: 5, fill: '#FF4B4B', strokeWidth: 0}} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+                        <Line type="monotone" dataKey="ma50" name="50일선" stroke="#F8B12A" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                        <Line type="monotone" dataKey="ma150" name="150일선" stroke="#3B82F6" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                        <Line type="monotone" dataKey="ma200" name="200일선" stroke="#A78BFA" strokeWidth={1.5} dot={false} isAnimationActive={false} />
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
@@ -747,14 +688,13 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const [sortDir, setSortDir] = useState('desc');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // 🌟 리포트 모달 상태 — QuantDesk의 handleReportClick과 동일한 흐름
   const [selectedStock, setSelectedStock] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
 
   const activeAxisCount = AXES.filter(ax => thresholds[ax.key] !== null).length;
   const hasAnyFilter = activeAxisCount > 0 || search.trim().length > 0 || sector !== 'ALL';
 
-  // 🌟 실제 데이터에 존재하는 섹터만 콤보박스에 노출 (가나다순), 'Unknown'은 맨 뒤로
+  // 🌟 stock_sector 조인 덕분에 실제 데이터에 존재하는 섹터만 콤보박스에 노출
   const sectorOptions = useMemo(() => {
     const set = new Set();
     (screenerData || []).forEach(r => {
@@ -768,9 +708,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
     return list;
   }, [screenerData]);
 
-  // 🌟 현재 thresholds가 어떤 프리셋의 조합과 정확히 일치하는지 매번 재계산.
-  //    프리셋 버튼을 누르면 그 프리셋이 활성으로 표시되고, Snowflake를 손으로
-  //    조작해 조합이 달라지면 별도 처리 없이 자동으로 활성 표시가 사라진다.
   const activePresetLabel = useMemo(() => {
     for (const preset of STRATEGY_PRESETS) {
       const matches = AXES.every(ax => {
@@ -823,7 +760,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
       return true;
     });
 
-    // 🌟 sortKey가 없으면(사용자가 정렬을 고르기 전) 정렬하지 않고 원본 순서 그대로 반환
     if (!sortKey) return rows;
 
     rows = [...rows].sort((a, b) => {
@@ -844,35 +780,18 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const results = filteredSorted.slice(0, visibleCount);
   const hasMore = totalCount > visibleCount;
 
-  // 🌟 종목명 클릭 → 리포트 팝업 오픈 (QuantDesk의 handleReportClick과 동일 로직)
+  // 🌟 종목명 클릭 → 리포트 팝업. 6축 점수/통과개수는 이미 screenerData(row)에 있으므로
+  //    /api/search는 이제 chart_data(이동평균 포함)만 채워주면 됨.
   const handleNameClick = (row) => {
     setReportLoading(true);
-
-    setSelectedStock({
-      ...row,
-      score: row.factor_score !== undefined ? row.factor_score : row.score,
-      isLoading: true,
-    });
+    setSelectedStock({ ...row, isLoading: true });
 
     callApi(`/api/search/${row.symbol}`)
       .then(result => {
         if (result.status === "success") {
-          const fetchedData = result.data;
-          const finalScore = row.factor_score !== undefined ? row.factor_score : fetchedData.score;
-          const finalGates = fetchedData.gates;
-          const finalPass = row.entry_gate_pass_count !== undefined ? row.entry_gate_pass_count : (fetchedData.gates ? Object.values(fetchedData.gates).filter(g => g.pass).length : 0);
-
           setSelectedStock({
             ...row,
-            ...fetchedData,
-            name: fetchedData.name || row.name,
-            // 🌟 sector는 스코어 축(배치 고정)이 아니라 종목 기본정보 — 재무/차트와 같은
-            //    "최신 반영" 범주에 속한다. /api/search가 더 정확한 소스(네이버 등)를 쓰므로
-            //    fetchedData를 우선하고, 그마저 없을 때만 배치 데이터(row.sector)로 폴백한다.
-            sector: fetchedData.sector || row.sector,
-            score: finalScore,
-            gates: finalGates,
-            total_pass: finalPass,
+            chart_data: result.data?.chart_data || [],
             isLoading: false,
           });
         } else {
@@ -892,19 +811,17 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
     <div className="relative w-full min-w-0 pb-20 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
       <style>{MICRO_STYLES}</style>
 
-      {/* Header */}
       <div className="mb-6 flex flex-col md:flex-row justify-between md:items-center gap-3">
         <div>
           <h2 className="text-2xl md:text-[28px] font-black text-slate-900 dark:text-white flex items-center gap-3 tracking-tight">
-            🔎 스크리너
+            🔎 스크리너 <span className="text-[13px] font-black text-slate-400 tracking-normal">Minervini Trend Template</span>
           </h2>
           <p className="text-[13px] font-bold text-slate-500 mt-1">
-            6축 재무·모멘텀 스코어로 원하는 조건의 종목을 찾아보세요.
+            추세·모멘텀 6조건으로 정배열 구간의 종목을 찾아보세요.
           </p>
         </div>
       </div>
 
-      {/* 검색 + 섹터 필터 */}
       <div className="flex flex-col md:flex-row gap-3 mb-4">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -916,7 +833,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
           />
         </div>
 
-        {/* 🌟 섹터 콤보박스 */}
         <div className="relative md:w-[220px] shrink-0">
           <select
             value={sector}
@@ -931,7 +847,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
         </div>
       </div>
 
-      {/* 전략 프리셋 */}
       <div className="flex flex-wrap gap-2 mb-8">
         {STRATEGY_PRESETS.map(p => {
           const isActive = activePresetLabel === p.label;
@@ -953,12 +868,10 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 min-w-0">
-        {/* 왼쪽: Snowflake */}
         <div className="lg:sticky lg:top-4 lg:self-start">
           <SnowflakeChart thresholds={thresholds} onAxisChange={handleAxisChange} />
         </div>
 
-        {/* 오른쪽: 결과 */}
         <div className="min-w-0">
           {(screenerData || []).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl">
@@ -978,7 +891,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
             </div>
           ) : (
             <>
-              {/* 🌟 결과 개수 + 정렬 컨트롤 — 예전 테이블 헤더 클릭 정렬을 대체 */}
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                 <p className="text-[14px] font-black text-slate-900 dark:text-white">
                   {totalCount}개 종목 매칭
@@ -1011,8 +923,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
                 </div>
               </div>
 
-              {/* 🌟 카드 그리드 — 모바일 1열, 태블릿 이상 2열, 넓은 데스크톱 3열.
-                  모바일/데스크톱 동일한 ScreenerCard 컴포넌트를 재사용해 위화감 없음. */}
               {results.length === 0 ? (
                 <div className="p-10 text-center text-slate-500 font-extrabold bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-2xl">
                   조건에 맞는 종목이 없습니다.
@@ -1040,7 +950,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
         </div>
       </div>
 
-      {/* 🌟 리포트 모달 */}
       <ScreenerReportModal
         selectedStock={selectedStock}
         reportLoading={reportLoading}
