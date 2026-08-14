@@ -511,7 +511,7 @@ function ScreenerCard({ r, onNameClick }) {
           <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatPct(r.debt_ratio)}</p>
         </div>
         <div>
-          <p className="text-[9.5px] font-bold text-slate-400">영업이익률</p>
+          <p className="text-[9.5px] font-bold text-slate-400">영업이익</p>
           <p className="text-[12px] font-extrabold text-slate-700 dark:text-slate-300">{formatPct(r.op_margin)}</p>
         </div>
         <div>
