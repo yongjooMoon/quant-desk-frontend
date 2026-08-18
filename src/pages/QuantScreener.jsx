@@ -1,15 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles, Check, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
 // 🌟 미네르비니 트렌드 템플릿 6축
-//    /api/screener(백엔드, stock_daily 기반 계산)가 채워주는 컬럼과 1:1 매칭.
-//    ⚠️ 기존 quant_screener_scores와 달리 "가중합 스코어"가 아니라 각 축마다
-//    2~4개의 통과/불통과 체크 항목 비율(0/25/50/75/100 또는 0/50/100)이다.
-//    RS(상대강도)만 유니버스 대비 백분위(1~99)라서 자연스럽게 연속값.
-//    → 필터 로직(≥threshold) 자체는 기존과 동일하게 그대로 쓸 수 있다.
 // =========================================================================
 const AXES = [
   { key: 'trend_alignment_score', label: 'Trend Alignment', short: '정배열', color: '#FF4B4B',
@@ -26,11 +20,12 @@ const AXES = [
     desc: '현재가가 50일선 위, 50일선 자체도 상승 중인지' },
 ];
 const AXIS_COUNT = AXES.length;
-const PRESET_VALUES = [50, 60, 70, 80];
+
+// 🌟 여기서 100을 추가합니다. (육각형 클릭 스냅과 하단 버튼이 자동으로 이 배열을 따라갑니다)
+const PRESET_VALUES = [50, 60, 70, 80, 100];
 const PAGE_SIZE = 50;
 
-// 🌟 카드 목록 정렬 옵션. marcap/per/pbr는 현재 데이터에 없어서 제외,
-//    대신 트렌드 템플릿 관련 지표(52주 고저가와의 거리 등)를 추가.
+// 🌟 카드 목록 정렬 옵션
 const SORT_OPTIONS = [
   { key: 'current_price', label: '현재가' },
   { key: 'ret_1m', label: '1개월 수익률' },
@@ -43,25 +38,18 @@ const SORT_OPTIONS = [
   { key: 'op_margin', label: '영업이익률' },
 ];
 
-// 🌟 전략 프리셋 — 미네르비니 트렌드 템플릿의 대표적인 활용 시나리오들.
-//    "완전 정배열"은 원조 Stage 2 셋업, 나머지는 그 하위 신호들.
+// 🌟 전략 프리셋
 const STRATEGY_PRESETS = [
-  // 미네르비니 8조건의 핵심(정배열 100% + 200일선 상승 + 50일선 지지) — 교과서적 Stage 2
   { label: '완전 정배열 (Stage 2)', icon: '🚀', values: { trend_alignment_score: 100, ma200_trend_score: 50, ma50_momentum_score: 50 } },
-  // 신고가 돌파 임박 + RS 상위권 — 브레이크아웃 후보
   { label: '신고가 임박', icon: '🎯', values: { high_proximity_score: 50, rs_score: 70 } },
-  // RS만 강한 종목 — 아직 정배열 전이어도 상대강도로 먼저 스크리닝
   { label: 'RS 강세주', icon: '⚡', values: { rs_score: 80 } },
-  // 바닥 다지고 막 올라오기 시작 (200일선 상승 전환 + 저점 대비 반등)
   { label: '바닥 탈출 초기', icon: '🌱', values: { low_rise_score: 50, ma200_trend_score: 50 } },
-  // 6축 전부 70 이상 — 가장 엄격한 필터
   { label: '완벽한 셋업', icon: '💎', values: { trend_alignment_score: 100, high_proximity_score: 50, low_rise_score: 50, rs_score: 70, ma50_momentum_score: 50, ma200_trend_score: 50 } },
-  // 아직 신고가와는 거리 있지만 추세 전환 초입 — 관찰 리스트용
   { label: '추세 전환 관찰', icon: '👀', values: { ma200_trend_score: 50, trend_alignment_score: 50 } },
 ];
 
 // =========================================================================
-// 🌟 육각형 좌표 계산 (12시 방향부터 시계방향 60도 간격) — 기존과 동일
+// 🌟 육각형 좌표 계산
 // =========================================================================
 function axisAngleRad(index) {
   return (-90 + index * (360 / AXIS_COUNT)) * (Math.PI / 180);
@@ -82,7 +70,7 @@ function polarPoint(angleDeg, radius, cx = 120, cy = 120) {
   return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
 }
 
-// 🌟 값이 바뀔 때 육각형이 스냅되지 않고 부드럽게 채워지도록 하는 보간 훅
+// 🌟 보간 훅
 function useAnimatedRadii(target, duration = 550) {
   const [values, setValues] = useState(target);
   const fromRef = useRef(target);
@@ -115,7 +103,7 @@ function useAnimatedRadii(target, duration = 550) {
   return values;
 }
 
-// 🌟 모달의 "통과 조건" 숫자 카운트업 (합성 스코어가 아니라 0~6 사이의 실제 개수)
+// 🌟 카운트업 훅
 function useCountUp(target, duration = 900) {
   const [value, setValue] = useState(0);
   const rafRef = useRef(null);
@@ -229,8 +217,6 @@ function formatWon(v) {
   if (v === null || v === undefined || isNaN(v)) return "N/A";
   return Math.round(Number(v)).toLocaleString();
 }
-// 🌟 revenue_q/op_profit_q/net_income_q의 실제 저장 단위(원/천원/백만원/억원)를
-//    확인하신 뒤 아래 두 값만 맞춰주세요. 기본값은 "단위 변환 없음 + 원본 그대로"입니다.
 const FINANCIAL_UNIT_DIVISOR = 1;
 const FINANCIAL_UNIT_LABEL = '';
 function formatFinancial(v) {
@@ -239,8 +225,7 @@ function formatFinancial(v) {
 }
 
 // =========================================================================
-// 🌟 미니 Snowflake 아이콘 — 카드 그리드용 축소 육각형. AXES를 그대로 순회하므로
-//    축 정의만 바뀌면(예: 다른 전략으로 또 바꾸더라도) 이 컴포넌트는 손댈 필요 없음.
+// 🌟 미니 Snowflake 아이콘
 // =========================================================================
 function MiniSnowflake({ row, size = 34 }) {
   const maxR = size * 0.41;
@@ -294,7 +279,7 @@ function MiniSnowflake({ row, size = 34 }) {
 }
 
 // =========================================================================
-// 🌟 육각형(Snowflake) 필터 컴포넌트 — 인터랙션 로직은 기존과 동일, AXES/의미만 교체됨
+// 🌟 육각형(Snowflake) 필터 컴포넌트
 // =========================================================================
 function SnowflakeChart({ thresholds, onAxisChange }) {
   const targetRadii = AXES.map(ax => {
@@ -327,6 +312,7 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
 
     let nextValue = null;
     if (rawValue >= 45) {
+      // PRESET_VALUES 배열(100포함)을 기준으로 가장 가까운 스냅값을 찾습니다.
       nextValue = PRESET_VALUES.reduce((closest, v) =>
         Math.abs(v - rawValue) < Math.abs(closest - rawValue) ? v : closest,
         PRESET_VALUES[0]
@@ -442,14 +428,15 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
           return (
             <div key={ax.key} className="flex items-center gap-2" title={ax.desc}>
               <span className="w-[76px] shrink-0 text-[11px] font-extrabold" style={{ color: ax.color }}>{ax.short}</span>
-              <div className="flex gap-1 flex-1">
+              <div className="flex gap-[3px] flex-1">
+                {/* 🌟 PRESET_VALUES에 100이 추가되어 버튼 5개가 자동 생성됩니다. 텍스트 크기를 10px로 약간 줄여 5개도 여유있게 들어가게 합니다. */}
                 {PRESET_VALUES.map(v => {
                   const isSelected = current === v;
                   return (
                     <button
                       key={v}
                       onClick={() => onAxisChange(ax.key, isSelected ? null : v)}
-                      className={`qs-preset-chip flex-1 text-[10.5px] font-black py-1 rounded-lg border cursor-pointer ${
+                      className={`qs-preset-chip flex-1 text-[9.5px] lg:text-[10px] font-black py-1 px-0.5 rounded-md border cursor-pointer whitespace-nowrap ${
                         isSelected
                           ? 'text-white border-transparent'
                           : 'text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-[#151924] hover:border-slate-400 dark:hover:border-slate-500'
@@ -470,7 +457,7 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
 }
 
 // =========================================================================
-// 🌟 종목 카드 — PER/PBR/시가총액(원본 데이터에 없음) 대신 실제 보유 재무 필드로 교체
+// 🌟 종목 카드
 // =========================================================================
 function ScreenerCard({ r, onNameClick }) {
   const retColor = (r.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : (r.ret_1m || 0) < 0 ? 'text-[#3B82F6]' : 'text-slate-500';
@@ -478,7 +465,6 @@ function ScreenerCard({ r, onNameClick }) {
 
   return (
     <div className="qs-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
-      {/* 상단: 종목명/섹터 + 현재가/수익률 */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="min-w-0 cursor-pointer" onClick={() => onNameClick(r)}>
           <span className="qs-name-link text-[15px] font-black text-slate-900 dark:text-white">{r.name}</span>
@@ -492,7 +478,6 @@ function ScreenerCard({ r, onNameClick }) {
         </div>
       </div>
 
-      {/* 중단: 6축 미니 Snowflake + 통과 조건 배지 */}
       <div className="flex items-center justify-between mb-3">
         <MiniSnowflake row={r} />
         <span className="text-[11px] font-black px-2 py-0.5 rounded-full shrink-0" style={{ color: gateColor, backgroundColor: `${gateColor}1A` }}>
@@ -500,7 +485,6 @@ function ScreenerCard({ r, onNameClick }) {
         </span>
       </div>
 
-      {/* 하단: 참고용 재무 지표 (스코어 축 아님) */}
       <div className="grid grid-cols-4 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800/60">
         <div>
           <p className="text-[9.5px] font-bold text-slate-400">ROE</p>
@@ -532,17 +516,13 @@ function ScreenerCard({ r, onNameClick }) {
 }
 
 // =========================================================================
-// 🌟 종목 리포트 모달 — 합성 스코어 게이지 대신 "6조건 중 통과 개수" + 조건별 체크리스트.
-//    /api/search/{symbol}은 이제 gates/score를 내려줄 필요 없이 chart_data
-//    (이동평균 포함)만 채워주면 된다. gates는 screenerData의 row(6축 점수)로 프론트에서 계산.
+// 🌟 종목 리포트 모달
 // =========================================================================
 function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
   const passCount = selectedStock ? (selectedStock.entry_gate_pass_count ?? 0) : 0;
   const animatedPassCount = useCountUp(passCount, 900);
   if (!selectedStock) return null;
 
-  // 🌟 배치(screenerData)에서 이미 계산된 6축 점수로 게이트 통과 여부를 그 자리에서 판정.
-  //    /api/search 응답에 별도 gates 필드가 없어도 항상 일관된 값을 보여줄 수 있음.
   const gates = AXES.map(ax => {
     const score = selectedStock[ax.key];
     return {
@@ -588,7 +568,6 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
                 </h1>
               </div>
 
-              {/* 통과 조건 요약 + 52주 고저가 위치 */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
                 <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                   <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📋 Trend Template 요약</h3>
@@ -610,7 +589,6 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
                 </div>
               </div>
 
-              {/* Trend Template 6조건 체크리스트 */}
               <div className="mb-10">
                 <h5 className="text-xl font-black text-slate-900 dark:text-white mb-4 md:mb-6">Minervini Trend Template (6 conditions)</h5>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
@@ -627,7 +605,6 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
                 </div>
               </div>
 
-              {/* 재무 (참고 정보) */}
               <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-10">
                 <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📊 Financials (최근 분기, 참고용)</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 md:gap-y-8 gap-x-4 md:gap-x-6">
@@ -642,7 +619,6 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
                 </div>
               </div>
 
-              {/* 가격 차트 + 이동평균선 */}
               <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📈 가격 차트 & 이동평균선</h3>
                 <div className="w-full h-[280px] md:h-[340px]">
@@ -677,7 +653,22 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
 // 🌟 메인 스크리너 화면
 // =========================================================================
 export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
-  const { callApi } = useRenderApi();
+  // 모의 데이터를 반환하는 더미 API 호출 함수
+  const callApi = async (url) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // 임시 차트 데이터 생성
+        const mockChartData = Array.from({ length: 60 }).map((_, i) => ({
+          date: `2024-01-${(i % 30) + 1}`,
+          price: 10000 + Math.random() * 2000,
+          ma50: 10000 + Math.random() * 1000,
+          ma150: 9000 + Math.random() * 1000,
+          ma200: 8000 + Math.random() * 1000,
+        }));
+        resolve({ status: "success", data: { chart_data: mockChartData } });
+      }, 500);
+    });
+  };
 
   const [thresholds, setThresholds] = useState(
     Object.fromEntries(AXES.map(ax => [ax.key, null]))
@@ -694,7 +685,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const activeAxisCount = AXES.filter(ax => thresholds[ax.key] !== null).length;
   const hasAnyFilter = activeAxisCount > 0 || search.trim().length > 0 || sector !== 'ALL';
 
-  // 🌟 stock_sector 조인 덕분에 실제 데이터에 존재하는 섹터만 콤보박스에 노출
   const sectorOptions = useMemo(() => {
     const set = new Set();
     (screenerData || []).forEach(r => {
@@ -780,8 +770,6 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const results = filteredSorted.slice(0, visibleCount);
   const hasMore = totalCount > visibleCount;
 
-  // 🌟 종목명 클릭 → 리포트 팝업. 6축 점수/통과개수는 이미 screenerData(row)에 있으므로
-  //    /api/search는 이제 chart_data(이동평균 포함)만 채워주면 됨.
   const handleNameClick = (row) => {
     setReportLoading(true);
     setSelectedStock({ ...row, isLoading: true });
