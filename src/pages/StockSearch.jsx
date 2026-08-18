@@ -27,7 +27,6 @@ export default function StockSearch() {
   const { callApi, ServerWakeupOverlay } = useRenderApi();
 
   useEffect(() => {
-    // 💡 1. 종목 마스터 리스트 로딩 — 캐시 사용하지 않고 항상 백엔드 호출 (callApi 사용)
     callApi("/api/krx-list")
       .then(data => {
         if (data.status === "success") {
@@ -36,7 +35,6 @@ export default function StockSearch() {
       })
       .catch(err => console.error(err));
 
-    // 💡 2. 펀더멘털 선제적 로딩 — 캐시 확인 없이 항상 백엔드 호출 (callApi 사용)
     callApi("/api/fundamentals")
       .then(data => {
         if (data.status === "success") {
@@ -75,7 +73,6 @@ export default function StockSearch() {
   }, [focusedIndex, isDropdownOpen]);
 
   const handleSelect = (symbol, searchStr) => {
-    // 💡 [개선] 종목 선택 시 검색창에는 종목코드 제외, 종목명만 입력
     const displayName = searchStr.includes(' (') ? searchStr.split(' (')[0] : searchStr;
     setSearchTerm(displayName);
 
@@ -85,12 +82,10 @@ export default function StockSearch() {
     setError("");
     setResult(null);
 
-    // 💡 [개선] 모바일 키보드 닫기 및 포커스 해제
     if (inputRef.current) {
       inputRef.current.blur();
     }
 
-    // 💡 3. 개별 종목 검색 — 캐시 확인 없이 항상 백엔드 호출 (callApi 사용)
     callApi(`/api/search/${symbol}`)
       .then(data => {
         if (data.status === "success") {

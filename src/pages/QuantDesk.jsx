@@ -259,7 +259,6 @@ export default function QuantDesk() {
   //    따로 fetch하지 않는다. data.strategyReport(최초 로드 시 함께 받아옴)를 그대로 참조한다.
   const [backtestStock, setBacktestStock] = useState(null);
 
-  // 🌟 [추가] "전략 신뢰도" 상단 바 클릭 시 여는 전략 검증 리포트 팝업
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
 
   const [timeRange, setTimeRange] = useState("All");
