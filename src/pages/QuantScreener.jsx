@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles, Check, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
 // 🌟 미네르비니 트렌드 템플릿 6축
@@ -44,8 +43,6 @@ const STRATEGY_PRESETS = [
   { label: '완벽한 셋업', icon: '💎', values: { trend_alignment_score: 100, high_proximity_score: 50, low_rise_score: 50, rs_score: 70, ma50_momentum_score: 50, ma200_trend_score: 50 } },
   { label: '추세 전환 관찰', icon: '👀', values: { ma200_trend_score: 50, trend_alignment_score: 50 } },
 ];
-
-const { callApi, ServerWakeupOverlay } = useRenderApi();
 
 function axisAngleRad(index) { return (-90 + index * (360 / AXIS_COUNT)) * (Math.PI / 180); }
 function hexPoint(index, radiusFraction, maxR = 88, cx = 120, cy = 120) {
