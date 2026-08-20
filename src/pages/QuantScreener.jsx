@@ -622,20 +622,26 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
               <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📈 가격 차트 & 이동평균선</h3>
                 <div className="w-full h-[280px] md:h-[340px]">
-                  {selectedStock.chart_data && selectedStock.chart_data.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={selectedStock.chart_data} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
-                        <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={30} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''}/>
-                        <YAxis domain={['auto', 'auto']} tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(value) => value !== undefined && value !== null ? value.toLocaleString() : ''} />
-                        <Tooltip contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900'}} labelStyle={{color: '#94A3B8', marginBottom: '4px'}} formatter={(value, name) => [value !== undefined && value !== null ? value.toLocaleString() : '', name]} />
-                        <Legend wrapperStyle={{ fontSize: 11, fontWeight: 800 }} />
-                        <Line type="monotone" dataKey="price" name="종가" stroke="#FF4B4B" strokeWidth={2.5} dot={false} activeDot={{r: 5, fill: '#FF4B4B', strokeWidth: 0}} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
-                        <Line type="monotone" dataKey="ma50" name="50일선" stroke="#F8B12A" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                        <Line type="monotone" dataKey="ma150" name="150일선" stroke="#3B82F6" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                        <Line type="monotone" dataKey="ma200" name="200일선" stroke="#A78BFA" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                      </LineChart>
-                    </ResponsiveContainer>
+                  {selectedStock.chart_data && selectedStock.chart_data.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={selectedStock.chart_data} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
+                        <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} minTickGap={30} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''}/>
+                        
+                        {/* [수정] YAxis tickFormatter에 Math.round 적용하여 소수점 제거 */}
+                        <YAxis domain={['auto', 'auto']} tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '800'}} tickLine={false} axisLine={false} tickFormatter={(value) => value !== undefined && value !== null ? Math.round(value).toLocaleString() : ''} />
+                        
+                        {/* [수정] Tooltip formatter에 Math.round 적용하여 소수점 제거 */}
+                        <Tooltip contentStyle={{backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900'}} labelStyle={{color: '#94A3B8', marginBottom: '4px'}} formatter={(value, name) => [value !== undefined && value !== null ? Math.round(value).toLocaleString() : '', name]} />
+                        <Legend wrapperStyle={{ fontSize: 11, fontWeight: 800 }} />
+                        
+                        {/* [수정] type="monotone"을 type="linear"로 변경하여 주식 차트답게 각진 선으로 표시되도록 수정 */}
+                        <Line type="linear" dataKey="price" name="종가" stroke="#FF4B4B" strokeWidth={2.5} dot={false} activeDot={{r: 5, fill: '#FF4B4B', strokeWidth: 0}} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+                        <Line type="linear" dataKey="ma50" name="50일선" stroke="#F8B12A" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                        <Line type="linear" dataKey="ma150" name="150일선" stroke="#3B82F6" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                        <Line type="linear" dataKey="ma200" name="200일선" stroke="#A78BFA" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center font-extrabold text-slate-500">차트 데이터가 없습니다.</div>
                   )}
@@ -655,24 +661,22 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
 export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   // 모의 데이터를 반환하는 더미 API 호출 함수
   const callApi = async (url) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // 임시 차트 데이터 생성
-        const mockChartData = Array.from({ length: 60 }).map((_, i) => ({
-          date: `2024-01-${(i % 30) + 1}`,
-          price: 10000 + Math.random() * 2000,
-          ma50: 10000 + Math.random() * 1000,
-          ma150: 9000 + Math.random() * 1000,
-          ma200: 8000 + Math.random() * 1000,
-        }));
-        resolve({ status: "success", data: { chart_data: mockChartData } });
-      }, 500);
-    });
-  };
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("API Network response was not ok");
+      }
+      const data = await response.json();
+      return { status: "success", data: data };
+    } catch (error) {
+      console.error("API Fetch Error:", error);
+      return { status: "error", error: error };
+    }
+  };
 
-  const [thresholds, setThresholds] = useState(
-    Object.fromEntries(AXES.map(ax => [ax.key, null]))
-  );
+  const [thresholds, setThresholds] = useState(
+    Object.fromEntries(AXES.map(ax => [ax.key, null]))
+  );
   const [search, setSearch] = useState('');
   const [sector, setSector] = useState('ALL');
   const [sortKey, setSortKey] = useState(null);
