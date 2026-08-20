@@ -51,6 +51,8 @@ const STRATEGY_PRESETS = [
   { label: '추세 전환 관찰', icon: '👀', values: { ma200_trend_score: 50, trend_alignment_score: 50 } },
 ];
 
+const [buyTargetOnly, setBuyTargetOnly] = useState(false);
+
 // =========================================================================
 // 🌟 육각형 좌표 계산
 // =========================================================================
@@ -225,6 +227,13 @@ const FINANCIAL_UNIT_LABEL = '';
 function formatFinancial(v) {
   if (v === null || v === undefined || isNaN(v)) return "N/A";
   return `${(Number(v) / FINANCIAL_UNIT_DIVISOR).toLocaleString(undefined, { maximumFractionDigits: 0 })}${FINANCIAL_UNIT_LABEL}`;
+}
+
+function getBuySignalBadge(r) {
+  if (r.is_value_buy && r.is_second_buy) return { label: '1차+2차 매수', color: '#A855F7' };
+  if (r.is_value_buy) return { label: '1차 매수', color: '#20C997' };
+  if (r.is_second_buy) return { label: '2차 매수', color: '#F97316' };
+  return null;
 }
 
 // =========================================================================
@@ -465,7 +474,8 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
 function ScreenerCard({ r, onNameClick }) {
   const retColor = (r.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : (r.ret_1m || 0) < 0 ? 'text-[#3B82F6]' : 'text-slate-500';
   const gateColor = (r.entry_gate_pass_count || 0) >= 5 ? '#00B464' : (r.entry_gate_pass_count || 0) >= 3 ? '#F8B12A' : '#64748B';
-
+  const buySignal = getBuySignalBadge(r);
+  
   return (
     <div className="qs-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
       <div className="flex items-start justify-between gap-2 mb-3">
@@ -483,9 +493,19 @@ function ScreenerCard({ r, onNameClick }) {
 
       <div className="flex items-center justify-between mb-3">
         <MiniSnowflake row={r} />
-        <span className="text-[11px] font-black px-2 py-0.5 rounded-full shrink-0" style={{ color: gateColor, backgroundColor: `${gateColor}1A` }}>
-          52주고점 -{formatNum(r.pct_from_52w_high, 1)}%
-        </span>
+        <div className="flex flex-col items-end gap-1"> {/* 🌟 뱃지 2개 세로로 쌓기 위해 wrapper 추가 */}
+          {buySignal && (
+            <span
+              className="text-[10.5px] font-black px-2 py-0.5 rounded-full shrink-0"
+              style={{ color: buySignal.color, backgroundColor: `${buySignal.color}1A` }}
+            >
+              {buySignal.label}
+            </span>
+          )}
+          <span className="text-[11px] font-black px-2 py-0.5 rounded-full shrink-0" style={{ color: gateColor, backgroundColor: `${gateColor}1A` }}>
+            52주고점 -{formatNum(r.pct_from_52w_high, 1)}%
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800/60">
@@ -680,7 +700,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const [reportLoading, setReportLoading] = useState(false);
 
   const activeAxisCount = AXES.filter(ax => thresholds[ax.key] !== null).length;
-  const hasAnyFilter = activeAxisCount > 0 || search.trim().length > 0 || sector !== 'ALL';
+  const hasAnyFilter = activeAxisCount > 0 || search.trim().length > 0 || sector !== 'ALL' || buyTargetOnly;
 
   const sectorOptions = useMemo(() => {
     const set = new Set();
@@ -739,6 +759,8 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
         if (v === null || v === undefined || v < th) return false;
       }
       if (sector !== 'ALL' && r.sector !== sector) return false;
+      // 🌟 추가
+      if (buyTargetOnly && !(r.is_value_buy || r.is_second_buy)) return false;
       if (q) {
         const nameMatch = (r.name || '').toLowerCase().includes(q);
         const symbolMatch = (r.symbol || '').toLowerCase().includes(q);
@@ -761,7 +783,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
     });
 
     return rows;
-  }, [screenerData, thresholds, search, sector, sortKey, sortDir, hasAnyFilter]);
+  }, [screenerData, thresholds, search, sector, sortKey, sortDir, hasAnyFilter, buyTargetOnly]);
 
   const totalCount = filteredSorted.length;
   const results = filteredSorted.slice(0, visibleCount);
@@ -862,6 +884,18 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
             </button>
           );
         })}
+        {/* 🌟 추가: 매수대상 토글 버튼 */}
+        <button
+          onClick={() => { setBuyTargetOnly(v => !v); setVisibleCount(PAGE_SIZE); }}
+          className={`qs-preset-chip flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-black cursor-pointer shadow-sm border ${
+            buyTargetOnly
+              ? 'qs-preset-chip-active'
+              : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-400 dark:hover:border-slate-500'
+          }`}
+        >
+          {buyTargetOnly ? <Check size={13} strokeWidth={3} /> : <span>🛒</span>}
+          매수대상
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 min-w-0">
