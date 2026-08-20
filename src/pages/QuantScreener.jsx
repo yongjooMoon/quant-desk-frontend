@@ -3,26 +3,7 @@ import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles, Check, ArrowUpDown,
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
 // 🌟 [수정] 이 환경에서는 외부 훅을 불러올 수 없으므로 모의(Mock) 훅을 내부에 정의합니다.
-// import { useRenderApi } from '../hooks/useRenderApi';
-function useRenderApi() {
-  const callApi = async (url) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          status: "success",
-          data: {
-             chart_data: [
-                { date: '2023-01-01', price: 100, ma5: 98, ma20: 95, ma60: 90, ma120: 85, ma200: 80 },
-                { date: '2023-01-02', price: 105, ma5: 100, ma20: 96, ma60: 91, ma120: 86, ma200: 81 },
-                { date: '2023-01-03', price: 102, ma5: 101, ma20: 97, ma60: 92, ma120: 87, ma200: 82 },
-             ]
-          }
-        })
-      }, 500);
-    });
-  };
-  return { callApi };
-}
+import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
 // 🌟 미네르비니 트렌드 템플릿 6축
