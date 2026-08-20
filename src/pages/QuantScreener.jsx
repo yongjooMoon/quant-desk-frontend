@@ -474,40 +474,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const hasMore = totalCount > visibleCount;
 
   const handleNameClick = async (row) => {
-    setReportLoading(true);
-    setSelectedStock({ ...row, isLoading: true });
-  
-    try {
-      const result = await callApi(`/api/stock/chart/${row.symbol}`);
-  
-      if (result.status === "success") {
-        setSelectedStock({
-          ...row,
-          chart_data: result.data?.chart_data || [],
-          isLoading: false
-        });
-      } else {
-        setSelectedStock(prev => ({
-          ...prev,
-          isLoading: false,
-          fetchError: true
-        }));
-      }
-    } catch (error) {
-      console.error("차트 에러:", error);
-  
-      setSelectedStock(prev => ({
-        ...prev,
-        isLoading: false,
-        fetchError: true
-      }));
-    } finally {
-      setReportLoading(false);
-    }
-  
-    if (onSelectSymbol) {
-      onSelectSymbol(row.symbol, row);
-    }
+    
   };
 
   return (
