@@ -1610,7 +1610,7 @@ export default function QuantDesk() {
                             </div>
 
                             <div className="p-6 md:p-8 bg-slate-50 dark:bg-[#111827] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📈 가격 차트 (최근 120일)</h3>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-6">📈 가격 차트 (최근 250일)</h3>
                                 <div className="w-full h-[250px] md:h-[300px]">
                                     {selectedStock.chart_data && selectedStock.chart_data.length > 0 ? (
                                         <ResponsiveContainer width="100%" height="100%">
