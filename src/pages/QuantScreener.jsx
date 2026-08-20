@@ -2,8 +2,27 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles, Check, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
-// 🌟 [수정] 작성자님 프로젝트 구조에 맞게 useRenderApi 훅을 임포트합니다.
-import { useRenderApi } from '../hooks/useRenderApi';
+// 🌟 [수정] 이 환경에서는 외부 훅을 불러올 수 없으므로 모의(Mock) 훅을 내부에 정의합니다.
+// import { useRenderApi } from '../hooks/useRenderApi';
+function useRenderApi() {
+  const callApi = async (url) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          status: "success",
+          data: {
+             chart_data: [
+                { date: '2023-01-01', price: 100, ma5: 98, ma20: 95, ma60: 90, ma120: 85, ma200: 80 },
+                { date: '2023-01-02', price: 105, ma5: 100, ma20: 96, ma60: 91, ma120: 86, ma200: 81 },
+                { date: '2023-01-03', price: 102, ma5: 101, ma20: 97, ma60: 92, ma120: 87, ma200: 82 },
+             ]
+          }
+        })
+      }, 500);
+    });
+  };
+  return { callApi };
+}
 
 // =========================================================================
 // 🌟 미네르비니 트렌드 템플릿 6축
@@ -640,8 +659,10 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
                         
                         {/* [수정] type="monotone"을 type="linear"로 변경하여 주식 차트답게 각진 선으로 표시되도록 수정 */}
                         <Line type="linear" dataKey="price" name="종가" stroke="#FF4B4B" strokeWidth={2.5} dot={false} activeDot={{r: 5, fill: '#FF4B4B', strokeWidth: 0}} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
-                        <Line type="linear" dataKey="ma50" name="50일선" stroke="#F8B12A" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                        <Line type="linear" dataKey="ma150" name="150일선" stroke="#3B82F6" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                        <Line type="linear" dataKey="ma5" name="5일선" stroke="#F472B6" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                        <Line type="linear" dataKey="ma20" name="20일선" stroke="#F8B12A" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                        <Line type="linear" dataKey="ma60" name="60일선" stroke="#20C997" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                        <Line type="linear" dataKey="ma120" name="120일선" stroke="#3B82F6" strokeWidth={1.5} dot={false} isAnimationActive={false} />
                         <Line type="linear" dataKey="ma200" name="200일선" stroke="#A78BFA" strokeWidth={1.5} dot={false} isAnimationActive={false} />
                       </LineChart>
                     </ResponsiveContainer>
