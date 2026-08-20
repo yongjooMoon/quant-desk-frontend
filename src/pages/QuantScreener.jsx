@@ -659,24 +659,13 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
 // 🌟 메인 스크리너 화면
 // =========================================================================
 export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
-  // 모의 데이터를 반환하는 더미 API 호출 함수
-  const callApi = async (url) => {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error("API Network response was not ok");
-      }
-      const data = await response.json();
-      return { status: "success", data: data };
-    } catch (error) {
-      console.error("API Fetch Error:", error);
-      return { status: "error", error: error };
-    }
-  };
-
-  const [thresholds, setThresholds] = useState(
-    Object.fromEntries(AXES.map(ax => [ax.key, null]))
-  );
+  // [삭제] 아까 작성했던 이 부분(const callApi = async (url) => { ... })은 
+  // 부모의 똑똑한 callApi를 쓸 것이므로 완전히 지워주세요!
+  
+  const [thresholds, setThresholds] = useState(
+    Object.fromEntries(AXES.map(ax => [ax.key, null]))
+  );
+  
   const [search, setSearch] = useState('');
   const [sector, setSector] = useState('ALL');
   const [sortKey, setSortKey] = useState(null);
