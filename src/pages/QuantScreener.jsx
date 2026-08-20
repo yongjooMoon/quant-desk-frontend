@@ -227,12 +227,14 @@ function formatFinancial(v) {
   return `${(Number(v) / FINANCIAL_UNIT_DIVISOR).toLocaleString(undefined, { maximumFractionDigits: 0 })}${FINANCIAL_UNIT_LABEL}`;
 }
 
-// 🌟 1차/2차 매수 신호 뱃지 판정
+// 🌟 1차/2차 매수 뱃지 — is_value_buy 종목만 표시 대상.
+// 라벨은 종목 신호가 아니라 "코스피가 고점 대비 -20% 이하인가"(시장 전체 공통 플래그)로 결정.
 function getBuySignalBadge(r) {
-  if (r.is_value_buy && r.is_second_buy) return { label: '1차+2차 매수', color: '#A855F7' };
-  if (r.is_value_buy) return { label: '1차 매수', color: '#20C997' };
-  if (r.is_second_buy) return { label: '2차 매수', color: '#F97316' };
-  return null;
+  if (!r.is_value_buy) return null;
+  if (r.is_second_buy_regime) {
+    return { label: '2차 매수', color: '#F97316' };
+  }
+  return { label: '1차 매수', color: '#20C997' };
 }
 
 // =========================================================================
@@ -768,8 +770,8 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
         if (v === null || v === undefined || v < th) return false;
       }
       if (sector !== 'ALL' && r.sector !== sector) return false;
-      // 🌟 매수대상 토글 필터
-      if (buyTargetOnly && !(r.is_value_buy || r.is_second_buy)) return false;
+      // 🌟 "매수대상" 버튼은 is_value_buy 종목만 필터링. 1차/2차 구분은 카드 뱃지가 담당.
+      if (buyTargetOnly && !r.is_value_buy) return false;
       if (q) {
         const nameMatch = (r.name || '').toLowerCase().includes(q);
         const symbolMatch = (r.symbol || '').toLowerCase().includes(q);
