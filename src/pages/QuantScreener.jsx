@@ -51,8 +51,6 @@ const STRATEGY_PRESETS = [
   { label: '추세 전환 관찰', icon: '👀', values: { ma200_trend_score: 50, trend_alignment_score: 50 } },
 ];
 
-const [buyTargetOnly, setBuyTargetOnly] = useState(false);
-
 // =========================================================================
 // 🌟 육각형 좌표 계산
 // =========================================================================
@@ -229,6 +227,7 @@ function formatFinancial(v) {
   return `${(Number(v) / FINANCIAL_UNIT_DIVISOR).toLocaleString(undefined, { maximumFractionDigits: 0 })}${FINANCIAL_UNIT_LABEL}`;
 }
 
+// 🌟 1차/2차 매수 신호 뱃지 판정
 function getBuySignalBadge(r) {
   if (r.is_value_buy && r.is_second_buy) return { label: '1차+2차 매수', color: '#A855F7' };
   if (r.is_value_buy) return { label: '1차 매수', color: '#20C997' };
@@ -475,7 +474,7 @@ function ScreenerCard({ r, onNameClick }) {
   const retColor = (r.ret_1m || 0) > 0 ? 'text-[#FF4B4B]' : (r.ret_1m || 0) < 0 ? 'text-[#3B82F6]' : 'text-slate-500';
   const gateColor = (r.entry_gate_pass_count || 0) >= 5 ? '#00B464' : (r.entry_gate_pass_count || 0) >= 3 ? '#F8B12A' : '#64748B';
   const buySignal = getBuySignalBadge(r);
-  
+
   return (
     <div className="qs-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
       <div className="flex items-start justify-between gap-2 mb-3">
@@ -493,7 +492,7 @@ function ScreenerCard({ r, onNameClick }) {
 
       <div className="flex items-center justify-between mb-3">
         <MiniSnowflake row={r} />
-        <div className="flex flex-col items-end gap-1"> {/* 🌟 뱃지 2개 세로로 쌓기 위해 wrapper 추가 */}
+        <div className="flex flex-col items-end gap-1">
           {buySignal && (
             <span
               className="text-[10.5px] font-black px-2 py-0.5 rounded-full shrink-0"
@@ -689,12 +688,15 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const [thresholds, setThresholds] = useState(
     Object.fromEntries(AXES.map(ax => [ax.key, null]))
   );
-  
+
   const [search, setSearch] = useState('');
   const [sector, setSector] = useState('ALL');
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('desc');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // 🌟 [수정] 컴포넌트 바깥에 있던 useState를 컴포넌트 내부(다른 state들과 같은 위치)로 이동
+  const [buyTargetOnly, setBuyTargetOnly] = useState(false);
 
   const [selectedStock, setSelectedStock] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
@@ -759,7 +761,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
         if (v === null || v === undefined || v < th) return false;
       }
       if (sector !== 'ALL' && r.sector !== sector) return false;
-      // 🌟 추가
+      // 🌟 매수대상 토글 필터
       if (buyTargetOnly && !(r.is_value_buy || r.is_second_buy)) return false;
       if (q) {
         const nameMatch = (r.name || '').toLowerCase().includes(q);
@@ -884,7 +886,8 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
             </button>
           );
         })}
-        {/* 🌟 추가: 매수대상 토글 버튼 */}
+
+        {/* 🌟 매수대상 토글 버튼 (1차/2차를 한번에 필터링) */}
         <button
           onClick={() => { setBuyTargetOnly(v => !v); setVisibleCount(PAGE_SIZE); }}
           className={`qs-preset-chip flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-black cursor-pointer shadow-sm border ${
