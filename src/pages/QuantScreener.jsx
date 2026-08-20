@@ -227,14 +227,12 @@ function formatFinancial(v) {
   return `${(Number(v) / FINANCIAL_UNIT_DIVISOR).toLocaleString(undefined, { maximumFractionDigits: 0 })}${FINANCIAL_UNIT_LABEL}`;
 }
 
-// 🌟 1차/2차 매수 뱃지 — is_value_buy 종목만 표시 대상.
-// 라벨은 종목 신호가 아니라 "코스피가 고점 대비 -20% 이하인가"(시장 전체 공통 플래그)로 결정.
+// 🌟 1차/2차 매수 신호 뱃지 판정
 function getBuySignalBadge(r) {
-  if (!r.is_value_buy) return null;
-  if (r.is_second_buy_regime) {
-    return { label: '2차 매수', color: '#F97316' };
-  }
-  return { label: '1차 매수', color: '#20C997' };
+  if (r.is_value_buy && r.is_second_buy) return { label: '1차+2차 매수', color: '#A855F7' };
+  if (r.is_value_buy) return { label: '1차 매수', color: '#20C997' };
+  if (r.is_second_buy) return { label: '2차 매수', color: '#F97316' };
+  return null;
 }
 
 // =========================================================================
@@ -323,14 +321,15 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
     const frac = Math.max(0, Math.min(1, dist / maxR));
     const rawValue = frac * 100;
 
+    // 🌟 [수정] PRESET_VALUES(50,60,70,80,100)의 간격이 불균등해서 기존 "최근접값" 방식은
+    // 80↔100 경계가 90점이 되어버려 100점 구간이 육각형 맨 꼭짓점의 극히 좁은 영역에만
+    // 존재했습니다(사실상 클릭 불가). 명시적 경계로 바꿔 100점 구간을 충분히 넓힙니다.
     let nextValue = null;
-    if (rawValue >= 45) {
-      // PRESET_VALUES 배열(100포함)을 기준으로 가장 가까운 스냅값을 찾습니다.
-      nextValue = PRESET_VALUES.reduce((closest, v) =>
-        Math.abs(v - rawValue) < Math.abs(closest - rawValue) ? v : closest,
-        PRESET_VALUES[0]
-      );
-    }
+    if (rawValue >= 45 && rawValue < 55) nextValue = 50;
+    else if (rawValue >= 55 && rawValue < 65) nextValue = 60;
+    else if (rawValue >= 65 && rawValue < 75) nextValue = 70;
+    else if (rawValue >= 75 && rawValue < 85) nextValue = 80;
+    else if (rawValue >= 85) nextValue = 100;
 
     const current = thresholds[ax.key];
     onAxisChange(ax.key, current === nextValue ? null : nextValue);
@@ -742,6 +741,12 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   }, []);
 
   const applyPreset = (preset) => {
+    // 🌟 [수정] 이미 적용 중인 프리셋을 다시 누르면 전체 축 초기화(토글 off)
+    if (activePresetLabel === preset.label) {
+      setThresholds(Object.fromEntries(AXES.map(ax => [ax.key, null])));
+      setVisibleCount(PAGE_SIZE);
+      return;
+    }
     setThresholds(prev => {
       const next = { ...prev };
       AXES.forEach(ax => { next[ax.key] = null; });
@@ -764,7 +769,7 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
       }
       if (sector !== 'ALL' && r.sector !== sector) return false;
       // 🌟 매수대상 토글 필터
-      if (buyTargetOnly && !r.is_value_buy) return false;
+      if (buyTargetOnly && !(r.is_value_buy || r.is_second_buy)) return false;
       if (q) {
         const nameMatch = (r.name || '').toLowerCase().includes(q);
         const symbolMatch = (r.symbol || '').toLowerCase().includes(q);
