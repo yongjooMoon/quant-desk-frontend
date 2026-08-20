@@ -1027,7 +1027,8 @@ export default function QuantDesk() {
 
           {/* ===================== SCREENER TAB ===================== */}
           {activeTab === "Screener" && (
-              <QuantScreener screenerData={data.screener} />
+              // [수정] 자식 컴포넌트가 백엔드 주소를 알 수 있도록 callApi 함수를 넘겨줍니다.
+              <QuantScreener screenerData={data.screener} callApi={callApi} />
           )}
 
           {/* ===================== HISTORY TAB ===================== */}
