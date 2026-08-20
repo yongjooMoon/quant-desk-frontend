@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles, Check, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
 // 🌟 미네르비니 트렌드 템플릿 6축
@@ -43,6 +44,8 @@ const STRATEGY_PRESETS = [
   { label: '완벽한 셋업', icon: '💎', values: { trend_alignment_score: 100, high_proximity_score: 50, low_rise_score: 50, rs_score: 70, ma50_momentum_score: 50, ma200_trend_score: 50 } },
   { label: '추세 전환 관찰', icon: '👀', values: { ma200_trend_score: 50, trend_alignment_score: 50 } },
 ];
+
+const { callApi, ServerWakeupOverlay } = useRenderApi();
 
 function axisAngleRad(index) { return (-90 + index * (360 / AXIS_COUNT)) * (Math.PI / 180); }
 function hexPoint(index, radiusFraction, maxR = 88, cx = 120, cy = 120) {
@@ -473,22 +476,38 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
   const handleNameClick = async (row) => {
     setReportLoading(true);
     setSelectedStock({ ...row, isLoading: true });
+  
     try {
-      const response = await fetch(`http://localhost:8000/api/stock/chart/${row.symbol}`);
-      if (!response.ok) throw new Error(`API 오류: ${response.status}`);
-      const result = await response.json();
+      const result = await callApi(`/api/stock/chart/${row.symbol}`);
+  
       if (result.status === "success") {
-        setSelectedStock({ ...row, chart_data: result.data?.chart_data || [], isLoading: false });
+        setSelectedStock({
+          ...row,
+          chart_data: result.data?.chart_data || [],
+          isLoading: false
+        });
       } else {
-        setSelectedStock(prev => ({ ...prev, isLoading: false, fetchError: true }));
+        setSelectedStock(prev => ({
+          ...prev,
+          isLoading: false,
+          fetchError: true
+        }));
       }
     } catch (error) {
       console.error("차트 에러:", error);
-      setSelectedStock(prev => ({ ...prev, isLoading: false, fetchError: true }));
+  
+      setSelectedStock(prev => ({
+        ...prev,
+        isLoading: false,
+        fetchError: true
+      }));
     } finally {
       setReportLoading(false);
     }
-    if (onSelectSymbol) onSelectSymbol(row.symbol, row);
+  
+    if (onSelectSymbol) {
+      onSelectSymbol(row.symbol, row);
+    }
   };
 
   return (
