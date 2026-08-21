@@ -1428,7 +1428,7 @@ export default function QuantDesk() {
                 <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800/80">
                     <div>
                         <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">⚡ 전략 검증 리포트</h3>
-                        <p className="text-[12px] font-bold text-slate-500 mt-1">생성 시각 {data.strategyReport?.generated_at} · 참고 기간 {data.strategyReport?.trading_days}거래일 · 전체 유니버스 기준</p>
+                        <p className="text-[12px] font-bold text-slate-500 mt-1">생성 시각 {data.strategyReport?.generated_at} · 참고 기간 250거래일 · 전체 유니버스 기준</p>
                     </div>
                     <button onClick={() => setIsStrategyModalOpen(false)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors cursor-pointer"><X size={20}/></button>
                 </div>
@@ -1448,7 +1448,7 @@ export default function QuantDesk() {
                     </div>
 
                     <p className="text-[12.5px] font-extrabold text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-                        {strategyTrackRecord.confidence_note} 오늘 확정/보유 중인 종목들은 모두 이 전략(관문 A~F)에서 나온 신호이며, 아래 통계는 특정 종목이 아니라 <b>전략 자체</b>가 지난 {data.strategyReport?.trading_days}거래일 동안 전체 시장에서 어떻게 작동했는지를 보여줍니다.
+                        {strategyTrackRecord.confidence_note} 오늘 확정/보유 중인 종목들은 모두 이 전략(관문 A~F)에서 나온 신호이며, 아래 통계는 특정 종목이 아니라 <b>전략 자체</b>가 지난 250거래일 동안 전체 시장에서 어떻게 작동했는지를 보여줍니다.
                     </p>
 
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-2">
