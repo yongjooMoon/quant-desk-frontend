@@ -831,11 +831,11 @@ export default function QuantDesk() {
 
       <div className="flex gap-3 md:gap-5 border-b border-slate-200 dark:border-slate-800 mb-8 overflow-x-auto whitespace-nowrap hide-scrollbar pb-0 select-none">
         {[{id: "Macro", label: "Macro"},
+          {id: "Backtest", label: "BackTesting"},
           {id: "Portfolio", label: `Portfolio (${holdings.length})`},
           {id: "Watchlist", label: `Watchlist (${filWatchlist.length})`},
           {id: "Screener", label: "Screener"},
           {id: "History", label: "History"},
-          {id: "Backtest", label: "백테스팅"},
           {id: "Whitepaper", label: "Explain"}].map(t => (
             <button
                 key={t.id} onClick={() => setActiveTab(t.id)}
