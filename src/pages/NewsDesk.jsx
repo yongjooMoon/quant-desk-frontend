@@ -35,6 +35,20 @@ const NEWS_MICRO_STYLES = `
   .dark .news-skeleton { background: rgba(51,65,85,0.4); }
   .dark .news-skeleton::after { background: linear-gradient(90deg, transparent, rgba(148,163,184,0.12), transparent); }
   @keyframes newsShimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+  /* 미세한 3D depth — 실사용자가 명확히 "기울어진다"고 인식하지 않는 범위(±2deg)로 제한 */
+  .news-tilt { transition: transform 0.15s ease-out, box-shadow 0.15s ease-out; transform-style: preserve-3d; will-change: transform; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .news-tilt { transition: none !important; }
+    .news-modal-panel { animation: none !important; }
+  }
+
+  @keyframes newsModalIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .news-modal-panel { animation: newsModalIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
 `;
 
 export default function NewsDesk() {
@@ -217,6 +231,20 @@ export default function NewsDesk() {
     setSelectedNews(item);
   };
 
+  // 미세한 3D hover — 마우스 정밀 포인터(pointer:fine) + reduced-motion 미설정 환경에서만, ±2deg로 제한
+  const handleCardTilt = (e) => {
+    if (isDragging) return;
+    if (window.matchMedia && (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !window.matchMedia('(pointer: fine)').matches)) return;
+    const card = e.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    card.style.transform = `perspective(700px) rotateX(${(-py * 3).toFixed(2)}deg) rotateY(${(px * 3).toFixed(2)}deg) translateZ(0)`;
+  };
+  const resetCardTilt = (e) => {
+    e.currentTarget.style.transform = '';
+  };
+
   // 모달 스크롤 시 상단 읽기 진행률 바 갱신
   const handleModalScroll = () => {
     const el = modalContentRef.current;
@@ -363,7 +391,9 @@ export default function NewsDesk() {
                       <div
                         key={item.id}
                         onClick={(e) => handleCardClick(e, item)}
-                        className="relative w-[85vw] sm:w-[320px] md:w-[340px] snap-center shrink-0 pl-4 pr-4 py-4 md:py-5 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer flex flex-col justify-between min-h-[136px] md:min-h-[150px] transition-colors"
+                        onMouseMove={handleCardTilt}
+                        onMouseLeave={resetCardTilt}
+                        className="news-tilt relative w-[85vw] sm:w-[320px] md:w-[340px] snap-center shrink-0 pl-4 pr-4 py-4 md:py-5 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131E30] hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-[0_12px_28px_-12px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_16px_32px_-14px_rgba(0,0,0,0.6)] cursor-pointer flex flex-col justify-between min-h-[136px] md:min-h-[150px]"
                       >
                         <span
                           className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
@@ -495,15 +525,16 @@ export default function NewsDesk() {
       {selectedNews && (() => {
         const sentiment = getSentimentInfo(selectedNews.sentiment_score);
         const scoreValue = selectedNews.sentiment_score || 0;
+        const catStyle = getCategoryStyle(getItemCategory(selectedNews));
         return (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4">
-            <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-[900px] lg:max-w-[1040px] min-h-[60vh] md:min-h-[72vh] lg:min-h-[78vh] max-h-[92vh] rounded-lg shadow-xl flex flex-col overflow-hidden">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-[2px] p-4">
+            <div className="news-modal-panel bg-white dark:bg-[#0F1B2E] border border-slate-200 dark:border-slate-700/60 w-full max-w-[900px] lg:max-w-[1160px] min-h-[60vh] md:min-h-[72vh] lg:min-h-[74vh] max-h-[92vh] rounded-lg shadow-[0_24px_60px_-16px_rgba(0,0,0,0.45)] dark:shadow-[0_32px_70px_-16px_rgba(0,0,0,0.75)] flex flex-col overflow-hidden">
 
               {/* 모달 헤더 */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between px-5 md:px-8 py-4 md:py-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
                 <div className="flex items-center gap-3">
                   {showCategoryBadge && (
-                    <span className={`text-[12px] md:text-[13.5px] font-medium ${getCategoryStyle(getItemCategory(selectedNews)).text}`}>
+                    <span className={`text-[12px] md:text-[14px] font-medium ${catStyle.text}`}>
                       {getShortCategoryName(getItemCategory(selectedNews))}
                     </span>
                   )}
@@ -524,56 +555,62 @@ export default function NewsDesk() {
               </div>
 
               {/* 읽기 진행률 바 */}
-              <div className="h-[2px] w-full bg-slate-100 dark:bg-slate-800">
+              <div className="h-[2px] w-full bg-slate-100 dark:bg-slate-800 shrink-0">
                 <div className="h-full bg-slate-400 dark:bg-slate-500 transition-[width] duration-150 ease-out" style={{ width: `${readProgress}%` }} />
               </div>
 
-              <div ref={modalContentRef} onScroll={handleModalScroll} className="p-6 md:p-10 overflow-y-auto flex-1">
+              <div ref={modalContentRef} onScroll={handleModalScroll} className="overflow-y-auto flex-1">
+                <div className="p-6 md:p-10 lg:p-12 flex flex-col lg:flex-row gap-8 lg:gap-12">
 
-                  {selectedNews.sector_asset && selectedNews.sector_asset.trim() !== "" && (
-                      <div className="mb-4">
-                          <span className="text-[12px] md:text-[13px] text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded px-2 py-1">
-                              #{selectedNews.sector_asset}
-                          </span>
-                      </div>
-                  )}
+                  {/* 본문 */}
+                  <div className="flex-1 min-w-0">
+                    {selectedNews.sector_asset && selectedNews.sector_asset.trim() !== "" && (
+                        <div className="mb-5">
+                            <span className="text-[12px] md:text-[13.5px] text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded px-2.5 py-1">
+                                #{selectedNews.sector_asset}
+                            </span>
+                        </div>
+                    )}
 
-                  <h2 className="text-[22px] md:text-[28px] font-semibold text-slate-900 dark:text-slate-100 mb-6 leading-snug">
-                      {selectedNews.title}
-                  </h2>
+                    <h2 className="text-[24px] md:text-[30px] lg:text-[34px] font-semibold text-slate-900 dark:text-slate-100 mb-7 leading-[1.3]">
+                        {selectedNews.title}
+                    </h2>
 
-                  <div className="border-l-2 border-slate-200 dark:border-slate-700 pl-5 mb-8">
-                      <h4 className="text-slate-500 dark:text-slate-400 font-medium mb-3 text-[13px] md:text-[14px]">AI 핵심 요약</h4>
-                      <p className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line text-[15px] md:text-[17px]">
-                          {selectedNews.summary.replace(/http[^\s]+/g, '').replace(/<br><br>/g, '\n\n').trim()}
-                      </p>
+                    <div className="border-l-2 border-slate-200 dark:border-slate-700 pl-5 md:pl-6">
+                        <h4 className="text-slate-500 dark:text-slate-400 font-medium mb-3 text-[13px] md:text-[14.5px]">AI 핵심 요약</h4>
+                        <p className="text-slate-700 dark:text-slate-300 leading-relaxed md:leading-loose whitespace-pre-line text-[15.5px] md:text-[18px]">
+                            {selectedNews.summary.replace(/http[^\s]+/g, '').replace(/<br><br>/g, '\n\n').trim()}
+                        </p>
+                    </div>
                   </div>
 
-                  <div className="py-4 border-t border-slate-100 dark:border-slate-800">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <span className="text-[13px] md:text-[14px] font-medium text-slate-500 dark:text-slate-400">AI Sentiment Score</span>
-                          <div className="flex items-center gap-3">
-                              {/* 5단계 세그먼트 바 — 게이지보다 스캔하기 쉬운 형태 */}
-                              <div className="flex items-center gap-1.5">
-                                {[1, 2, 3, 4, 5].map((seg) => (
-                                  <span
-                                    key={seg}
-                                    className="block w-3.5 md:w-4 h-2 rounded-sm transition-colors duration-500"
-                                    style={{
-                                      background: gaugeAnimated && seg <= scoreValue ? sentiment.barColor : 'rgba(148,163,184,0.25)',
-                                    }}
-                                  />
-                                ))}
-                              </div>
-                              <span className={`font-medium px-3 py-1.5 rounded-md text-[13px] md:text-[14px] ${sentiment.classes}`}>
-                                  {scoreValue} / 5 · {sentiment.text} ({sentiment.label})
-                              </span>
-                          </div>
+                  {/* 메타 사이드 패널 — 큰 화면에서 데이터가 여백으로 흩어지지 않도록 별도 elevated panel로 분리 */}
+                  <div className="lg:w-[280px] shrink-0">
+                    <div className="bg-slate-50 dark:bg-[#16233A] border border-slate-200 dark:border-slate-700/60 rounded-md p-5 md:p-6 lg:sticky lg:top-0">
+                      <span className="text-[12.5px] md:text-[13.5px] font-medium text-slate-500 dark:text-slate-400 block mb-4">AI Sentiment Score</span>
+
+                      <div className="flex items-center gap-1.5 mb-4">
+                        {[1, 2, 3, 4, 5].map((seg) => (
+                          <span
+                            key={seg}
+                            className="block flex-1 h-2.5 rounded-sm transition-colors duration-500"
+                            style={{
+                              background: gaugeAnimated && seg <= scoreValue ? sentiment.barColor : 'rgba(148,163,184,0.25)',
+                            }}
+                          />
+                        ))}
                       </div>
+
+                      <span className={`inline-block font-medium px-3 py-1.5 rounded-md text-[13px] md:text-[14px] ${sentiment.classes}`}>
+                          {scoreValue} / 5 · {sentiment.text} ({sentiment.label})
+                      </span>
+                    </div>
                   </div>
+
+                </div>
               </div>
 
-              <div className="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 flex justify-between bg-slate-50 dark:bg-[#111827]">
+              <div className="px-5 md:px-8 py-3.5 md:py-4 border-t border-slate-100 dark:border-slate-800 flex justify-between bg-slate-50 dark:bg-[#0B1526] shrink-0">
                 <button
                   onClick={handlePrevNews} disabled={selectedIdx <= 0}
                   className="flex items-center gap-1.5 px-3 py-2 font-medium text-[13px] md:text-[14px] text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
