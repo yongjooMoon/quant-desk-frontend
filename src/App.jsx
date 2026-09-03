@@ -89,7 +89,7 @@ function App() {
             {isSidebarOpen ? (
               <div className="flex items-center gap-2 select-none">
                 <span className="w-6 h-6 flex items-center justify-center rounded-sm bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-mono text-[11px] font-semibold">Q</span>
-                <span className="text-[13.5px] font-semibold tracking-tight text-slate-800 dark:text-slate-200">QUANT DESK</span>
+                <span className="text-[13.5px] font-semibold tracking-tight text-slate-800 dark:text-slate-200">Moon</span>
               </div>
             ) : (
               <span className="w-6 h-6 flex items-center justify-center rounded-sm bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-mono text-[11px] font-semibold select-none">Q</span>
