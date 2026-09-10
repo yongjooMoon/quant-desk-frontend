@@ -1,38 +1,28 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { RefreshCcw, Check, X } from 'lucide-react';
 import { useRenderApi } from '../hooks/useRenderApi';
 
 // =========================================================================
-// 배지(공급 유형) 설정 — badge/color 값 매핑 + LH 신규 추가
+// 색상 토큰 — 공급 유형별 식별 색상 (그라디언트 대신 단일 플랫 컬러로 통일)
 // =========================================================================
 const BADGE_CONFIG = {
-  '특': { label: '특별공급', short: '특', color: '#f59e0b', color2: '#f97316' },
-  '1': { label: '1순위', short: '1', color: '#3b82f6', color2: '#2563eb' },
-  '2': { label: '2순위', short: '2', color: '#10b981', color2: '#059669' },
-  '무': { label: '무순위', short: '무', color: '#64748b', color2: '#475569' },
-  '임': { label: '임의공급', short: '임', color: '#f97316', color2: '#ea580c' },
-  '오': { label: '오피스텔/생활숙박/도시형/민간임대', short: '오', color: '#ec4899', color2: '#db2777' },
-  '공': { label: '공공지원민간임대', short: '공', color: '#a855f7', color2: '#9333ea' },
-  '불': { label: '불법행위재공급', short: '불', color: '#14b8a6', color2: '#0d9488' },
-  // 🌟 신규 추가 — LH 실 분양 주택
-  'LH': { label: 'LH 분양', short: 'LH', color: '#6366f1', color2: '#4f46e5' },
+  '특': { label: '특별공급', short: '특', color: '#D97706' },
+  '1': { label: '1순위', short: '1', color: '#2563EB' },
+  '2': { label: '2순위', short: '2', color: '#059669' },
+  '무': { label: '무순위', short: '무', color: '#64748B' },
+  '임': { label: '임의공급', short: '임', color: '#EA580C' },
+  '오': { label: '오피스텔/생활숙박/도시형/민간임대', short: '오', color: '#DB2777' },
+  '공': { label: '공공지원민간임대', short: '공', color: '#9333EA' },
+  '불': { label: '불법행위재공급', short: '불', color: '#0D9488' },
+  'LH': { label: 'LH 분양', short: 'LH', color: '#4F46E5' },
 };
 
 const WEEKDAY_LABELS = ['월', '화', '수', '목', '금'];
 
 // =========================================================================
-// 전역 마이크로 인터랙션 스타일 — 배경 텍스처, 펄스, 진입 애니메이션 등
+// 전역 스타일 — 기능적으로 필요한 트랜지션(모바일 시트 진입, 로딩 shimmer)만 유지
 // =========================================================================
 const GLOBAL_STYLES = `
-  @keyframes hcPulseRing {
-    0% { transform: scale(0.9); opacity: 0.9; }
-    70% { transform: scale(1.9); opacity: 0; }
-    100% { transform: scale(1.9); opacity: 0; }
-  }
-  @keyframes hcFadeInUp {
-    0% { opacity: 0; transform: translateY(6px); }
-    100% { opacity: 1; transform: translateY(0); }
-  }
   @keyframes hcFadeInUpSheet {
     0% { opacity: 0; transform: translateY(24px); }
     100% { opacity: 1; transform: translateY(0); }
@@ -41,114 +31,60 @@ const GLOBAL_STYLES = `
     0% { background-position: -200% 0; }
     100% { background-position: 200% 0; }
   }
-  @keyframes hcDrift {
-    0%   { transform: translate(0px, 0px); }
-    33%  { transform: translate(10px, 8px); }
-    66%  { transform: translate(-8px, 12px); }
-    100% { transform: translate(0px, 0px); }
-  }
-  @keyframes hcBadgePop {
-    0% { transform: scale(0.4); opacity: 0; }
-    60% { transform: scale(1.15); opacity: 1; }
-    100% { transform: scale(1); opacity: 1; }
-  }
-  .hc-cell {
-    animation: hcFadeInUp 0.35s ease-out backwards;
-    transition: transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease, border-color 0.25s ease, min-height 0.2s ease, padding 0.2s ease;
-  }
-  .hc-cell:hover { transform: translateY(-3px); }
-  .hc-cell.hc-clickable:active { transform: scale(0.97); }
-  .hc-chip { transition: transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease, background 0.2s ease; }
-  .hc-chip:hover { transform: translateY(-2px) scale(1.03); }
-  .hc-row { transition: background 0.18s ease, transform 0.18s ease; }
-  .hc-row:hover { transform: translateX(2px); }
-  .hc-mobile-pill { animation: hcBadgePop 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+  .hc-cell { transition: border-color 0.15s ease; }
+  .hc-cell.hc-clickable:active { opacity: 0.85; }
+  .hc-row { transition: background 0.15s ease; }
   .hc-shimmer {
-    background: linear-gradient(90deg, rgba(148,163,184,0.08) 25%, rgba(148,163,184,0.22) 37%, rgba(148,163,184,0.08) 63%);
+    background: linear-gradient(90deg, rgba(148,163,184,0.08) 25%, rgba(148,163,184,0.2) 37%, rgba(148,163,184,0.08) 63%);
     background-size: 200% 100%;
     animation: hcShimmer 1.4s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hc-cell, .hc-row { transition: none !important; }
   }
 `;
 
 // =========================================================================
-// 은은하게 움직이는 배경 (도트 그리드 + 컬러 블롭) — SVG 기반
-// =========================================================================
-function AmbientBackground() {
-  return (
-    <div className="absolute inset-0 overflow-hidden rounded-[28px] pointer-events-none">
-      <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-        <defs>
-          <pattern id="hcDotGrid" width="20" height="20" patternUnits="userSpaceOnUse">
-            <circle cx="1.2" cy="1.2" r="1.2" className="fill-slate-300 dark:fill-slate-700" opacity="0.35" />
-          </pattern>
-          <filter id="hcBlobBlur" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="46" />
-          </filter>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#hcDotGrid)" />
-        <circle cx="12%" cy="18%" r="120" fill="#6366f1" opacity="0.10" filter="url(#hcBlobBlur)" style={{ animation: 'hcDrift 18s ease-in-out infinite' }} />
-        <circle cx="88%" cy="82%" r="140" fill="#f97316" opacity="0.08" filter="url(#hcBlobBlur)" style={{ animation: 'hcDrift 22s ease-in-out infinite reverse' }} />
-      </svg>
-    </div>
-  );
-}
-
-// =========================================================================
-// 헤더용 캘린더 아이콘 (SVG, 상단에 살짝 펄스되는 dot)
+// 헤더용 캘린더 아이콘
 // =========================================================================
 function HeaderIcon() {
-  // 그라디언트/필터 defs 없이 단색으로 구성 — 일부 렌더 환경에서 defs 기반
-  // 그라디언트가 깨지며 아이콘이 폴백(플레이스홀더)으로 대체되는 문제를 피하기 위함
   return (
-    <div className="relative shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#EEF0FF' }}>
-      <svg width="24" height="24" viewBox="0 0 40 40" fill="none">
-        <rect x="4" y="7" width="32" height="29" rx="8" fill="#6366f1" opacity="0.18" />
-        <rect x="4" y="7" width="32" height="29" rx="8" stroke="#6366f1" strokeWidth="2.5" />
-        <path d="M4 16H36" stroke="#6366f1" strokeWidth="2.5" />
-        <path d="M12 4V10" stroke="#6366f1" strokeWidth="3" strokeLinecap="round" />
-        <path d="M28 4V10" stroke="#6366f1" strokeWidth="3" strokeLinecap="round" />
-        <circle cx="14" cy="24" r="2.4" fill="#6366f1" />
-        <circle cx="20" cy="24" r="2.4" fill="#8b5cf6" />
-        <circle cx="26" cy="24" r="2.4" fill="#8b5cf6" />
+    <div className="shrink-0 w-9 h-9 rounded-md flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+      <svg width="20" height="20" viewBox="0 0 40 40" fill="none">
+        <rect x="4" y="7" width="32" height="29" rx="8" fill="#4F46E5" opacity="0.14" />
+        <rect x="4" y="7" width="32" height="29" rx="8" stroke="#4F46E5" strokeWidth="2.25" />
+        <path d="M4 16H36" stroke="#4F46E5" strokeWidth="2.25" />
+        <path d="M12 4V10" stroke="#4F46E5" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M28 4V10" stroke="#4F46E5" strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="14" cy="24" r="2.2" fill="#4F46E5" />
+        <circle cx="20" cy="24" r="2.2" fill="#4F46E5" />
+        <circle cx="26" cy="24" r="2.2" fill="#4F46E5" />
       </svg>
-      <span className="absolute -top-1 -right-1 flex items-center justify-center">
-        <span className="absolute w-3 h-3 rounded-full bg-emerald-400" style={{ animation: 'hcPulseRing 1.8s ease-out infinite' }} />
-        <span className="relative w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]" />
-      </span>
     </div>
   );
 }
 
 // =========================================================================
-// 필터 칩 (배지 유형 토글) — 그라디언트 글로우, hover lift
+// 필터 칩 (배지 유형 토글)
 // =========================================================================
 function FilterChips({ activeFilters, onToggle }) {
   return (
-    <div className="flex flex-wrap gap-2 mb-7">
+    <div className="flex flex-wrap gap-2 mb-6">
       {Object.entries(BADGE_CONFIG).map(([key, conf]) => {
         const active = activeFilters.has(key);
         return (
           <button
             key={key}
             onClick={() => onToggle(key)}
-            className="hc-chip flex items-center gap-1.5 px-4 py-2.5 rounded-full text-[13.5px] font-black cursor-pointer border"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium cursor-pointer border transition-colors"
             style={
               active
-                ? {
-                    color: '#fff',
-                    background: `linear-gradient(135deg, ${conf.color}, ${conf.color2})`,
-                    borderColor: 'transparent',
-                    boxShadow: `0 6px 16px -4px ${conf.color}80`,
-                  }
-                : {
-                    color: '#94a3b8',
-                    background: 'transparent',
-                    borderColor: 'rgba(148,163,184,0.35)',
-                  }
+                ? { color: '#fff', background: conf.color, borderColor: conf.color }
+                : { color: '#94a3b8', background: 'transparent', borderColor: 'rgba(148,163,184,0.35)' }
             }
           >
-            {active ? <Check size={12} strokeWidth={3.5} /> : (
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: conf.color, opacity: 0.5 }} />
+            {active ? <Check size={11} strokeWidth={2.5} /> : (
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: conf.color, opacity: 0.6 }} />
             )}
             {conf.label}
           </button>
@@ -159,17 +95,14 @@ function FilterChips({ activeFilters, onToggle }) {
 }
 
 // =========================================================================
-// 배지 pill (셀 내부 항목에 붙는 작은 라벨) — 그라디언트 + 글로우
+// 배지 pill (셀 내부 항목에 붙는 작은 라벨)
 // =========================================================================
 function ItemBadge({ badge }) {
-  const conf = BADGE_CONFIG[badge] || { short: badge, color: '#64748b', color2: '#475569', label: badge };
+  const conf = BADGE_CONFIG[badge] || { short: badge, color: '#64748b', label: badge };
   return (
     <span
-      className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10.5px] font-black text-white"
-      style={{
-        background: `linear-gradient(135deg, ${conf.color}, ${conf.color2})`,
-        boxShadow: `0 0 0 3px ${conf.color}1f`,
-      }}
+      className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white"
+      style={{ background: conf.color }}
       title={conf.label}
     >
       {conf.short}
@@ -187,10 +120,10 @@ function ListingRow({ item, dense = false }) {
       target="_blank"
       rel="noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className={`hc-row flex items-center gap-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 ${dense ? 'px-1.5 py-1.5' : 'px-2.5 py-2'}`}
+      className={`hc-row flex items-center gap-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800/60 ${dense ? 'px-1.5 py-1' : 'px-2 py-1.5'}`}
     >
       <ItemBadge badge={item.badge} />
-      <span className={`truncate text-slate-700 dark:text-slate-200 font-bold leading-snug ${dense ? 'text-[13px]' : 'text-[15px]'}`} title={item.name}>
+      <span className={`truncate text-slate-700 dark:text-slate-200 font-medium leading-snug ${dense ? 'text-[12px]' : 'text-[14px]'}`} title={item.name}>
         {item.name}
       </span>
     </a>
@@ -198,13 +131,11 @@ function ListingRow({ item, dense = false }) {
 }
 
 // =========================================================================
-// 날짜 셀 — 카드형(rounded, gap 기반), 오늘은 그라디언트 링 + 펄스
-// 지난 날짜는 크기 자체를 축소, 전체 항목은 잘리지 않고 다 표시됨
-// 모바일에서는 탭하면 하단 시트로 전체 리스트 오픈
+// 날짜 셀
 // =========================================================================
-function DayCell({ dateObj, items, isPast, isToday, delayIdx, onOpenDetail }) {
+function DayCell({ dateObj, items, isPast, isToday, onOpenDetail }) {
   if (!dateObj) {
-    return <div className="hidden md:block rounded-2xl min-h-[64px]" />;
+    return <div className="hidden md:block rounded-md min-h-[64px]" />;
   }
 
   const clickable = !isPast && items.length > 0;
@@ -216,59 +147,45 @@ function DayCell({ dateObj, items, isPast, isToday, delayIdx, onOpenDetail }) {
   const themeClasses = isPast
     ? 'bg-slate-50/70 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800/60 opacity-40'
     : isToday
-    ? 'bg-white dark:bg-[#111827] border-transparent shadow-[0_0_0_2px_rgba(99,102,241,0.55)] shadow-lg'
-    : 'bg-white dark:bg-[#111827] border-slate-200/70 dark:border-slate-800 shadow-sm hover:shadow-md';
+    ? 'bg-white dark:bg-[#111827] border-indigo-400 dark:border-indigo-500'
+    : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600';
 
   return (
     <div
       onClick={clickable ? () => onOpenDetail(dateObj, items) : undefined}
-      className={`hc-cell relative rounded-2xl border overflow-hidden ${sizeClasses} ${themeClasses} ${clickable ? 'hc-clickable cursor-pointer md:cursor-default' : ''}`}
-      style={{ animationDelay: `${Math.min(delayIdx, 14) * 25}ms` }}
+      className={`hc-cell relative rounded-md border overflow-hidden ${sizeClasses} ${themeClasses} ${clickable ? 'hc-clickable cursor-pointer md:cursor-default' : ''}`}
     >
-      {/* 오늘 표시 그라디언트 백광 */}
-      {isToday && (
-        <div
-          className="absolute -top-6 -right-6 w-16 h-16 rounded-full opacity-25 blur-xl pointer-events-none"
-          style={{ background: 'radial-gradient(circle, #6366f1, transparent 70%)' }}
-        />
-      )}
-
       {/* 데스크탑: 날짜 숫자 */}
-      <div className="hidden md:flex items-center gap-1.5 mb-2 relative z-10">
+      <div className="hidden md:flex items-center gap-1.5 mb-2">
         {isToday ? (
-          <span className="relative flex items-center justify-center w-7 h-7 rounded-full text-[13.5px] font-black text-white" style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)' }}>
+          <span className="flex items-center justify-center w-6 h-6 rounded-full text-[12.5px] font-semibold text-white bg-indigo-500">
             {dateObj.getDate()}
-            <span className="absolute inset-0 rounded-full" style={{ animation: 'hcPulseRing 1.8s ease-out infinite', background: 'radial-gradient(circle,#6366f1,transparent 70%)' }} />
           </span>
         ) : (
-          <span className={`font-black ${isPast ? 'text-[12px] text-slate-300 dark:text-slate-600 line-through' : 'text-[15px] text-slate-800 dark:text-slate-100'}`}>
+          <span className={`font-medium ${isPast ? 'text-[11.5px] text-slate-300 dark:text-slate-600 line-through' : 'text-[14px] text-slate-800 dark:text-slate-100'}`}>
             {dateObj.getDate()}
           </span>
         )}
       </div>
 
       {/* 데스크탑: 전체 리스트 — 더보기 없이 전부 표시 */}
-      <div className="hidden md:flex md:flex-col gap-0.5 relative z-10">
+      <div className="hidden md:flex md:flex-col gap-0.5">
         {!isPast && items.map((item) => <ListingRow key={item.id} item={item} dense />)}
       </div>
 
-      {/* 모바일: 날짜 + 건수 그라디언트 필 (탭하면 하단 시트로 리스트 오픈) */}
-      <div className="md:hidden w-full flex flex-col items-center justify-center gap-1 py-0.5 relative z-10">
+      {/* 모바일: 날짜 + 건수 필 (탭하면 하단 시트로 리스트 오픈) */}
+      <div className="md:hidden w-full flex flex-col items-center justify-center gap-1 py-0.5">
         <span
-          className={`flex items-center justify-center rounded-full font-black ${
-            isPast ? 'w-5 h-5 text-[11px]' : 'w-7 h-7 text-[13px]'
+          className={`flex items-center justify-center rounded-full font-medium ${
+            isPast ? 'w-5 h-5 text-[10.5px]' : 'w-6 h-6 text-[12px]'
           } ${
-            isToday ? 'text-white' : isPast ? 'text-slate-300 dark:text-slate-600 line-through' : 'text-slate-800 dark:text-slate-100'
+            isToday ? 'text-white bg-indigo-500' : isPast ? 'text-slate-300 dark:text-slate-600 line-through' : 'text-slate-800 dark:text-slate-100'
           }`}
-          style={isToday ? { background: 'linear-gradient(135deg,#6366f1,#a855f7)' } : {}}
         >
           {dateObj.getDate()}
         </span>
         {!isPast && items.length > 0 && (
-          <span
-            className="hc-mobile-pill text-[10px] font-black text-white px-1.5 py-0.5 rounded-full"
-            style={{ background: 'linear-gradient(135deg,#6366f1,#818cf8)' }}
-          >
+          <span className="text-[9.5px] font-medium text-white px-1.5 py-0.5 rounded-full bg-indigo-500">
             {items.length}건
           </span>
         )}
@@ -286,25 +203,25 @@ function DayDetailSheet({ day, onClose }) {
 
   return (
     <div
-      className="md:hidden fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm"
+      className="md:hidden fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-h-[75vh] bg-white dark:bg-[#111827] rounded-t-3xl px-4 pt-3 pb-5 overflow-y-auto shadow-2xl"
-        style={{ animation: 'hcFadeInUpSheet 0.25s cubic-bezier(0.22,1,0.36,1)' }}
+        className="w-full max-h-[75vh] bg-white dark:bg-[#0F1B2E] rounded-t-lg px-4 pt-3 pb-5 overflow-y-auto shadow-[0_-16px_40px_-16px_rgba(0,0,0,0.35)]"
+        style={{ animation: 'hcFadeInUpSheet 0.22s cubic-bezier(0.22,1,0.36,1)' }}
       >
-        <div className="w-10 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 mx-auto mb-4" />
+        <div className="w-9 h-1 rounded-full bg-slate-200 dark:bg-slate-700 mx-auto mb-4" />
         <div className="flex items-center justify-between mb-3 px-1">
-          <h3 className="text-[15px] font-black text-slate-800 dark:text-slate-100">
+          <h3 className="text-[14.5px] font-semibold text-slate-800 dark:text-slate-100">
             {dateObj.getMonth() + 1}월 {dateObj.getDate()}일{' '}
-            <span className="text-indigo-500">{items.length}건</span>
+            <span className="text-indigo-500 font-medium">{items.length}건</span>
           </h3>
           <button
             onClick={onClose}
             className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400"
           >
-            <X size={14} strokeWidth={3} />
+            <X size={14} strokeWidth={2.5} />
           </button>
         </div>
         <div className="flex flex-col gap-1">
@@ -318,32 +235,32 @@ function DayDetailSheet({ day, onClose }) {
 }
 
 // =========================================================================
-// 로딩 스켈레톤 (shimmer, SVG 도트 로더 대체 텍스트 애니메이션)
+// 로딩 스켈레톤
 // =========================================================================
 function CalendarSkeleton() {
   return (
     <div className="grid grid-cols-5 gap-2 md:gap-3">
       {Array.from({ length: 25 }).map((_, i) => (
-        <div key={i} className="hc-shimmer rounded-2xl min-h-[68px] md:min-h-[148px]" style={{ animationDelay: `${(i % 5) * 80}ms` }} />
+        <div key={i} className="hc-shimmer rounded-md min-h-[68px] md:min-h-[148px]" style={{ animationDelay: `${(i % 5) * 80}ms` }} />
       ))}
     </div>
   );
 }
 
 // =========================================================================
-// 빈 상태 (SVG 일러스트)
+// 빈 상태
 // =========================================================================
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-14 gap-3">
-      <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+      <svg width="56" height="56" viewBox="0 0 64 64" fill="none">
         <circle cx="32" cy="32" r="30" className="fill-slate-100 dark:fill-slate-800" />
         <rect x="18" y="20" width="28" height="24" rx="5" className="fill-white dark:fill-[#111827] stroke-slate-300 dark:stroke-slate-600" strokeWidth="2" />
         <path d="M18 27H46" className="stroke-slate-300 dark:stroke-slate-600" strokeWidth="2" />
         <circle cx="38" cy="38" r="9" className="fill-white dark:fill-[#111827] stroke-indigo-400" strokeWidth="2" />
         <path d="M44 44L48 48" className="stroke-indigo-400" strokeWidth="2.5" strokeLinecap="round" />
       </svg>
-      <p className="text-[13px] font-black text-slate-400">이번 달 등록된 공고가 없습니다.</p>
+      <p className="text-[12.5px] text-slate-400">이번 달 등록된 공고가 없습니다.</p>
     </div>
   );
 }
@@ -449,44 +366,41 @@ export default function HousingCalendar() {
     setSelectedDay({ dateObj, items });
   };
 
-  let cellCounter = 0;
-
   return (
-    <div className="w-full pb-16 font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif]">
+    <div className="w-full pb-16">
       <style>{GLOBAL_STYLES}</style>
 
       {/* 헤더 */}
-      <div className="flex items-center justify-between mb-7">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <HeaderIcon />
           <div>
-            <h2 className="text-xl md:text-[26px] font-black tracking-tight bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(120deg,#4f46e5,#a855f7 60%,#ec4899)' }}>
+            <h2 className="text-[17px] font-semibold text-slate-900 dark:text-white tracking-tight">
               {year}년 {month}월 청약 캘린더
             </h2>
-            <p className="text-[12px] md:text-[13px] font-bold text-slate-400 mt-0.5">청약홈 · LH 분양 통합 일정</p>
+            <p className="text-[12px] text-slate-500 mt-0.5">청약홈 · LH 분양 통합 일정</p>
           </div>
         </div>
-        {loading && <RefreshCcw size={18} className="animate-spin text-indigo-500" />}
+        {loading && <RefreshCcw size={16} className="animate-spin text-slate-400" strokeWidth={1.75} />}
       </div>
 
       {/* 필터 칩 */}
       <FilterChips activeFilters={activeFilters} onToggle={handleToggleFilter} />
 
       {/* 캘린더 본체 */}
-      <div className="relative w-full rounded-[28px] border border-slate-200/70 dark:border-slate-800 shadow-sm bg-white/70 dark:bg-[#0B1120]/70 backdrop-blur-sm p-3 md:p-5 overflow-hidden">
-        <AmbientBackground />
+      <div className="w-full rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1120] p-3 md:p-5">
 
         {/* 요일 헤더 */}
-        <div className="grid grid-cols-5 mb-2 md:mb-3 relative z-10">
-          {WEEKDAY_LABELS.map((label, i) => (
-            <div key={label} className="text-center text-[12px] md:text-[14px] font-black py-2 tracking-wide" style={{ color: ['#6366f1', '#8b5cf6', '#a855f7', '#c026d3', '#db2777'][i] }}>
+        <div className="grid grid-cols-5 mb-2 md:mb-3">
+          {WEEKDAY_LABELS.map((label) => (
+            <div key={label} className="text-center text-[11.5px] font-medium py-2 text-slate-500 dark:text-slate-400">
               {label}
             </div>
           ))}
         </div>
 
         {/* 주 단위 렌더링 */}
-        <div className="relative z-10">
+        <div>
           {loading ? (
             <CalendarSkeleton />
           ) : (
@@ -498,7 +412,6 @@ export default function HousingCalendar() {
                     const items = key ? (groupedByDate[key] || []) : [];
                     const isPast = dateObj ? dateObj < today : false;
                     const isToday = dateObj ? isSameDate(dateObj, today) : false;
-                    cellCounter += 1;
 
                     return (
                       <DayCell
@@ -507,7 +420,6 @@ export default function HousingCalendar() {
                         items={items}
                         isPast={isPast}
                         isToday={isToday}
-                        delayIdx={cellCounter}
                         onOpenDetail={handleOpenDetail}
                       />
                     );
