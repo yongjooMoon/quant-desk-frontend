@@ -6,28 +6,32 @@ import {
 } from 'recharts';
 
 // =========================================================================
-// 파일 전역에서 쓰는 keyframe 애니메이션 (별도 CSS 파일 없이 컴포넌트 내부 <style>로 주입)
+// 색상 토큰 — NewsDesk / QuantDesk와 동일한 팔레트로 통일 (네온톤 제거)
 // =========================================================================
+const POS = '#DC2626';
+const NEG = '#2563EB';
+
+// 파일 전역에서 쓰는 keyframe 애니메이션 — 실제 기능(값 변경 트랜지션, 모달 진입)에 필요한 것만 남김
 const GlobalStyle = () => (
   <style>{`
-    @keyframes flashFade { 0% { opacity: 0.35; } 100% { opacity: 0; } }
-    @keyframes bounceScale { 0% { transform: scale(1); } 30% { transform: scale(1.06); } 100% { transform: scale(1); } }
-    @keyframes drawArc { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-    @keyframes ambientDrift {
-      0%   { transform: translate(0px, 0px); }
-      33%  { transform: translate(14px, 10px); }
-      66%  { transform: translate(-10px, 16px); }
-      100% { transform: translate(0px, 0px); }
+    @keyframes qdFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .qd-fade-in { animation: qdFadeIn 0.2s ease-out both; }
+
+    @keyframes qdModalIn { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .qd-modal-panel { animation: qdModalIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .qd-fade-in, .qd-modal-panel { animation: none !important; }
     }
   `}</style>
 );
 
 const REGIME_CONFIG = {
   "Strong Bull": { color: "text-emerald-500", hex: "#10B981", desc: "강한 상승 추세\n공격적인 투자 가능\n무한매수 적극 운용 가능" },
-  "Bull": { color: "text-[#00B464]", hex: "#00B464", desc: "상승 우세\n정상 투자 가능" },
+  "Bull": { color: "text-emerald-600", hex: "#059669", desc: "상승 우세\n정상 투자 가능" },
   "Neutral": { color: "text-yellow-500", hex: "#EAB308", desc: "방향성 부족\nVR 또는 분할매수 고려" },
   "Bear": { color: "text-orange-500", hex: "#F97316", desc: "방어 전략 권장\n현금 비중 확대 고려" },
-  "Crash": { color: "text-[#FF4B4B]", hex: "#FF4B4B", desc: "극단적인 Risk-Off\n신규 공격적 매수 자제" }
+  "Crash": { color: "text-red-600", hex: POS, desc: "극단적인 Risk-Off\n신규 공격적 매수 자제" }
 };
 
 // Fear & Greed 위치 최상단 이동
@@ -38,8 +42,8 @@ const SECTIONS = [
   { title: 'Risk', indicators: ['VIX', 'WTI'] },
 ];
 
-const CHART_RED = '#FF4B4B';
-const CHART_BLUE = '#3B82F6';
+const CHART_RED = POS;
+const CHART_BLUE = NEG;
 
 // ---------------------------------------------------------------------------
 // 1. Status 계산 유틸리티 함수 (프론트엔드에서 100% 자체 계산)
@@ -86,7 +90,7 @@ const getFearGreedStatus = (value) => {
 const getSlopeStatus = (value) => {
   if (value > 0.01) return 'Bull';
   if (value < -0.01) return 'Bear';
-  return 'Neutral'; 
+  return 'Neutral';
 };
 
 const getQqqTrendStatus = (price, ma50, ma200) => {
@@ -138,13 +142,13 @@ const getStatusStyle = (status) => {
     case 'Strong Bull':
     case 'Extreme Greed': return { label: status, text: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' };
     case 'Bull':
-    case 'Greed': return { label: status, text: 'text-[#00B464]', bg: 'bg-[#00B464]/10', border: 'border-[#00B464]/30' };
+    case 'Greed': return { label: status, text: 'text-emerald-600', bg: 'bg-emerald-600/10', border: 'border-emerald-600/30' };
     case 'Neutral': return { label: status, text: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30' };
     case 'Bear':
     case 'Fear': return { label: status, text: 'text-orange-500', bg: 'bg-orange-500/10', border: 'border-orange-500/30' };
     case 'Crash':
     case 'Warning':
-    case 'Extreme Fear': return { label: status, text: 'text-[#FF4B4B]', bg: 'bg-[#FF4B4B]/10', border: 'border-[#FF4B4B]/30' };
+    case 'Extreme Fear': return { label: status, text: 'text-red-600', bg: 'bg-red-600/10', border: 'border-red-600/30' };
     default: return { label: status || 'Neutral', text: 'text-slate-500', bg: 'bg-slate-500/10', border: 'border-slate-500/30' };
   }
 };
@@ -174,24 +178,23 @@ const scoreToAngle = (score) => {
 
 // ---------------------------------------------------------------------------
 // 3. LIVE 점멸 점 — Regime 요약바 / Fear&Greed 카드가 공용으로 사용하는 작은 인디케이터
+//    (실시간 피드임을 나타내는 기능적 표시 — 진폭을 절제해서 유지)
 // ---------------------------------------------------------------------------
 const LiveDot = ({ size = 12 }) => (
   <svg width={size} height={size} viewBox="0 0 14 14">
     <circle cx="7" cy="7" r="3" fill="#10B981" />
     <circle cx="7" cy="7" r="3" fill="none" stroke="#10B981" strokeWidth="1.5">
-      <animate attributeName="r" values="3;7;3" dur="2s" repeatCount="indefinite" />
-      <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite" />
+      <animate attributeName="r" values="3;6;3" dur="2.2s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.5;0;0.5" dur="2.2s" repeatCount="indefinite" />
     </circle>
   </svg>
 );
 
 // ---------------------------------------------------------------------------
 // 4. CNN Style Fear & Greed Gauge
-//    🌟 기존 Regime 게이지가 갖고 있던 "움직임"(glow 니들, draw-in progress arc,
-//    값 변경 시 bounce)을 이쪽으로 이전해서, 이제 이 게이지가 메인 비주얼 역할을 합니다.
 // ---------------------------------------------------------------------------
 const FEAR_GREED_ZONES = [
-  { id: 'ext-fear', label: 'EXTREME\nFEAR', min: 0, max: 25, color: '#FF4B4B' },
+  { id: 'ext-fear', label: 'EXTREME\nFEAR', min: 0, max: 25, color: POS },
   { id: 'fear', label: 'FEAR', min: 25, max: 45, color: '#F97316' },
   { id: 'neutral', label: 'NEUTRAL', min: 45, max: 55, color: '#EAB308' },
   { id: 'greed', label: 'GREED', min: 55, max: 75, color: '#84CC16' },
@@ -203,13 +206,12 @@ const FearGreedGauge = ({ value }) => {
   const cy = 100;
   const outerR = 95;
   const innerR = 55;
-  
+
   const clampedValue = Math.max(0, Math.min(100, value));
   const needleAngle = scoreToAngle(clampedValue);
-  
+
   const activeZone = FEAR_GREED_ZONES.find(z => clampedValue >= z.min && clampedValue <= z.max) || FEAR_GREED_ZONES[FEAR_GREED_ZONES.length-1];
 
-  // 🌟 Regime 게이지 스타일의 draw-in progress arc 좌표 (도넛 바깥쪽에 얇게)
   const progressR = outerR + 8;
   const trackR = outerR + 4;
   const progressStart = getCartesian(cx, cy, progressR, 0);
@@ -221,40 +223,23 @@ const FearGreedGauge = ({ value }) => {
     <div className="flex flex-col items-center justify-center w-full mt-4 md:mt-6">
       <div className="relative w-full max-w-[360px] md:max-w-[420px] aspect-[2/1] flex justify-center items-end overflow-visible select-none">
         <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
-          <defs>
-            <radialGradient id="fgActiveZoneGlow" cx="50%" cy="100%" r="100%">
-              <stop offset="0%" stopColor={activeZone.color} stopOpacity="0.4" />
-              <stop offset="100%" stopColor={activeZone.color} stopOpacity="0.1" />
-            </radialGradient>
-            {/* 🌟 blur + merge를 추가해 니들이 은은하게 발광하도록 강화 */}
-            <filter id="fgNeedleShadow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="1.1" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-              <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodOpacity="0.35" />
-            </filter>
-          </defs>
-
           {FEAR_GREED_ZONES.map((zone) => {
             const isActive = activeZone.id === zone.id;
             const startAngle = scoreToAngle(zone.min);
             const endAngle = scoreToAngle(zone.max);
             const slicePath = getDonutSlice(cx, cy, innerR, outerR, startAngle, endAngle);
-            
+
             return (
-              <g key={zone.id}>
-                <path 
-                  d={slicePath}
-                  className={isActive ? '' : 'fill-slate-100 stroke-slate-200 dark:fill-[#1E293B] dark:stroke-[#0F172A]'}
-                  style={isActive ? { fill: "url(#fgActiveZoneGlow)", stroke: zone.color, strokeWidth: "2" } : { strokeWidth: "1" }}
-                />
-              </g>
+              <path
+                key={zone.id}
+                d={slicePath}
+                className={isActive ? '' : 'fill-slate-100 stroke-slate-200 dark:fill-[#1E293B] dark:stroke-[#0F172A]'}
+                style={isActive ? { fill: zone.color, fillOpacity: 0.16, stroke: zone.color, strokeWidth: "2" } : { strokeWidth: "1" }}
+              />
             );
           })}
 
-          {/* 🌟 은은한 전체 트랙 (Regime 게이지에서 가져온 스타일) */}
+          {/* 은은한 전체 트랙 */}
           <path
             d={`M ${trackStart.x} ${trackStart.y} A ${trackR} ${trackR} 0 0 1 ${trackEnd.x} ${trackEnd.y}`}
             fill="none"
@@ -264,46 +249,40 @@ const FearGreedGauge = ({ value }) => {
             strokeLinecap="round"
           />
 
-          {/* 🌟 값이 바뀔 때마다 처음부터 다시 그려지는 draw-in progress arc */}
+          {/* 값에 해당하는 위치까지의 progress arc — 즉시 반영, 재렌더마다 다시 그려지지 않음 */}
           <path
-            key={`fg-progress-${clampedValue}`}
             d={`M ${progressStart.x} ${progressStart.y} A ${progressR} ${progressR} 0 0 1 ${progressEnd.x} ${progressEnd.y}`}
             fill="none"
             stroke={activeZone.color}
             strokeWidth="3"
             strokeLinecap="round"
-            pathLength={1}
-            strokeDasharray="1"
-            style={{ strokeDashoffset: 1, animation: 'drawArc 1.2s ease-out forwards' }}
           />
 
           {[0, 25, 50, 75, 100].map(tick => {
             const angle = (tick / 100) * 180;
             const pos = getCartesian(cx, cy, 38, angle);
             return (
-              <text key={tick} x={pos.x} y={pos.y} className="fill-slate-400 dark:fill-slate-500" fontSize="7" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
+              <text key={tick} x={pos.x} y={pos.y} className="fill-slate-400 dark:fill-slate-500" fontSize="7" fontWeight="600" textAnchor="middle" dominantBaseline="middle">
                 {tick}
               </text>
             );
           })}
-          
-          <g style={{ transformOrigin: '100px 100px', transform: `rotate(${needleAngle}deg)`, transition: 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }} filter="url(#fgNeedleShadow)">
-            <polygon 
-              points="100,96 100,104 30,100" 
+
+          <g style={{ transformOrigin: '100px 100px', transform: `rotate(${needleAngle}deg)`, transition: 'transform 0.6s ease-out' }}>
+            <polygon
+              points="100,96 100,104 30,100"
               className="fill-slate-800 dark:fill-white"
             />
           </g>
-          
-          <circle cx="100" cy="100" r="10" className="fill-slate-800 dark:fill-white"/>
+
+          <circle cx="100" cy="100" r="9" className="fill-slate-800 dark:fill-white"/>
           <circle cx="100" cy="100" r="4" className="fill-white dark:fill-[#0B1120]"/>
         </svg>
 
         <div className="absolute -bottom-2 w-full flex flex-col items-center justify-end z-10 bg-white dark:bg-[#0B1120] px-6 rounded-t-full">
-          {/* 🌟 값이 바뀔 때마다 살짝 튕기는 bounce 애니메이션 */}
           <p
-            key={`fg-value-${Math.round(clampedValue)}`}
-            className="text-5xl md:text-6xl font-black tracking-tighter"
-            style={{ color: activeZone.color, animation: 'bounceScale 0.5s ease-out', display: 'inline-block' }}
+            className="text-4xl md:text-5xl font-semibold tracking-tight tabular-nums"
+            style={{ color: activeZone.color }}
           >
             {Math.round(value)}
           </p>
@@ -314,10 +293,10 @@ const FearGreedGauge = ({ value }) => {
         {FEAR_GREED_ZONES.map((zone) => {
           const isActive = activeZone.id === zone.id;
           return (
-            <div key={zone.id} className={`flex items-center gap-1.5 transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-40 grayscale-[50%]'}`}>
-              <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: zone.color }}></span>
-              <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                {zone.label.replace('\n', ' ')} <span className="font-bold text-slate-400 dark:text-slate-500">({zone.min}-{zone.max})</span>
+            <div key={zone.id} className={`flex items-center gap-1.5 transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-40'}`}>
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: zone.color }}></span>
+              <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                {zone.label.replace('\n', ' ')} <span className="text-slate-400 dark:text-slate-500">({zone.min}-{zone.max})</span>
               </span>
             </div>
           );
@@ -329,11 +308,10 @@ const FearGreedGauge = ({ value }) => {
 
 // ---------------------------------------------------------------------------
 // 5. Fear & Greed 전용 카드
-//    🌟 Regime 카드에 있던 ambient dot-grid + blurred blob 배경을 이쪽으로 이전
 // ---------------------------------------------------------------------------
 const FearGreedCard = ({ item }) => {
   const history = item.history || [];
-  
+
   const getHistoricalVal = (offset) => {
     if (history.length > offset) return history[history.length - 1 - offset].value;
     return null;
@@ -344,8 +322,6 @@ const FearGreedCard = ({ item }) => {
   const oneWeek = getHistoricalVal(5);
   const oneMonth = getHistoricalVal(21);
 
-  const activeZone = FEAR_GREED_ZONES.find(z => currentVal >= z.min && currentVal <= z.max) || FEAR_GREED_ZONES[2];
-
   const renderTimelineRow = (label, val) => {
     if (val === null) return null;
     const status = getFearGreedStatus(val);
@@ -353,12 +329,12 @@ const FearGreedCard = ({ item }) => {
     const displayStatus = status.replace('\n', ' ');
 
     return (
-      <div className="flex items-center justify-between py-3.5 border-b border-dashed border-slate-200 dark:border-slate-700/50 last:border-0">
+      <div className="flex items-center justify-between py-3 border-b border-dashed border-slate-200 dark:border-slate-700/50 last:border-0">
         <div className="flex flex-col">
-          <span className="text-[12px] font-extrabold text-slate-500 mb-1">{label}</span>
-          <span className="text-[14px] font-black text-slate-900 dark:text-white">{displayStatus}</span>
+          <span className="text-[11.5px] text-slate-500 mb-0.5">{label}</span>
+          <span className="text-[13.5px] font-medium text-slate-900 dark:text-white">{displayStatus}</span>
         </div>
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 bg-slate-50 dark:bg-[#111827] font-black text-[12px] ${style.text} border-current opacity-80`}>
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center border bg-slate-50 dark:bg-[#111827] font-medium text-[12px] ${style.text} border-current tabular-nums`}>
           {Math.round(val)}
         </div>
       </div>
@@ -366,49 +342,25 @@ const FearGreedCard = ({ item }) => {
   };
 
   return (
-    <div className="relative bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-600 p-4 md:p-6 rounded-3xl shadow-sm mb-6 flex flex-col lg:flex-row gap-8 overflow-hidden">
+    <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-700/60 p-4 md:p-6 rounded-md mb-6 flex flex-col lg:flex-row gap-8">
 
-      {/* 🌟 Ambient 배경: dot-grid + regime 색상(zone 컬러) blurred blob, 아주 느리게 drift */}
-      <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
-        <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-          <defs>
-            <pattern id="fgDotGrid" width="18" height="18" patternUnits="userSpaceOnUse">
-              <circle cx="1" cy="1" r="1" className="fill-slate-300 dark:fill-slate-700" opacity="0.3" />
-            </pattern>
-            <filter id="fgBlobBlur" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="40" />
-            </filter>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#fgDotGrid)" />
-          <circle
-            cx="18%"
-            cy="30%"
-            r="130"
-            fill={activeZone.color}
-            opacity="0.12"
-            filter="url(#fgBlobBlur)"
-            style={{ animation: 'ambientDrift 16s ease-in-out infinite' }}
-          />
-        </svg>
-      </div>
-
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center">
+      <div className="flex-1 flex flex-col items-center justify-center">
         <div className="w-full flex items-center gap-2.5 mb-2">
-          <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">Fear & Greed Index</h2>
+          <h2 className="text-[16px] font-semibold text-slate-900 dark:text-white">Fear & Greed Index</h2>
           <span className="flex items-center gap-1.5">
-            <LiveDot size={11} />
-            <span className="text-[10px] font-black text-emerald-500 tracking-wider">LIVE</span>
+            <LiveDot size={10} />
+            <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-500 tracking-wide">LIVE</span>
           </span>
         </div>
         <div className="w-full mt-6 pb-6">
           <FearGreedGauge value={currentVal} />
         </div>
-        <p className="text-[11px] font-bold text-slate-400 mt-4 w-full text-left">
+        <p className="text-[11px] text-slate-400 mt-4 w-full text-left">
           Last updated {item.recorded_at}
         </p>
       </div>
 
-      <div className="relative z-10 w-full lg:w-[340px] flex flex-col justify-center bg-slate-50 dark:bg-[#111827]/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800/50 h-auto self-center">
+      <div className="w-full lg:w-[340px] flex flex-col justify-center bg-slate-50 dark:bg-[#111827]/50 rounded-md p-5 border border-slate-100 dark:border-slate-800/50 h-auto self-center">
         <div className="flex flex-col w-full">
           {renderTimelineRow('Previous close', prevClose)}
           {renderTimelineRow('1 week ago', oneWeek)}
@@ -426,16 +378,16 @@ const FearGreedCard = ({ item }) => {
 const RegimePopover = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
   return (
-    <div className="absolute top-8 right-0 z-50 w-[280px] bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-4 animate-in fade-in zoom-in-95 duration-200">
+    <div className="qd-fade-in absolute top-8 right-0 z-50 w-[280px] bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 shadow-lg rounded-md p-4">
       <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100 dark:border-slate-700/50">
-        <h4 className="font-black text-slate-900 dark:text-white text-[15px]">Market Regime 가이드</h4>
+        <h4 className="font-semibold text-slate-900 dark:text-white text-[14px]">Market Regime 가이드</h4>
         <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={16} /></button>
       </div>
       <div className="space-y-3">
         {Object.entries(REGIME_CONFIG).map(([key, conf]) => (
           <div key={key} className="flex flex-col gap-1">
-            <span className={`font-black text-[13px] ${conf.color}`}>{key}</span>
-            <span className="text-[12px] font-bold text-slate-500 whitespace-pre-line leading-snug">{conf.desc}</span>
+            <span className={`font-medium text-[13px] ${conf.color}`}>{key}</span>
+            <span className="text-[12px] text-slate-500 whitespace-pre-line leading-snug">{conf.desc}</span>
           </div>
         ))}
       </div>
@@ -449,30 +401,25 @@ const RegimeSummary = ({ regimeData }) => {
   const conf = REGIME_CONFIG[regime] || REGIME_CONFIG.Neutral;
 
   return (
-    <div className="relative w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl px-5 md:px-6 py-3.5 shadow-sm mb-8 flex items-center flex-wrap gap-x-3 gap-y-1.5">
+    <div className="relative w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-md px-5 py-3.5 mb-8 flex items-center flex-wrap gap-x-3 gap-y-1.5">
 
-      <span className="text-[12px] md:text-[13px] font-black text-slate-500 dark:text-slate-400 tracking-tight">
+      <span className="text-[12.5px] font-medium text-slate-500 dark:text-slate-400 tracking-tight">
         America Market Regime
       </span>
 
-      <LiveDot size={10} />
+      <LiveDot size={9} />
 
-      <h1
-        key={`title-${regime}`}
-        className={`text-lg md:text-xl font-black tracking-tight ${conf.color}`}
-        style={{ animation: 'bounceScale 0.5s ease-out', display: 'inline-block' }}
-      >
+      <h1 className={`text-[17px] font-semibold tracking-tight ${conf.color}`}>
         {regime}
       </h1>
 
-      <span className={`text-[13px] md:text-[14px] font-black ${conf.color}`}>
-        {score}<span className="text-slate-400 dark:text-slate-500 font-bold text-[12px]"> / 100</span>
+      <span className={`text-[13.5px] font-medium ${conf.color}`}>
+        {score}<span className="text-slate-400 dark:text-slate-500 font-normal text-[12px]"> / 100</span>
       </span>
 
-      {/* 🌟 Info 버튼을 relative 컨테이너로 감싸서, 팝업이 이 버튼을 기준으로 위치하도록 함 */}
       <div className="relative ml-auto">
         <button onClick={() => setInfoOpen(!infoOpen)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer">
-          <Info size={16} />
+          <Info size={15} strokeWidth={1.75} />
         </button>
         <RegimePopover isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
       </div>
@@ -481,28 +428,27 @@ const RegimeSummary = ({ regimeData }) => {
 };
 
 // ---------------------------------------------------------------------------
-// 카드 아이콘 — 별도 컴포넌트 파일 없이, 필요한 지표에만 최소한으로 inline SVG 추가
-// (QQQ Trend / VIX / WTI 만 지원, 나머지는 기존처럼 아이콘 없이 텍스트만 표시)
+// 카드 아이콘 — QQQ Trend / VIX / WTI 만 지원, 나머지는 텍스트만 표시
 // ---------------------------------------------------------------------------
 const renderCardIcon = (indicator) => {
   switch (indicator) {
     case 'QQQ_PRICE':
       return (
-        <svg viewBox="0 0 24 24" className="w-5 h-5 text-slate-400 dark:text-slate-500" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M3 17L9 11L13 15L21 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M16 5H21V10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <svg viewBox="0 0 24 24" className="w-4 h-4 text-slate-400 dark:text-slate-500" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 17L9 11L13 15L21 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M16 5H21V10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     case 'VIX':
       return (
-        <svg viewBox="0 0 24 24" className="w-5 h-5 text-slate-400 dark:text-slate-500" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M2 12H6L8 5L13 19L16 12L18 15L20 12H22" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <svg viewBox="0 0 24 24" className="w-4 h-4 text-slate-400 dark:text-slate-500" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2 12H6L8 5L13 19L16 12L18 15L20 12H22" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     case 'WTI':
       return (
-        <svg viewBox="0 0 24 24" className="w-5 h-5 text-slate-400 dark:text-slate-500" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 3C12 3 6 12 6 16C6 19.3137 8.68629 22 12 22C15.3137 22 18 19.3137 18 16C18 12 12 3 12 3Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <svg viewBox="0 0 24 24" className="w-4 h-4 text-slate-400 dark:text-slate-500" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 3C12 3 6 12 6 16C6 19.3137 8.68629 22 12 22C15.3137 22 18 19.3137 18 16C18 12 12 3 12 3Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
         </svg>
       );
     default:
@@ -511,15 +457,14 @@ const renderCardIcon = (indicator) => {
 };
 
 // ---------------------------------------------------------------------------
-// MacroCard — 아이콘 hover glow + Sparkline draw-in/pulse ring 추가
+// MacroCard
 // ---------------------------------------------------------------------------
 const MacroCard = ({ item, onClick }) => {
   const isPos = item.change_percent >= 0;
   const statusStyle = getStatusStyle(item.calcStatus);
   const sparkColor = isPos ? CHART_RED : CHART_BLUE;
   const icon = renderCardIcon(item.indicator);
-  
-  // 날짜순 오름차순 정렬 후 최근 20일(1개월)만 슬라이싱
+
   const sortedHist = [...(item.history || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
   const chartData = sortedHist.slice(-20).map((h, i) => ({ index: i, value: h.value }));
   const lastIndex = chartData.length - 1;
@@ -527,39 +472,30 @@ const MacroCard = ({ item, onClick }) => {
   return (
     <div
       onClick={() => onClick(item)}
-      className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between h-40"
+      className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 p-4 rounded-md transition-colors cursor-pointer flex flex-col justify-between h-36"
     >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-1.5 min-w-0 pr-2">
-          {icon && (
-            <span className="relative shrink-0">
-              {/* 4. hover 시 아이콘 뒤로 은은한 glow */}
-              <span
-                className="absolute inset-0 rounded-full blur-md opacity-0 group-hover:opacity-30 transition-opacity duration-500"
-                style={{ background: sparkColor }}
-              />
-              <span className="relative">{icon}</span>
-            </span>
-          )}
-          <h3 className="text-[13px] md:text-[14px] font-extrabold text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-colors truncate">
+          {icon}
+          <h3 className="text-[12.5px] font-medium text-slate-500 dark:text-slate-400 truncate">
             {item.display_name || item.indicator}
           </h3>
         </div>
-        <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${statusStyle.text} ${statusStyle.bg} ${statusStyle.border} shrink-0`}>
+        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${statusStyle.text} ${statusStyle.bg} ${statusStyle.border} shrink-0`}>
           {statusStyle.label}
         </span>
       </div>
 
       <div className="flex justify-between items-end">
         <div>
-          <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tighter mb-1">
+          <p className="text-xl font-semibold text-slate-900 dark:text-white tracking-tight mb-1 tabular-nums">
             {item.value.toLocaleString()}
           </p>
-          <p className={`text-[12px] md:text-[13px] font-black ${isPos ? 'text-[#FF4B4B]' : 'text-[#3B82F6]'}`}>
+          <p className="text-[12px] font-medium tabular-nums" style={{ color: isPos ? POS : NEG }}>
             {isPos ? '▲' : '▼'} {Math.abs(item.change_percent).toFixed(2)}%
           </p>
         </div>
-        <div className="w-20 h-12">
+        <div className="w-20 h-11">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 2, bottom: 2 }}>
               <YAxis domain={['dataMin', 'dataMax']} hide />
@@ -567,23 +503,14 @@ const MacroCard = ({ item, onClick }) => {
                 type="monotone"
                 dataKey="value"
                 stroke={sparkColor}
-                strokeWidth={2.5}
+                strokeWidth={2}
                 dot={(dotProps) => {
                   const { cx, cy, index, key } = dotProps;
                   if (index !== lastIndex) return <React.Fragment key={key} />;
-                  // 5. 마지막 포인트 pulse ring
-                  return (
-                    <g key={key}>
-                      <circle cx={cx} cy={cy} r={2.5} fill={sparkColor} />
-                      <circle cx={cx} cy={cy} r={2.5} fill="none" stroke={sparkColor} strokeWidth="1.5">
-                        <animate attributeName="r" values="2.5;7;2.5" dur="1.8s" repeatCount="indefinite" />
-                        <animate attributeName="opacity" values="0.6;0;0.6" dur="1.8s" repeatCount="indefinite" />
-                      </circle>
-                    </g>
-                  );
+                  return <circle key={key} cx={cx} cy={cy} r={2.5} fill={sparkColor} />;
                 }}
                 isAnimationActive={true}
-                animationDuration={800}
+                animationDuration={600}
                 animationEasing="ease-out"
               />
             </LineChart>
@@ -596,11 +523,11 @@ const MacroCard = ({ item, onClick }) => {
 
 const MacroSection = ({ title, items, onCardClick }) => {
   const isPsychology = items.some(item => item.indicator === 'FEAR_GREED');
-  
+
   if (isPsychology) {
     return (
       <div className="mb-10 w-full">
-        <h3 className="text-xl font-black text-slate-900 dark:text-white mb-4 pl-1">{title}</h3>
+        <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white mb-4">{title}</h3>
         {items.map(item => <FearGreedCard key={item.indicator} item={item} />)}
       </div>
     );
@@ -608,8 +535,8 @@ const MacroSection = ({ title, items, onCardClick }) => {
 
   return (
     <div className="mb-10">
-      <h3 className="text-xl font-black text-slate-900 dark:text-white mb-4 pl-1">{title}</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white mb-4">{title}</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {items.map(item => <MacroCard key={item.indicator} item={item} onClick={onCardClick} />)}
       </div>
     </div>
@@ -633,15 +560,15 @@ const MacroChartModal = ({ item, onClose }) => {
   }, [item.history, range]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="flex justify-between items-center p-5 md:p-6 border-b border-slate-100 dark:border-slate-800/80">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-[2px] p-4">
+      <div className="qd-modal-panel bg-white dark:bg-[#0F1B2E] border border-slate-200 dark:border-slate-700/60 w-full max-w-4xl rounded-lg shadow-[0_24px_60px_-16px_rgba(0,0,0,0.45)] dark:shadow-[0_32px_70px_-16px_rgba(0,0,0,0.75)] flex flex-col overflow-hidden">
+        <div className="flex justify-between items-center px-5 md:px-6 py-4 border-b border-slate-100 dark:border-slate-800">
           <div>
-            <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-1">{item.display_name || item.indicator}</h3>
-            <p className="text-[13px] font-extrabold text-slate-500">{item.indicator} · {item.source}</p>
+            <h3 className="text-[18px] font-semibold text-slate-900 dark:text-white mb-1">{item.display_name || item.indicator}</h3>
+            <p className="text-[12.5px] text-slate-500">{item.indicator} · {item.source}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full transition-colors cursor-pointer">
-            <X size={20} />
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors text-[13px] font-medium">
+            닫기
           </button>
         </div>
 
@@ -649,20 +576,20 @@ const MacroChartModal = ({ item, onClose }) => {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
             <div className="flex items-center gap-6">
               <div>
-                <p className="text-4xl font-black text-slate-900 dark:text-white mb-2">
+                <p className="text-[28px] font-semibold text-slate-900 dark:text-white mb-2 tabular-nums">
                   {item.value.toLocaleString()}{item.unit ? ` ${item.unit}` : ''}
                 </p>
-                <span className={`text-[14px] font-black px-2.5 py-1 rounded-lg border ${isPos ? 'text-[#FF4B4B] bg-[#FF4B4B]/10 border-[#FF4B4B]/30' : 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/30'}`}>
+                <span className="text-[13px] font-medium px-2.5 py-1 rounded border tabular-nums" style={{ color: isPos ? POS : NEG, borderColor: 'currentColor', background: isPos ? 'rgba(220,38,38,0.08)' : 'rgba(37,99,235,0.08)' }}>
                   {isPos ? '▲' : '▼'} {Math.abs(item.change_percent).toFixed(2)}%
                 </span>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5">
               {Object.keys(RANGE_TRADING_DAYS).map(r => (
                 <button
                   key={r}
                   onClick={() => setRange(r)}
-                  className={`text-[12px] font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer border shadow-sm ${range === r ? 'bg-slate-800 border-slate-800 text-white dark:bg-slate-200 dark:border-slate-200 dark:text-slate-900' : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                  className={`text-[11.5px] font-medium px-2.5 py-1.5 rounded transition-colors cursor-pointer border ${range === r ? 'bg-slate-900 border-slate-900 text-white dark:bg-slate-100 dark:border-slate-100 dark:text-slate-900' : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
                 >
                   {r}
                 </button>
@@ -670,20 +597,20 @@ const MacroChartModal = ({ item, onClose }) => {
             </div>
           </div>
 
-          <div className="w-full h-[300px] md:h-[400px]">
+          <div className="w-full h-[280px] md:h-[360px]">
             <ResponsiveContainer width="100%" height="100%" key={range}>
               <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorMacroModal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={CHART_RED} stopOpacity={0.3} />
+                    <stop offset="5%" stopColor={CHART_RED} stopOpacity={0.18} />
                     <stop offset="95%" stopColor={CHART_RED} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
-                <XAxis dataKey="date" tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '800' }} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''} />
-                <YAxis domain={['dataMin', 'dataMax']} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '800' }} tickLine={false} axisLine={false} tickFormatter={(v) => v.toFixed(1)} />
-                <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: 'white', fontWeight: '900' }} itemStyle={{ color: CHART_RED }} labelStyle={{ color: '#94A3B8', marginBottom: '4px' }} formatter={(value) => [value.toFixed(2), 'Value']} />
-                <Area type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2.5} fillOpacity={1} fill="url(#colorMacroModal)" activeDot={{ r: 6, fill: CHART_RED, strokeWidth: 0 }} isAnimationActive={false} />
+                <XAxis dataKey="date" tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '500' }} tickLine={false} axisLine={false} minTickGap={40} tickFormatter={(val) => val ? String(val).substring(5).replace('-', '.') : ''} />
+                <YAxis domain={['dataMin', 'dataMax']} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: '500' }} tickLine={false} axisLine={false} tickFormatter={(v) => v.toFixed(1)} />
+                <Tooltip contentStyle={{ backgroundColor: '#0F1B2E', borderColor: '#334155', borderRadius: '8px', color: 'white', fontWeight: '500' }} itemStyle={{ color: CHART_RED }} labelStyle={{ color: '#94A3B8', marginBottom: '4px' }} formatter={(value) => [value.toFixed(2), 'Value']} />
+                <Area type="monotone" dataKey="value" stroke={CHART_RED} strokeWidth={2} fillOpacity={1} fill="url(#colorMacroModal)" activeDot={{ r: 5, fill: CHART_RED, strokeWidth: 0 }} isAnimationActive={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -704,7 +631,7 @@ const ShimmerRow = ({ index }) => {
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="currentColor" stopOpacity="0.08" />
-          <stop offset="50%" stopColor="currentColor" stopOpacity="0.28" />
+          <stop offset="50%" stopColor="currentColor" stopOpacity="0.22" />
           <stop offset="100%" stopColor="currentColor" stopOpacity="0.08" />
           <animateTransform attributeName="gradientTransform" type="translate" from="-1 0" to="1 0" dur="1.4s" begin={delay} repeatCount="indefinite" />
         </linearGradient>
@@ -758,7 +685,7 @@ const MacroPage = ({ macroData }) => {
           break;
         case 'QQQ_MA50':
         case 'QQQ_MA200':
-          calcStatus = 'Neutral'; 
+          calcStatus = 'Neutral';
           break;
         default:
           calcStatus = 'Neutral';
@@ -774,9 +701,9 @@ const MacroPage = ({ macroData }) => {
   // 매크로 데이터가 아직 불러와지지 않았거나 비어있을 경우 — SVG shimmer
   if (!macroData || macroData.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 w-full text-slate-500 animate-in fade-in gap-6 px-4">
+      <div className="qd-fade-in flex flex-col items-center justify-center h-96 w-full text-slate-500 gap-6 px-4">
         <GlobalStyle />
-        <p className="text-[14px] font-extrabold">매크로 데이터를 분석 중입니다...</p>
+        <p className="text-[13.5px]">매크로 데이터를 분석 중입니다...</p>
         <div className="w-full max-w-md flex flex-col gap-3">
           {[0, 1, 2, 3].map(i => <ShimmerRow key={i} index={i} />)}
         </div>
@@ -785,7 +712,7 @@ const MacroPage = ({ macroData }) => {
   }
 
   return (
-    <div className="animate-in fade-in duration-300 w-full">
+    <div className="qd-fade-in w-full">
       <GlobalStyle />
       <RegimeSummary regimeData={regimeData} />
 
