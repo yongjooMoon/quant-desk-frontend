@@ -63,10 +63,28 @@ const NEWS_MICRO_STYLES = `
   @media (prefers-reduced-motion: reduce) {
     .news-hero-card-in { animation: none !important; }
   }
+
+  /* 세로 리스트 무한스크롤 전용 — 스크롤로 새로 로드된 행이 "안 보였다가 스르르 나타나는" 느낌.
+     리스트 재정렬/재마운트가 아니라 실제로 새로 mount된 DOM 노드에서만 1회 재생된다. */
+  @keyframes newsRowIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .news-row-in { animation: newsRowIn 0.35s ease-out both; }
+  @media (prefers-reduced-motion: reduce) {
+    .news-row-in { animation: none !important; }
+  }
 `;
 
 export default function NewsDesk() {
+  // 세로 리스트(섹터별 최신 뉴스)용 누적 피드 — 탭/검색/날짜가 바뀌어도 리셋하지 않는다.
+  // 각 뷰(전체/카테고리/검색/특정일 주요뉴스)는 이 누적분 안에서만 클라이언트 필터링하고,
+  // 필터링 후 화면에 보일 게 부족하면 아래 IntersectionObserver가 다음 페이지를 더 당겨온다.
   const [news, setNews] = useState([]);
+  const [feedHasMore, setFeedHasMore] = useState(true);
+  const [feedLoading, setFeedLoading] = useState(false);
+
+  // 히어로 레일("오늘 주요뉴스")은 별도 전용 조회 — 세로 피드가 아직 오늘자까지
+  // 다 안 당겨왔어도 항상 정확해야 하므로 서버의 major_only=true로 직접 받는다.
+  const [heroNews, setHeroNews] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("전체");
@@ -94,13 +112,14 @@ export default function NewsDesk() {
   const [readProgress, setReadProgress] = useState(0);
   const [gaugeAnimated, setGaugeAnimated] = useState(false);
 
-  // 화면에 보여줄 개수(뷰포트 관심사)와 실제로 받아온 데이터량(데이터 계층 관심사)을 분리.
-  // 백엔드는 이미 /api/news에서 전체 데이터를 한 번에 내려주므로, 여기서는 "얼마나 그려낼지"만 통제한다.
+  // 히어로 레일 노출 개수(뷰포트 관심사, 데이터는 이미 heroNews에 전부 있음)와
+  // 세로 피드 백엔드 페이지 크기(데이터 계층 관심사)는 서로 다른 개념이라 분리 유지.
   const HERO_INITIAL_COUNT = 6;
   const HERO_BATCH_SIZE = 6;
-  const LIST_PAGE_SIZE = 50;
+  const LIST_PAGE_SIZE = 60;
   const [visibleMajorCount, setVisibleMajorCount] = useState(HERO_INITIAL_COUNT);
-  const [visibleListCount, setVisibleListCount] = useState(LIST_PAGE_SIZE);
+
+  const sentinelRef = useRef(null);
 
   const tabsNames = [
     "전체",
@@ -116,22 +135,58 @@ export default function NewsDesk() {
   // 탭 버튼에는 이모지를 노출하지 않는다 (매칭 로직은 원본 문자열 그대로 사용)
   const getTabLabel = (tab) => tab.replace(/^[^\uAC00-\uD7A3a-zA-Z]+\s*/, '');
 
-  const fetchNews = (isRefresh = false) => {
-    setLoading(true);
-
-    const endpoint = isRefresh ? "/api/news?refresh=true" : "/api/news";
-
-    callApi(endpoint)
+  // 세로 피드 다음 페이지를 당겨온다. offset은 "지금까지 실제로 받아온 원본 개수" 기준
+  // (필터링된 개수가 아니라 누적 원본 개수) — 백엔드 캐시가 이 offset부터 이어서 잘라준다.
+  const fetchNextFeedPage = () => {
+    if (feedLoading || !feedHasMore) return; // 중복 요청 방지
+    setFeedLoading(true);
+    callApi(`/api/news?offset=${news.length}&limit=${LIST_PAGE_SIZE}`)
       .then((result) => {
         if (result.status === "success") {
-           setNews(result.data);
+          setNews((prev) => [...prev, ...result.data]);
+          setFeedHasMore(Boolean(result.has_more));
+        } else {
+          setFeedHasMore(false);
         }
-        setLoading(false);
+        setFeedLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setFeedHasMore(false);
+        setFeedLoading(false);
+      });
   };
 
-  useEffect(() => { fetchNews(); }, []);
+  useEffect(() => {
+    setLoading(true);
+    Promise.allSettled([
+      callApi(`/api/news?offset=0&limit=${LIST_PAGE_SIZE}`),
+      callApi("/api/news?major_only=true"),
+    ]).then(([feedResult, heroResult]) => {
+      if (feedResult.status === "fulfilled" && feedResult.value.status === "success") {
+        setNews(feedResult.value.data);
+        setFeedHasMore(Boolean(feedResult.value.has_more));
+      }
+      if (heroResult.status === "fulfilled" && heroResult.value.status === "success") {
+        setHeroNews(heroResult.value.data);
+      }
+      setLoading(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 화면에 실제로 그려진 필터 결과가 스크린을 못 채우거나(스크롤할 곳이 없어 관찰자가
+  // 못 뜨는 상황) 관찰 대상 자체가 아직 없을 때를 대비해, 목록이 바뀔 때마다도 한 번씩
+  // "더 채워야 하는지" 확인한다 — sentinel의 IntersectionObserver와 함께 이중 안전장치.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !feedHasMore || feedLoading) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) fetchNextFeedPage();
+    }, { rootMargin: '400px' });
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feedHasMore, feedLoading, news.length, activeTab, searchQuery, historyDate]);
 
   const parseDBTime = (isoString) => {
     if (!isoString) return new Date();
@@ -292,7 +347,7 @@ export default function NewsDesk() {
     setReadProgress(pct);
   };
 
-  const todayMajorNews = news.filter(n => n.is_major && getDateStr(parseDBTime(n.created_at)) === getTodayStr());
+  const todayMajorNews = heroNews;
 
   const filteredList = news.filter(n => {
     if (searchQuery) return n.title.toLowerCase().includes(searchQuery.toLowerCase()) || (n.summary || "").toLowerCase().includes(searchQuery.toLowerCase());
@@ -319,11 +374,8 @@ export default function NewsDesk() {
   const showCategoryBadge = true;
 
   // 탭 밑줄 위치/너비 계산은 이제 Tabs 컴포넌트(variant="sliding") 내부 책임.
-
-  // 탭/검색어/날짜가 바뀌면 새로운 맥락이므로 노출 개수를 다시 compact 상태로 되돌린다
-  useEffect(() => {
-    setVisibleListCount(LIST_PAGE_SIZE);
-  }, [activeTab, searchQuery, historyDate]);
+  // (예전엔 여기서 탭/검색/날짜가 바뀔 때 클라이언트 슬라이스 개수를 리셋했지만,
+  // 이제 세로 리스트는 슬라이스하지 않고 누적된 것을 전부 그린다 — 위 sentinel 효과가 대신함)
 
   // 모달이 열릴 때 읽기 진행률 초기화 + 감성 바를 0에서 목표값까지 애니메이션
   useEffect(() => {
@@ -503,13 +555,13 @@ export default function NewsDesk() {
             )}
 
             <Card padding="none" className="overflow-hidden">
-              {filteredList.length > 0 ? filteredList.slice(0, visibleListCount).map((item) => {
+              {filteredList.length > 0 ? filteredList.map((item) => {
                 const catStyle = getCategoryStyle(getItemCategory(item));
                 return (
                   <div
                     key={item.id}
                     onClick={() => setSelectedNews(item)}
-                    className="px-4 py-4 md:py-4.5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors flex flex-col gap-2"
+                    className="news-row-in px-4 py-4 md:py-4.5 border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors flex flex-col gap-2"
                   >
                     <div className="flex items-center justify-between w-full gap-3">
                       <div className="flex items-center gap-2 overflow-hidden min-w-0">
@@ -538,14 +590,18 @@ export default function NewsDesk() {
                     </h3>
                   </div>
                 );
-              }) : <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">해당 조건의 뉴스가 없습니다.</div>}
+              }) : !feedHasMore && (
+                <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">해당 조건의 뉴스가 없습니다.</div>
+              )}
             </Card>
 
-            {filteredList.length > visibleListCount && (
-              <div className="flex justify-center mt-4">
-                <Button variant="secondary" onClick={() => setVisibleListCount((c) => c + LIST_PAGE_SIZE)}>
-                  더 보기 ({filteredList.length - visibleListCount}개 남음)
-                </Button>
+            {/* 무한스크롤 트리거 — 뷰포트에 들어오면(또는 필터 결과가 부족하면 즉시) 다음 페이지를 이어서 당겨온다.
+                평소엔 높이만 있는 빈 감지용 div, 실제로 요청 중일 때만 스피너를 보여준다. */}
+            {feedHasMore && (
+              <div ref={sentinelRef} className="flex justify-center py-6 min-h-[1px]">
+                {feedLoading && (
+                  <div className="w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-700 border-t-slate-500 dark:border-t-slate-400 animate-spin" />
+                )}
               </div>
             )}
           </div>
