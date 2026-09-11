@@ -49,6 +49,13 @@ const NEWS_MICRO_STYLES = `
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
   .news-modal-panel { animation: newsModalIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  /* 가로 discovery rail 전용 — 새로 드러나는 카드가 공간적으로 이어지는 느낌만 (바운스/스케일 없음) */
+  @keyframes newsHeroCardIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+  .news-hero-card-in { animation: newsHeroCardIn 0.3s ease-out both; }
+  @media (prefers-reduced-motion: reduce) {
+    .news-hero-card-in { animation: none !important; }
+  }
 `;
 
 export default function NewsDesk() {
@@ -83,6 +90,14 @@ export default function NewsDesk() {
   const modalContentRef = useRef(null);
   const [readProgress, setReadProgress] = useState(0);
   const [gaugeAnimated, setGaugeAnimated] = useState(false);
+
+  // 화면에 보여줄 개수(뷰포트 관심사)와 실제로 받아온 데이터량(데이터 계층 관심사)을 분리.
+  // 백엔드는 이미 /api/news에서 전체 데이터를 한 번에 내려주므로, 여기서는 "얼마나 그려낼지"만 통제한다.
+  const HERO_INITIAL_COUNT = 6;
+  const HERO_BATCH_SIZE = 6;
+  const LIST_PAGE_SIZE = 50;
+  const [visibleMajorCount, setVisibleMajorCount] = useState(HERO_INITIAL_COUNT);
+  const [visibleListCount, setVisibleListCount] = useState(LIST_PAGE_SIZE);
 
   const tabsNames = [
     "전체",
@@ -231,6 +246,26 @@ export default function NewsDesk() {
     setSelectedNews(item);
   };
 
+  // 트랙패드/마우스 휠의 세로 스크롤 의도를 가로 스크롤로 변환 — 더 이상 가로로 갈 곳이 없을 때는
+  // 그대로 두어 페이지 전체 스크롤을 막지 않는다.
+  const handleWheelHorizontal = (e) => {
+    const el = e.currentTarget;
+    const canScrollMore = el.scrollWidth > el.clientWidth;
+    if (canScrollMore && Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    }
+  };
+
+  // 가로 rail 끝에 가까워지면 이미 받아온 데이터에서 다음 묶음을 더 그려낸다 (재요청/전체 리로드 없음)
+  const handleHeroScroll = (e) => {
+    const el = e.currentTarget;
+    const nearEnd = el.scrollWidth - el.scrollLeft - el.clientWidth < 220;
+    if (nearEnd) {
+      setVisibleMajorCount((c) => Math.min(todayMajorNews.length, c + HERO_BATCH_SIZE));
+    }
+  };
+
   // 미세한 3D hover — 마우스 정밀 포인터(pointer:fine) + reduced-motion 미설정 환경에서만, ±2deg로 제한
   const handleCardTilt = (e) => {
     if (isDragging) return;
@@ -300,6 +335,11 @@ export default function NewsDesk() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, searchQuery]);
 
+  // 탭/검색어/날짜가 바뀌면 새로운 맥락이므로 노출 개수를 다시 compact 상태로 되돌린다
+  useEffect(() => {
+    setVisibleListCount(LIST_PAGE_SIZE);
+  }, [activeTab, searchQuery, historyDate]);
+
   // 모달이 열릴 때 읽기 진행률 초기화 + 감성 바를 0에서 목표값까지 애니메이션
   useEffect(() => {
     if (selectedNews) {
@@ -341,7 +381,7 @@ export default function NewsDesk() {
             <div className="news-skeleton h-5 w-40 rounded mb-5" />
             <div className="flex gap-3 overflow-hidden pb-2">
               {[0, 1, 2].map(i => (
-                <div key={i} className="w-[85vw] sm:w-[300px] md:w-[320px] shrink-0 p-4 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] min-h-[136px] flex flex-col justify-between">
+                <div key={i} className="w-[82%] sm:w-[46%] md:w-[31%] lg:w-[23%] xl:w-[18.5%] shrink-0 p-4 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] min-h-[136px] flex flex-col justify-between">
                   <div>
                     <div className="flex justify-between items-center mb-3">
                       <div className="news-skeleton h-4 w-12 rounded" />
@@ -383,9 +423,11 @@ export default function NewsDesk() {
                   onMouseLeave={handleMouseLeaveOrUp}
                   onMouseUp={handleMouseLeaveOrUp}
                   onMouseMove={handleMouseMove}
+                  onWheel={handleWheelHorizontal}
+                  onScroll={handleHeroScroll}
                   className={`flex overflow-x-auto gap-3 pb-2 hide-scrollbar snap-x snap-mandatory ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
                 >
-                  {todayMajorNews.map((item) => {
+                  {todayMajorNews.slice(0, visibleMajorCount).map((item) => {
                     const catStyle = getCategoryStyle(getItemCategory(item));
                     return (
                       <div
@@ -393,7 +435,7 @@ export default function NewsDesk() {
                         onClick={(e) => handleCardClick(e, item)}
                         onMouseMove={handleCardTilt}
                         onMouseLeave={resetCardTilt}
-                        className="news-tilt relative w-[85vw] sm:w-[320px] md:w-[340px] snap-center shrink-0 pl-4 pr-4 py-4 md:py-5 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131E30] hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-[0_12px_28px_-12px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_16px_32px_-14px_rgba(0,0,0,0.6)] cursor-pointer flex flex-col justify-between min-h-[136px] md:min-h-[150px]"
+                        className="news-tilt news-hero-card-in relative w-[82%] sm:w-[46%] md:w-[31%] lg:w-[23%] xl:w-[18.5%] snap-center shrink-0 pl-4 pr-4 py-4 md:py-5 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131E30] hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-[0_12px_28px_-12px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_16px_32px_-14px_rgba(0,0,0,0.6)] cursor-pointer flex flex-col justify-between min-h-[136px] md:min-h-[150px]"
                       >
                         <span
                           className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
@@ -481,7 +523,7 @@ export default function NewsDesk() {
             )}
 
             <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden">
-              {filteredList.length > 0 ? filteredList.slice(0, 50).map((item) => {
+              {filteredList.length > 0 ? filteredList.slice(0, visibleListCount).map((item) => {
                 const catStyle = getCategoryStyle(getItemCategory(item));
                 return (
                   <div
@@ -518,6 +560,17 @@ export default function NewsDesk() {
                 );
               }) : <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">해당 조건의 뉴스가 없습니다.</div>}
             </div>
+
+            {filteredList.length > visibleListCount && (
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => setVisibleListCount((c) => c + LIST_PAGE_SIZE)}
+                  className="px-4 py-2 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-md text-[12.5px] font-medium text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer transition-colors"
+                >
+                  더 보기 ({filteredList.length - visibleListCount}개 남음)
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
