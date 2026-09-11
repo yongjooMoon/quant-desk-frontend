@@ -16,6 +16,9 @@
   --color-negative: var(--negative);
   --color-warning: var(--warning);
   --color-neutral: var(--neutral);
+  /* 통과/신뢰 의미(초록) — positive(가격 상승)와는 별개 축. 기존 페이지들이
+     JS 상수 GOOD='#059669'로 다크모드 대응 없이 하드코딩해오던 색을 토큰화. */
+  --color-success: var(--success);
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -39,6 +42,7 @@
   --negative: #2563EB;
   --warning: #D97706;
   --neutral: #64748B;
+  --success: #059669;
 
   --sans: 'Nunito', 'Pretendard', system-ui, sans-serif;
   --heading: 'Nunito', 'Pretendard', system-ui, sans-serif;
@@ -80,11 +84,16 @@
 
   --surface: #0B1120;
   --panel: #111827;
-  --panel-elevated: #16213A;
+  /* 기존 값 #16213A는 어느 페이지에서도 실제로 쓰이지 않던 고아 토큰이었다.
+     모달/드롭다운 등 실제 elevated 표면은 전부 #0F1B2E를 하드코딩해왔으므로
+     (NewsDesk/QuantDesk/QuantScreener/MacroPage/StockSearch/HousingCalendar
+     16곳 확인), 실제 사용값에 맞춰 토큰을 정합한다. */
+  --panel-elevated: #0F1B2E;
   --positive: #F87171;
   --negative: #60A5FA;
   --warning: #FBBF24;
   --neutral: #94A3B8;
+  --success: #34D399;
 }
 
 /* 레거시 다크모드 호환 레이어 (임시, Phase 3+ 페이지별 마이그레이션 시 제거 예정)
