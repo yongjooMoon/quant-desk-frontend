@@ -20,7 +20,7 @@ const TONE_CLASSES = {
 export function Metric({ label, value, sub, tone = 'default', size = 'sm', className }) {
   return (
     <div className={className}>
-      {label && <p className="text-[9.5px] md:text-[12px] text-slate-400 dark:text-slate-500 mb-1">{label}</p>}
+      {label && <p className="text-[9.5px] md:text-[12px] text-slate-500 dark:text-slate-400 mb-1">{label}</p>}
       <p className={cn(VALUE_SIZE_CLASSES[size], TONE_CLASSES[tone], 'tabular-nums')}>{value}</p>
       {sub && <p className="text-[10.5px] md:text-[12px] text-slate-500 dark:text-slate-400 mt-1">{sub}</p>}
     </div>

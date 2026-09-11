@@ -1,19 +1,24 @@
 import { cn } from './cn';
 
 // Depth 계층: Background -> Surface -> Panel -> Elevated Panel (DESIGN_GUIDELINES.md 참고)
-// 기존 페이지들이 반복해온 두 표면을 그대로 옮긴 것 — 새 색을 만들지 않았다.
-//   surface  : bg-slate-50 dark:bg-[#0B1120]  (카드 내부에 한 단 더 들어간 보조 배경)
+// 기존 페이지들이 반복해온 표면들을 그대로 옮긴 것 — 새 색을 만들지 않았다.
+//   surface  : bg-slate-50 dark:bg-[#0B1120]  (페이지 배경에 가까운 가장 낮은 표면)
 //   panel    : bg-white   dark:bg-[#111827]   (페이지에서 가장 흔한 기본 카드) — 48회 반복 확인
+//   inset    : bg-slate-50 dark:bg-[#111827]  (Card/Modal "안에" 한 단 더 들어간 서브 카드 —
+//              StockSearch/QuantScreener 리포트의 Financials/52주고저가 블록 등에서 반복 확인.
+//              라이트값은 surface와, 다크값은 panel과 각각 겹치는 하이브리드라 별도 레벨로 분리)
 //   elevated : bg-white   dark:bg-[#0F1B2E]   (모달/드롭다운처럼 떠 있는 표면)
 const LEVEL_CLASSES = {
   surface: 'bg-slate-50 dark:bg-surface',
   panel: 'bg-white dark:bg-panel',
+  inset: 'bg-slate-50 dark:bg-panel',
   elevated: 'bg-white dark:bg-panel-elevated',
 };
 
 const BORDER_CLASSES = {
   surface: 'border-slate-200 dark:border-slate-800',
   panel: 'border-slate-200 dark:border-slate-800',
+  inset: 'border-slate-200 dark:border-slate-800',
   elevated: 'border-slate-200 dark:border-slate-700/60',
 };
 

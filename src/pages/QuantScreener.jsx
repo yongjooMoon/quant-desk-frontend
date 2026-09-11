@@ -3,6 +3,10 @@ import { RefreshCcw, X, Search, SlidersHorizontal, Sparkles, Check, ArrowUpDown,
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
 import { useRenderApi } from '../hooks/useRenderApi';
+// Phase 2 공통 UI 컴포넌트 — 이 페이지에서 실제로 반복되는 패턴만 사용.
+// Badge는 tone(가격방향/성공 축)이 아니라 color prop(축별 커스텀 hex)으로만 사용한다 —
+// AXES/buySignal 색상은 이미 그 자체가 의미 체계라 tone으로 재매핑하지 않는다.
+import { Panel, Card, Badge, Button, Modal, Metric } from '../components';
 
 // =========================================================================
 // 색상 토큰 — NewsDesk / QuantDesk / MacroPage와 동일한 팔레트로 통일
@@ -178,15 +182,9 @@ const MICRO_STYLES = `
     background-size: 14px;
   }
 
-  .qs-card { transition: border-color 0.15s ease; }
-
   .qs-gate-pass { background: rgba(5,150,105,0.08); border-color: rgba(5,150,105,0.4); }
 
-  @keyframes qsModalIn { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-  .qs-modal-panel { animation: qsModalIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
-  @media (prefers-reduced-motion: reduce) {
-    .qs-modal-panel { animation: none !important; }
-  }
+  /* 카드 hover 전환과 모달 진입 애니메이션은 이제 components/Card, components/Modal이 담당 */
 `;
 
 function formatPriceMasked(v) {
@@ -327,7 +325,7 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
   };
 
   return (
-    <div className="p-5 bg-white dark:bg-[#0B1120] rounded-md border border-slate-200 dark:border-slate-800">
+    <Panel level="surface" padding="md">
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <SlidersHorizontal size={13} className="text-slate-400 dark:text-slate-500" strokeWidth={1.75} />
@@ -449,7 +447,7 @@ function SnowflakeChart({ thresholds, onAxisChange }) {
           );
         })}
       </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -462,7 +460,7 @@ function ScreenerCard({ r, onNameClick }) {
   const buySignal = getBuySignalBadge(r);
 
   return (
-    <div className="qs-card bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 rounded-md p-4">
+    <Card interactive padding="none" className="p-4">
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="min-w-0 cursor-pointer" onClick={() => onNameClick(r)}>
           <span className="qs-name-link text-[14.5px] font-medium text-slate-900 dark:text-white">{r.name}</span>
@@ -480,46 +478,23 @@ function ScreenerCard({ r, onNameClick }) {
         <MiniSnowflake row={r} />
         <div className="flex flex-col items-end gap-1">
           {buySignal && (
-            <span
-              className="text-[10.5px] font-medium px-2 py-0.5 rounded shrink-0"
-              style={{ color: buySignal.color, backgroundColor: `${buySignal.color}1A` }}
-            >
-              {buySignal.label}
-            </span>
+            <Badge color={buySignal.color} size="sm">{buySignal.label}</Badge>
           )}
-          <span className="text-[10.5px] font-medium px-2 py-0.5 rounded shrink-0 tabular-nums" style={{ color: gateColor, backgroundColor: `${gateColor}1A` }}>
+          <Badge color={gateColor} size="sm" className="tabular-nums">
             52주고점 -{formatNum(r.pct_from_52w_high, 1)}%
-          </span>
+          </Badge>
         </div>
       </div>
 
       <div className="grid grid-cols-4 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800/60">
-        <div>
-          <p className="text-[9.5px] text-slate-400">ROE</p>
-          <p className="text-[11.5px] font-medium text-slate-700 dark:text-slate-300 tabular-nums">{formatPct(r.roe)}</p>
-        </div>
-        <div>
-          <p className="text-[9.5px] text-slate-400">부채비율</p>
-          <p className="text-[11.5px] font-medium text-slate-700 dark:text-slate-300 tabular-nums">{formatPct(r.debt_ratio)}</p>
-        </div>
-        <div>
-          <p className="text-[9.5px] text-slate-400">영업이익</p>
-          <p className="text-[11.5px] font-medium text-slate-700 dark:text-slate-300 tabular-nums">{formatPct(r.op_margin)}</p>
-        </div>
-        <div>
-          <p className="text-[9.5px] text-slate-400">RS</p>
-          <p className="text-[11.5px] font-medium text-slate-700 dark:text-slate-300 tabular-nums">{formatNum(r.rs_score, 0)}</p>
-        </div>
-        <div className="col-span-2">
-          <p className="text-[9.5px] text-slate-400">52주 저점 대비</p>
-          <p className="text-[11.5px] font-medium text-slate-700 dark:text-slate-300 tabular-nums">{formatPct(r.pct_above_52w_low)}</p>
-        </div>
-        <div className="col-span-2">
-          <p className="text-[9.5px] text-slate-400">EPS</p>
-          <p className="text-[11.5px] font-medium text-slate-700 dark:text-slate-300 tabular-nums">{formatWon(r.eps_q)}</p>
-        </div>
+        <Metric size="sm" label="ROE" value={formatPct(r.roe)} />
+        <Metric size="sm" label="부채비율" value={formatPct(r.debt_ratio)} />
+        <Metric size="sm" label="영업이익" value={formatPct(r.op_margin)} />
+        <Metric size="sm" label="RS" value={formatNum(r.rs_score, 0)} />
+        <Metric size="sm" className="col-span-2" label="52주 저점 대비" value={formatPct(r.pct_above_52w_low)} />
+        <Metric size="sm" className="col-span-2" label="EPS" value={formatWon(r.eps_q)} />
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -543,18 +518,16 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
   });
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-[2px] p-4">
-      <div className="qs-modal-panel bg-white dark:bg-[#0F1B2E] border border-slate-200 dark:border-slate-700/60 w-full max-w-[1160px] min-h-[60vh] md:min-h-[74vh] max-h-[92vh] rounded-lg shadow-[0_24px_60px_-16px_rgba(0,0,0,0.45)] dark:shadow-[0_32px_70px_-16px_rgba(0,0,0,0.75)] flex flex-col overflow-hidden">
-
-        <div className="flex justify-between items-center px-5 md:px-8 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
-          <div className="flex gap-2 items-center">
-            <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">{selectedStock.symbol} · {selectedStock.market || "KOSPI"}</span>
-            {selectedStock.sector && selectedStock.sector !== 'Unknown' && <span className="text-[12px] font-medium px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{selectedStock.sector}</span>}
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors text-[13px] font-medium">닫기</button>
+    <Modal open onClose={onClose} size="xl" className="min-h-[60vh] md:min-h-[74vh]">
+      <Modal.Header>
+        <div className="flex gap-2 items-center">
+          <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">{selectedStock.symbol} · {selectedStock.market || "KOSPI"}</span>
+          {selectedStock.sector && selectedStock.sector !== 'Unknown' && <Badge tone="neutral" size="sm">{selectedStock.sector}</Badge>}
         </div>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors text-[13px] font-medium">닫기</button>
+      </Modal.Header>
 
-        <div className="p-6 md:p-10 overflow-y-auto flex-1">
+      <Modal.Body className="p-6 md:p-10">
           {reportLoading || selectedStock.isLoading ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-500 py-20">
               <RefreshCcw className="animate-spin mb-4 text-slate-400" size={28} strokeWidth={1.75} />
@@ -577,24 +550,24 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
-                <div className="p-6 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800">
+                <Panel level="inset" padding="lg">
                   <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-5">Trend Template 요약</h3>
                   <div>
                     <p className="text-[12px] text-slate-500 mb-1">통과 조건</p>
                     <p className="text-[32px] font-semibold tabular-nums" style={{ color: GOOD }}>{animatedPassCount.toFixed(0)} <span className="text-[18px] text-slate-400">/ 6</span></p>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-5 p-3 bg-white dark:bg-[#1E293B] rounded border border-slate-200 dark:border-slate-700/50 leading-relaxed">6축은 가중합 점수가 아니라 각 조건별 통과 비율입니다. 70점 이상이면 해당 축을 "통과"로 표시합니다.</p>
-                </div>
+                </Panel>
 
-                <div className="p-6 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800">
+                <Panel level="inset" padding="lg">
                   <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-5">52주 고저가 위치</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div><p className="text-[12px] text-slate-500 mb-1">52주 신고가</p><p className="text-[15px] font-medium text-slate-900 dark:text-white tabular-nums">{formatWon(selectedStock.week52_high)}원</p></div>
-                    <div><p className="text-[12px] text-slate-500 mb-1">52주 신저가</p><p className="text-[15px] font-medium text-slate-900 dark:text-white tabular-nums">{formatWon(selectedStock.week52_low)}원</p></div>
-                    <div><p className="text-[12px] text-slate-500 mb-1">고점과의 거리</p><p className="text-[15px] font-medium tabular-nums" style={{ color: NEG }}>-{formatNum(selectedStock.pct_from_52w_high, 1)}%</p></div>
-                    <div><p className="text-[12px] text-slate-500 mb-1">저점 대비 상승</p><p className="text-[15px] font-medium tabular-nums" style={{ color: POS }}>+{formatNum(selectedStock.pct_above_52w_low, 1)}%</p></div>
+                    <Metric size="sm" label="52주 신고가" value={`${formatWon(selectedStock.week52_high)}원`} />
+                    <Metric size="sm" label="52주 신저가" value={`${formatWon(selectedStock.week52_low)}원`} />
+                    <Metric size="sm" label="고점과의 거리" value={`-${formatNum(selectedStock.pct_from_52w_high, 1)}%`} tone="negative" />
+                    <Metric size="sm" label="저점 대비 상승" value={`+${formatNum(selectedStock.pct_above_52w_low, 1)}%`} tone="positive" />
                   </div>
-                </div>
+                </Panel>
               </div>
 
               <div className="mb-8">
@@ -613,21 +586,21 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
                 </div>
               </div>
 
-              <div className="p-6 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800 mb-8">
+              <Panel level="inset" padding="lg" className="mb-8">
                 <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-5">Financials (최근 분기, 참고용)</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-y-5 gap-x-4">
-                  <div><p className="text-[12px] text-slate-500 mb-1">매출액</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatFinancial(selectedStock.revenue_q)}</p></div>
-                  <div><p className="text-[12px] text-slate-500 mb-1">영업이익</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatFinancial(selectedStock.op_profit_q)}</p></div>
-                  <div><p className="text-[12px] text-slate-500 mb-1">순이익</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatFinancial(selectedStock.net_income_q)}</p></div>
-                  <div><p className="text-[12px] text-slate-500 mb-1">EPS</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatWon(selectedStock.eps_q)}</p></div>
-                  <div><p className="text-[12px] text-slate-500 mb-1">ROE</p><p className="text-[14.5px] font-medium tabular-nums" style={{ color: POS }}>{formatPct(selectedStock.roe)}</p></div>
-                  <div><p className="text-[12px] text-slate-500 mb-1">부채비율</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatPct(selectedStock.debt_ratio)}</p></div>
-                  <div><p className="text-[12px] text-slate-500 mb-1">유동비율</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatPct(selectedStock.current_ratio)}</p></div>
-                  <div><p className="text-[12px] text-slate-500 mb-1">이자보상배율</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatNum(selectedStock.interest_coverage, 1)}</p></div>
+                  <Metric size="sm" label="매출액" value={formatFinancial(selectedStock.revenue_q)} />
+                  <Metric size="sm" label="영업이익" value={formatFinancial(selectedStock.op_profit_q)} />
+                  <Metric size="sm" label="순이익" value={formatFinancial(selectedStock.net_income_q)} />
+                  <Metric size="sm" label="EPS" value={formatWon(selectedStock.eps_q)} />
+                  <Metric size="sm" label="ROE" value={formatPct(selectedStock.roe)} tone="positive" />
+                  <Metric size="sm" label="부채비율" value={formatPct(selectedStock.debt_ratio)} />
+                  <Metric size="sm" label="유동비율" value={formatPct(selectedStock.current_ratio)} />
+                  <Metric size="sm" label="이자보상배율" value={formatNum(selectedStock.interest_coverage, 1)} />
                 </div>
-              </div>
+              </Panel>
 
-              <div className="p-6 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800">
+              <Panel level="inset" padding="lg">
                 <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-5">가격 차트 & 이동평균선</h3>
                 <div className="w-full h-[260px] md:h-[320px]">
                   {selectedStock.chart_data && selectedStock.chart_data.length > 0 ? (
@@ -650,12 +623,11 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
                     <div className="w-full h-full flex items-center justify-center text-[13px] text-slate-500">차트 데이터가 없습니다.</div>
                   )}
                 </div>
-              </div>
+              </Panel>
             </>
           )}
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+    </Modal>
   );
 }
 
@@ -857,33 +829,22 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
         {STRATEGY_PRESETS.map(p => {
           const isActive = activePresetLabel === p.label;
           return (
-            <button
-              key={p.label}
-              onClick={() => applyPreset(p)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium cursor-pointer border transition-colors ${
-                isActive
-                  ? 'bg-slate-900 dark:bg-slate-100 border-slate-900 dark:border-slate-100 text-white dark:text-slate-900'
-                  : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
-              }`}
-            >
+            <Button key={p.label} variant="pill" active={isActive} onClick={() => applyPreset(p)}>
               {isActive && <Check size={12} strokeWidth={2.5} />}
               {p.label}
-            </button>
+            </Button>
           );
         })}
 
         {/* 매수대상 토글 버튼 (1차/2차를 한번에 필터링) */}
-        <button
+        <Button
+          variant="pill"
+          active={buyTargetOnly}
           onClick={() => { setBuyTargetOnly(v => !v); setVisibleCount(PAGE_SIZE); }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium cursor-pointer border transition-colors ${
-            buyTargetOnly
-              ? 'bg-slate-900 dark:bg-slate-100 border-slate-900 dark:border-slate-100 text-white dark:text-slate-900'
-              : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
-          }`}
         >
           {buyTargetOnly && <Check size={12} strokeWidth={2.5} />}
           매수대상
-        </button>
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 min-w-0">
@@ -893,17 +854,17 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
 
         <div className="min-w-0">
           {(screenerData || []).length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-md">
+            <Panel level="surface" padding="none" className="flex flex-col items-center justify-center py-24 text-center">
               <Sparkles className="text-slate-400 mb-4" size={22} strokeWidth={1.75} />
               <p className="text-[15px] font-medium text-slate-900 dark:text-white mb-1">스크리너 데이터가 없습니다</p>
               <p className="text-[12.5px] text-slate-500">다음 배치(Cron) 실행 후 다시 확인해 주세요.</p>
-            </div>
+            </Panel>
           ) : !hasAnyFilter ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-md">
+            <Panel level="surface" padding="none" className="flex flex-col items-center justify-center py-24 text-center">
               <Sparkles className="text-slate-400 mb-4" size={22} strokeWidth={1.75} />
               <p className="text-[15px] font-medium text-slate-900 dark:text-white mb-1">조건을 하나 이상 설정해보세요</p>
               <p className="text-[12.5px] text-slate-500">축 프리셋을 누르거나, 위의 전략 버튼 또는 섹터 필터로 바로 시작할 수 있어요.</p>
-            </div>
+            </Panel>
           ) : (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -939,9 +900,9 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
               </div>
 
               {results.length === 0 ? (
-                <div className="p-10 text-center text-slate-500 text-[13.5px] bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-md">
+                <Panel level="surface" padding="lg" className="text-center text-slate-500 text-[13.5px]">
                   조건에 맞는 종목이 없습니다.
-                </div>
+                </Panel>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {results.map((r) => (
@@ -952,12 +913,9 @@ export default function QuantScreener({ screenerData = [], onSelectSymbol }) {
 
               {hasMore && (
                 <div className="flex justify-center mt-4">
-                  <button
-                    onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
-                    className="px-4 py-2 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-md text-[12.5px] font-medium text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer transition-colors"
-                  >
+                  <Button variant="secondary" onClick={() => setVisibleCount(c => c + PAGE_SIZE)}>
                     더 보기 ({totalCount - visibleCount}개 남음)
-                  </button>
+                  </Button>
                 </div>
               )}
             </>
