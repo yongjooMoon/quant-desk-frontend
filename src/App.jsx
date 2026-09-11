@@ -92,7 +92,7 @@ function App() {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        .app-page-fade { animation: appPageFade 0.48s cubic-bezier(0.22, 1, 0.36, 1) both; min-height: 100%; }
+        .app-page-fade { animation: appPageFade 0.48s cubic-bezier(0.22, 1, 0.36, 1); min-height: 100%; }
         @media (prefers-reduced-motion: reduce) {
           .app-page-fade { animation: none !important; }
         }
