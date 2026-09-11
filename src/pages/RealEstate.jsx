@@ -1,6 +1,9 @@
 import { Building2, Search, Download, RefreshCcw, Calendar } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useRenderApi } from '../hooks/useRenderApi';
+// Phase 3: 이 페이지만 rounded-3xl/font-black/토스 브랜드 색(#F04452, #00B464)을 쓰는
+// 별개 스타일이었던 것을 나머지 5개 페이지와 같은 디자인 시스템으로 통일(사용자 승인).
+import { Card, Button } from '../components';
 
 export default function RealEstate() {
   const guMap = {
@@ -127,29 +130,27 @@ export default function RealEstate() {
   };
 
   return (
-    <div className="w-full px-0 py-0 transition-colors duration-300 relative font-['Nunito',_ui-rounded,_-apple-system,_system-ui,_sans-serif] pb-20">
+    <div className="w-full transition-colors duration-300 relative pb-20">
 
       {isSleeping && <ServerWakeupOverlay />}
 
-      <div className="mb-10">
-        <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white flex items-center gap-3 tracking-tight mb-3">
-          <Building2 className="text-[#3182F6]" size={36} />
+      <div className="mb-8">
+        <h1 className="text-[18px] font-semibold text-slate-900 dark:text-white flex items-center gap-2.5 tracking-tight mb-1.5">
+          <Building2 className="text-slate-400" size={20} strokeWidth={1.75} />
           아파트 실거래가 분석 엔진
         </h1>
-        <p className="text-[16px] md:text-[18px] font-bold text-slate-500 dark:text-slate-400">
+        <p className="text-[13px] text-slate-500 dark:text-slate-400">
           국토교통부 실거래가 데이터와 K-APT 단지 정보를 크로스체킹하여 엑셀 리포트를 추출합니다.
         </p>
       </div>
 
-      <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 p-8 md:p-10 rounded-3xl shadow-lg mb-10 w-full relative overflow-hidden">
-          <div className={`absolute top-[-50px] right-[-50px] w-64 h-64 bg-[#3182F6]/10 rounded-full blur-[80px] pointer-events-none`}></div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 relative z-10">
+      <Card padding="lg" className="mb-8 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
               <div>
-                  <label className="block text-[15px] font-black text-slate-700 dark:text-slate-300 mb-3 tracking-wide">자치구</label>
+                  <label className="block text-[12.5px] font-medium text-slate-600 dark:text-slate-400 mb-2">자치구</label>
                   <select
                     value={guCode} onChange={e => {setGuCode(e.target.value); setDong("전체 (구 단위)");}}
-                    className="w-full bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-2xl px-5 py-4 outline-none font-bold text-[16px] hover:border-blue-400 dark:hover:border-blue-500 transition-colors appearance-none cursor-pointer"
+                    className="w-full bg-white dark:bg-panel border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2.5 outline-none text-[13.5px] focus:border-slate-400 dark:focus:border-slate-600 transition-colors cursor-pointer"
                   >
                       {Object.entries(guMap)
                         .sort((a, b) => a[1].localeCompare(b[1]))
@@ -159,10 +160,10 @@ export default function RealEstate() {
                   </select>
               </div>
               <div>
-                  <label className="block text-[15px] font-black text-slate-700 dark:text-slate-300 mb-3 tracking-wide">법정동</label>
+                  <label className="block text-[12.5px] font-medium text-slate-600 dark:text-slate-400 mb-2">법정동</label>
                   <select
                     value={dong} onChange={e => setDong(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-2xl px-5 py-4 outline-none font-bold text-[16px] hover:border-blue-400 dark:hover:border-blue-500 transition-colors appearance-none cursor-pointer"
+                    className="w-full bg-white dark:bg-panel border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2.5 outline-none text-[13.5px] focus:border-slate-400 dark:focus:border-slate-600 transition-colors cursor-pointer"
                   >
                       <option>전체 (구 단위)</option>
                       {[...(dongMap[guCode] || [])].sort().map(d => (
@@ -172,90 +173,88 @@ export default function RealEstate() {
               </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
               <div>
-                  <label className="block text-[15px] font-black text-slate-700 dark:text-slate-300 mb-3 tracking-wide">시작 날짜</label>
+                  <label className="block text-[12.5px] font-medium text-slate-600 dark:text-slate-400 mb-2">시작 날짜</label>
                   <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                          <Calendar size={20} className="text-slate-400" />
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                          <Calendar size={15} className="text-slate-400" strokeWidth={1.75} />
                       </div>
                       <input
                         type="date"
                         value={startDate}
                         onChange={e => setStartDate(e.target.value)}
                         onClick={(e) => e.target.showPicker && e.target.showPicker()}
-                        className="w-full bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-2xl pl-14 pr-5 py-4 outline-none font-bold text-[16px] hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer [&::-webkit-calendar-picker-indicator]:dark:invert"
+                        className="w-full bg-white dark:bg-panel border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-md pl-10 pr-3.5 py-2.5 outline-none text-[13.5px] focus:border-slate-400 dark:focus:border-slate-600 transition-colors cursor-pointer [&::-webkit-calendar-picker-indicator]:dark:invert"
                       />
                   </div>
               </div>
               <div>
-                  <label className="block text-[15px] font-black text-slate-700 dark:text-slate-300 mb-3 tracking-wide">종료 날짜</label>
+                  <label className="block text-[12.5px] font-medium text-slate-600 dark:text-slate-400 mb-2">종료 날짜</label>
                   <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                          <Calendar size={20} className="text-slate-400" />
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                          <Calendar size={15} className="text-slate-400" strokeWidth={1.75} />
                       </div>
                       <input
                         type="date"
                         value={endDate}
                         onChange={e => setEndDate(e.target.value)}
                         onClick={(e) => e.target.showPicker && e.target.showPicker()}
-                        className="w-full bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-2xl pl-14 pr-5 py-4 outline-none font-bold text-[16px] hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer [&::-webkit-calendar-picker-indicator]:dark:invert"
+                        className="w-full bg-white dark:bg-panel border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-md pl-10 pr-3.5 py-2.5 outline-none text-[13.5px] focus:border-slate-400 dark:focus:border-slate-600 transition-colors cursor-pointer [&::-webkit-calendar-picker-indicator]:dark:invert"
                       />
                   </div>
               </div>
           </div>
 
-          <div className="mb-10 relative z-10">
-              <label className="block text-[15px] font-black text-slate-700 dark:text-slate-300 mb-3 tracking-wide">단지명 필터 (선택, 쉼표 구분)</label>
+          <div className="mb-6">
+              <label className="block text-[12.5px] font-medium text-slate-600 dark:text-slate-400 mb-2">단지명 필터 (선택, 쉼표 구분)</label>
               <input
                 type="text"
                 value={filters}
                 onChange={e => setFilters(e.target.value)}
                 placeholder="예: 자이, 래미안, 힐스테이트"
-                className="w-full bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white rounded-2xl px-5 py-4 outline-none font-bold text-[16px] hover:border-blue-400 dark:hover:border-blue-500 transition-colors placeholder-slate-400 dark:placeholder-slate-500"
+                className="w-full bg-white dark:bg-panel border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2.5 outline-none text-[13.5px] focus:border-slate-400 dark:focus:border-slate-600 transition-colors placeholder-slate-400 dark:placeholder-slate-500"
               />
           </div>
 
-          <div className="pt-8 border-t border-slate-200 dark:border-slate-800 relative z-10">
-              <button
-                onClick={handleBuild} disabled={loading}
-                className="w-full bg-[#F04452] hover:bg-[#D93B47] disabled:bg-slate-400 dark:disabled:bg-slate-700 text-white font-black text-[18px] py-5 rounded-2xl shadow-xl hover:shadow-2xl transition-all flex justify-center items-center gap-3 disabled:cursor-not-allowed transform active:scale-[0.99]"
-              >
-                  {loading ? <RefreshCcw size={24} className="animate-spin" /> : <Search size={24} />}
-                  {loading ? "데이터 수집 및 엑셀 생성 중... (최대 1~2분 소요)" : "✨ 부동산 데이터 대시보드 빌드"}
-              </button>
+          <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+              <Button variant="primary" onClick={handleBuild} disabled={loading} className="w-full py-3 text-[14px]">
+                  {loading ? <RefreshCcw size={16} className="animate-spin" /> : <Search size={16} />}
+                  {loading ? "데이터 수집 및 엑셀 생성 중... (최대 1~2분 소요)" : "부동산 데이터 대시보드 빌드"}
+              </Button>
           </div>
-      </div>
+      </Card>
 
       {(logs || loading || error) && (
-        <div className="bg-[#0B1120] border border-slate-800 p-5 rounded-3xl mb-10 font-mono text-[14px] shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-4">
-            <div className="absolute top-0 left-0 w-full h-10 bg-[#1E293B] flex items-center px-5 border-b border-slate-700/80">
-                <div className="flex gap-2 mr-4">
-                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                    <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+        <div className="bg-[#0B1120] border border-slate-800 rounded-md mb-8 font-mono text-[13px] shadow-md relative overflow-hidden">
+            {/* 항상 다크 — 실제 터미널처럼 앱 테마와 무관하게 고정 */}
+            <div className="w-full h-9 bg-[#1E293B] flex items-center px-4 border-b border-slate-700/80">
+                <div className="flex gap-1.5 mr-3">
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
                 </div>
-                <span className="text-slate-400 font-bold text-xs tracking-widest uppercase">Terminal Log</span>
+                <span className="text-slate-400 font-medium text-[11px] tracking-widest uppercase">Terminal Log</span>
             </div>
-            <div className="h-56 overflow-y-auto mt-10 text-slate-300 whitespace-pre-wrap leading-loose custom-scrollbar pr-2">
+            <div className="h-56 overflow-y-auto p-4 text-slate-300 whitespace-pre-wrap leading-relaxed rt-scrollbar">
                 {logs}
-                {error && <div className="text-[#F04452] font-black mt-6 border-t border-red-900/50 pt-6">❌ ERROR: {error}</div>}
+                {error && <div className="text-red-400 font-medium mt-4 border-t border-red-900/50 pt-4">ERROR: {error}</div>}
                 <div ref={logEndRef} />
             </div>
-            <style>{`.custom-scrollbar::-webkit-scrollbar { width: 8px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }`}</style>
+            <style>{`.rt-scrollbar::-webkit-scrollbar { width: 8px; } .rt-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }`}</style>
         </div>
       )}
 
       {downloadReady && !error && (
-        <div className="p-10 rounded-3xl flex flex-col items-center justify-center text-center transition-all bg-[#00B464]/10 dark:bg-[#00B464]/5 border border-[#00B464]/30 dark:border-[#00B464]/20 animate-in zoom-in-95">
-            <p className="mb-6 font-black text-[#00B464] text-[18px]">
-              🎉 데이터 추출 성공! 아래 버튼을 눌러 엑셀 파일을 다운로드하세요.
+        <div className="p-8 rounded-md flex flex-col items-center justify-center text-center bg-[color-mix(in_srgb,var(--success)_10%,transparent)] border border-[color-mix(in_srgb,var(--success)_30%,transparent)]">
+            <p className="mb-5 font-medium text-success text-[14px]">
+              데이터 추출 성공! 아래 버튼을 눌러 엑셀 파일을 다운로드하세요.
             </p>
             <button
               onClick={handleDownload}
-              className="bg-[#00B464] hover:bg-[#009A54] text-white px-10 py-4 rounded-2xl flex items-center gap-3 font-black text-[18px] transition-all shadow-xl hover:shadow-2xl transform active:scale-[0.98]"
+              className="bg-success text-white px-6 py-2.5 rounded-md flex items-center gap-2 font-medium text-[13px] hover:opacity-90 transition-opacity cursor-pointer"
             >
-                <Download size={22} /> 📥 엑셀 파일 다운로드
+                <Download size={16} strokeWidth={1.75} /> 엑셀 파일 다운로드
             </button>
         </div>
       )}
