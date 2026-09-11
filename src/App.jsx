@@ -22,6 +22,17 @@ function ScrollToTop({ containerRef }) {
   return null;
 }
 
+// 페이지 전환 시 1회성으로 살짝 떠오르며 정착하는 트랜지션 ("reveal" 모션 토큰).
+// 반복 hover가 아니라 경로가 바뀌는 순간에만 발생하므로 스프링 이징을 허용한다.
+function PageFade({ children }) {
+  const { pathname } = useLocation();
+  return (
+    <div key={pathname} className="app-page-fade">
+      {children}
+    </div>
+  );
+}
+
 function App() {
   // 기본 모드를 다크 모드로 설정 (true)
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -75,6 +86,16 @@ function App() {
         .dark input, .dark select, .dark textarea { color: #F8FAFC !important; background-color: transparent !important; }
         .dark option { background-color: #1E293B !important; color: #F8FAFC !important; }
         .dark input::placeholder { color: #64748B !important; }
+
+        /* 모션 토큰 — fast(피드백) / normal(hover,dropdown) / reveal(1회성 전환만 스프링 허용) */
+        @keyframes appPageFade {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .app-page-fade { animation: appPageFade 0.48s cubic-bezier(0.22, 1, 0.36, 1) both; min-height: 100%; }
+        @media (prefers-reduced-motion: reduce) {
+          .app-page-fade { animation: none !important; }
+        }
       `}</style>
 
       {/* 최상위 래퍼 (Full Width & Height) */}
@@ -82,17 +103,17 @@ function App() {
 
         {}
         {/* PC 좌측 슬림 메뉴바 */}
-        <aside className={`hidden md:flex h-full bg-white dark:bg-[#111827] border-r border-slate-200 dark:border-slate-800/80 flex-col py-6 z-30 flex-shrink-0 transition-all duration-300 ease-in-out relative ${isSidebarOpen ? 'w-[168px]' : 'w-[72px]'}`}>
+        <aside className={`hidden md:flex h-full bg-white/75 dark:bg-[#111827]/70 backdrop-blur-xl border-r border-slate-200/70 dark:border-slate-800/60 flex-col py-6 z-30 flex-shrink-0 transition-all duration-300 ease-in-out relative ${isSidebarOpen ? 'w-[192px]' : 'w-[76px]'}`}>
 
           {/* 헤더 영역 (로고 및 토글 버튼) */}
           <div className={`flex items-center mb-9 w-full transition-all duration-300 ${isSidebarOpen ? 'justify-between px-4' : 'justify-center'}`}>
             {isSidebarOpen ? (
-              <div className="flex items-center gap-2 select-none">
-                <span className="w-6 h-6 flex items-center justify-center rounded-sm bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-mono text-[11px] font-semibold">Q</span>
-                <span className="text-[13.5px] font-semibold tracking-tight text-slate-800 dark:text-slate-200">Moon</span>
+              <div className="flex items-center gap-2.5 select-none">
+                <span className="w-[26px] h-[26px] flex items-center justify-center rounded-md bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-mono text-[11.5px] font-semibold shadow-[0_2px_8px_rgba(15,23,42,0.18)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)]">Q</span>
+                <span className="text-[14.5px] font-semibold tracking-tight text-slate-800 dark:text-slate-200">Moon</span>
               </div>
             ) : (
-              <span className="w-6 h-6 flex items-center justify-center rounded-sm bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-mono text-[11px] font-semibold select-none">Q</span>
+              <span className="w-[26px] h-[26px] flex items-center justify-center rounded-md bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-mono text-[11.5px] font-semibold select-none shadow-[0_2px_8px_rgba(15,23,42,0.18)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)]">Q</span>
             )}
           </div>
 
@@ -125,11 +146,11 @@ function App() {
                 {({ isActive }) => (
                   <>
                     {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-full bg-slate-900 dark:bg-slate-100" />}
-                    <item.icon size={18} strokeWidth={isActive ? 2.25 : 1.75} className="shrink-0" />
+                    <item.icon size={18} strokeWidth={isActive ? 2.25 : 1.75} className="shrink-0 transition-transform duration-200 group-hover:scale-110" />
 
                     {/* 펼쳤을 때 라벨 */}
                     {isSidebarOpen && (
-                      <span className="ml-3 text-[13.5px] font-medium whitespace-nowrap">
+                      <span className="ml-3 text-[14px] font-medium whitespace-nowrap">
                         {item.label}
                       </span>
                     )}
@@ -172,7 +193,7 @@ function App() {
 
         {}
         {/* 모바일 하단 탭 */}
-        <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800/80 flex justify-around items-center h-16 z-50 pb-safe">
+        <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/80 dark:bg-[#111827]/80 backdrop-blur-xl border-t border-slate-200/70 dark:border-slate-800/60 flex justify-around items-center h-16 z-50 pb-safe">
             {navItems.map((item) => (
               <NavLink key={item.path} to={item.path} className={({isActive}) => `flex flex-col items-center justify-center w-full h-full transition-colors ${isActive ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}`}>
                 {({ isActive }) => (
@@ -193,16 +214,18 @@ function App() {
             {isDarkMode ? <Sun size={17} strokeWidth={1.75} /> : <Moon size={17} strokeWidth={1.75} />}
           </button>
 
-          {/* 컨텐츠 래퍼 (너무 좁지도 넓지도 않게 폭 제한) */}
-          <div className="w-full max-w-[1150px] min-h-full px-4 md:px-8 py-6 md:py-10 pb-24 md:pb-10">
-            <Routes>
-              <Route path="/" element={<Navigate to="/news" replace />} />
-              <Route path="/news" element={<NewsDesk />} />
-              <Route path="/quant" element={<QuantDesk />} />
-              <Route path="/calendar" element={<HousingCalendar />} />
-              <Route path="/realestate" element={<RealEstate />} />
-              <Route path="/search" element={<StockSearch />} />
-            </Routes>
+          {/* 컨텐츠 래퍼 — 큰 화면에서 너무 좁게 갇히지 않도록 폭/패딩을 브레이크포인트별로 확장 */}
+          <div className="w-full max-w-[1600px] min-h-full px-5 md:px-10 xl:px-14 2xl:px-20 py-6 md:py-10 pb-24 md:pb-10">
+            <PageFade>
+              <Routes>
+                <Route path="/" element={<Navigate to="/news" replace />} />
+                <Route path="/news" element={<NewsDesk />} />
+                <Route path="/quant" element={<QuantDesk />} />
+                <Route path="/calendar" element={<HousingCalendar />} />
+                <Route path="/realestate" element={<RealEstate />} />
+                <Route path="/search" element={<StockSearch />} />
+              </Routes>
+            </PageFade>
           </div>
         </main>
 
