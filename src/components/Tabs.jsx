@@ -8,7 +8,8 @@ import { cn } from './cn';
  *                        border-b-2만 즉시 적용, 측정/애니메이션 없이 더 가볍다.
  * items: [{ key, label }], value: 현재 선택된 key, onChange(key)
  */
-export function Tabs({ items, value, onChange, variant = 'sliding', className }) {
+export function Tabs({ items, value, onChange, variant = 'sliding', className, getLabel, containerProps }) {
+  const renderLabel = getLabel || ((item) => item.label);
   const tabRefs = useRef({});
   const [underline, setUnderline] = useState({ left: 0, width: 0 });
 
@@ -30,7 +31,7 @@ export function Tabs({ items, value, onChange, variant = 'sliding', className })
 
   if (variant === 'static') {
     return (
-      <div className={cn('flex gap-5 border-b border-slate-200 dark:border-slate-800 overflow-x-auto whitespace-nowrap hide-scrollbar', className)}>
+      <div className={cn('flex gap-5 border-b border-slate-200 dark:border-slate-800 overflow-x-auto whitespace-nowrap hide-scrollbar', className)} {...containerProps}>
         {items.map((item) => (
           <button
             key={item.key}
@@ -42,7 +43,7 @@ export function Tabs({ items, value, onChange, variant = 'sliding', className })
                 : 'text-slate-500 dark:text-slate-500 border-transparent hover:text-slate-700 dark:hover:text-slate-300'
             )}
           >
-            {item.label}
+            {renderLabel(item)}
           </button>
         ))}
       </div>
@@ -50,7 +51,7 @@ export function Tabs({ items, value, onChange, variant = 'sliding', className })
   }
 
   return (
-    <div className={cn('relative flex gap-5 border-b border-slate-200 dark:border-slate-800 overflow-x-auto whitespace-nowrap hide-scrollbar pb-0', className)}>
+    <div className={cn('relative flex gap-5 border-b border-slate-200 dark:border-slate-800 overflow-x-auto whitespace-nowrap hide-scrollbar pb-0', className)} {...containerProps}>
       {items.map((item) => (
         <button
           key={item.key}
@@ -63,7 +64,7 @@ export function Tabs({ items, value, onChange, variant = 'sliding', className })
               : 'text-slate-500 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
           )}
         >
-          {item.label}
+          {renderLabel(item)}
         </button>
       ))}
       <div
