@@ -63,13 +63,14 @@ export function Modal({
   );
 }
 
-Modal.Header = function ModalHeader({ className, children }) {
+Modal.Header = function ModalHeader({ className, children, ...rest }) {
   return (
     <div
       className={cn(
         'flex items-center justify-between px-5 md:px-8 py-4 md:py-5 border-b border-slate-100 dark:border-slate-800 shrink-0',
         className
       )}
+      {...rest}
     >
       {children}
     </div>
@@ -84,13 +85,14 @@ Modal.Body = function ModalBody({ className, children, ...rest }) {
   );
 };
 
-Modal.Footer = function ModalFooter({ className, children }) {
+Modal.Footer = function ModalFooter({ className, children, ...rest }) {
   return (
     <div
       className={cn(
         'px-5 md:px-8 py-3.5 md:py-4 border-t border-slate-100 dark:border-slate-800 flex justify-between bg-slate-50 dark:bg-surface shrink-0',
         className
       )}
+      {...rest}
     >
       {children}
     </div>

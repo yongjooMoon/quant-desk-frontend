@@ -9,6 +9,9 @@ import { Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, 
 import { useRenderApi } from '../hooks/useRenderApi';
 import MacroPage from './MacroPage';
 import QuantScreener from './QuantScreener';
+// Phase 2 공통 UI 컴포넌트 — 이 파일이 가장 크고(1875줄) 중복도 가장 심해서
+// Card/Panel/Metric/Button/Modal/Tabs를 전부 사용한다.
+import { Panel, Card, Button, Modal, Tabs, Metric } from '../components';
 // =========================================================================
 // 색상 토큰 — 국내 주식 관례(상승=빨강/하락=파랑)는 유지하되, 채도를 낮춰 절제된 톤으로 통일
 const POS = '#DC2626';   // 상승/양수
@@ -154,6 +157,10 @@ const MICRO_INTERACTION_STYLES = `
 
   .qd-bg-texture { position: absolute; inset: 0; pointer-events: none; opacity: 0.4; z-index: -1; }
   .dark .qd-bg-texture { opacity: 0.22; }
+
+  /* Whitepaper 탭 게이트 카드 — Card 기본 dark:bg-panel(#111827)보다 한 단 밝은 표면.
+     NewsDesk의 news-hero-card와 동일한 이유로 유틸리티가 아닌 전용 클래스로 오버라이드. */
+  .dark .qd-gate-card { background-color: #131E30; }
 
   /* 매크로 티커(marquee) 스타일 */
   .macro-ticker-wrap {
@@ -791,22 +798,21 @@ export default function QuantDesk() {
         </button>
       </div>
 
-      <div className="flex gap-5 border-b border-slate-200 dark:border-slate-800 mb-8 overflow-x-auto whitespace-nowrap hide-scrollbar pb-0 select-none">
-        {[{id: "Macro", label: "Macro"},
-          {id: "Backtest", label: "BackTesting"},
-          {id: "Portfolio", label: `Portfolio (${holdings.length})`},
-          {id: "Watchlist", label: `Watchlist (${filWatchlist.length})`},
-          {id: "Screener", label: "Screener"},
-          {id: "History", label: "History"},
-          {id: "Whitepaper", label: "Explain"}].map(t => (
-            <button
-                key={t.id} onClick={() => setActiveTab(t.id)}
-                className={`pb-2.5 px-0.5 text-[13.5px] font-medium transition-colors cursor-pointer border-b-2 -mb-px ${activeTab === t.id ? 'text-slate-900 dark:text-slate-100 border-slate-900 dark:border-slate-100' : 'text-slate-500 dark:text-slate-500 border-transparent hover:text-slate-700 dark:hover:text-slate-300'}`}
-            >
-                {t.label}
-            </button>
-        ))}
-      </div>
+      <Tabs
+        variant="static"
+        className="mb-8"
+        value={activeTab}
+        onChange={setActiveTab}
+        items={[
+          { key: "Macro", label: "Macro" },
+          { key: "Backtest", label: "BackTesting" },
+          { key: "Portfolio", label: `Portfolio (${holdings.length})` },
+          { key: "Watchlist", label: `Watchlist (${filWatchlist.length})` },
+          { key: "Screener", label: "Screener" },
+          { key: "History", label: "History" },
+          { key: "Whitepaper", label: "Explain" },
+        ]}
+      />
 
       <MacroTicker macroData={data.macro} onNavigate={() => setActiveTab("Macro")} />
 
@@ -967,7 +973,7 @@ export default function QuantDesk() {
                 <h2 className="text-[16px] font-semibold text-slate-900 dark:text-white mb-1.5 tracking-tight">KOSPI 대비 포트폴리오 성과 (Alpha)</h2>
                 <p className="text-[12.5px] text-slate-500 mb-5">매도(Exit)가 완료된 종목의 실현 수익률을 바탕으로 KOSPI 지수와 비교합니다.</p>
 
-                <div className={`${cardCls} p-5 w-full mb-10 relative overflow-hidden`}>
+                <Card padding="none" className="p-5 w-full mb-10 relative overflow-hidden">
                     <div className="flex flex-col md:flex-row justify-between md:items-end mb-4 relative z-10 border-b border-slate-100 dark:border-slate-800/80 pb-3">
                         <div>
                             <div className="flex items-baseline gap-4 mt-1">
@@ -982,17 +988,9 @@ export default function QuantDesk() {
                         <div className="text-left md:text-right flex flex-col md:items-end gap-1 mt-4 md:mt-0">
                             <div className="flex gap-1.5">
                                 {['1W', '1M', 'All'].map(range => (
-                                    <button
-                                        key={range}
-                                        onClick={() => setTimeRange(range)}
-                                        className={`text-[11.5px] font-medium px-2.5 py-1 rounded transition-colors cursor-pointer border ${
-                                            timeRange === range
-                                            ? 'bg-slate-900 dark:bg-slate-100 border-slate-900 dark:border-slate-100 text-white dark:text-slate-900'
-                                            : 'bg-white dark:bg-[#0B1120] border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
-                                        }`}
-                                    >
+                                    <Button key={range} variant="pill" size="sm" active={timeRange === range} onClick={() => setTimeRange(range)}>
                                         {range}
-                                    </button>
+                                    </Button>
                                 ))}
                             </div>
                             <div className="text-[12px] text-slate-400 mt-2 tabular-nums">
@@ -1024,7 +1022,7 @@ export default function QuantDesk() {
                             <div className="w-full h-full flex items-center justify-center text-[13px] text-slate-500">차트를 생성할 데이터가 부족합니다.</div>
                         )}
                     </div>
-                </div>
+                </Card>
             </div>
           )}
 
@@ -1085,26 +1083,28 @@ export default function QuantDesk() {
           {activeTab === "History" && (
               <div className="qd-fade-in w-full">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 w-full">
-                      <div className={`${cardCls} p-4 flex flex-col justify-center`}>
-                          <p className="text-[12px] text-slate-500 mb-1">총 매도 횟수</p>
-                          <p className="text-xl font-semibold text-slate-900 dark:text-white mb-1 tabular-nums"><CountUp value={sellTrades.length} decimals={0} />회</p>
-                          <p className="text-[11px] text-slate-400">승 {wins.length} / 패 {losses.length}</p>
-                      </div>
-                      <div className={`${cardCls} p-4 flex flex-col justify-center`}>
-                          <p className="text-[12px] text-slate-500 mb-1">승률 (타율)</p>
-                          <p className="text-xl font-semibold tabular-nums" style={{ color: NEG }}><CountUp value={winRate} decimals={1} />%</p>
-                      </div>
-                      <div className={`${cardCls} p-4 flex flex-col justify-center`}>
-                          <p className="text-[12px] text-slate-500 mb-1">손익비</p>
-                          <p className="text-xl font-semibold text-slate-900 dark:text-white mb-1 tabular-nums">{avgLoss !== 0 ? <CountUp value={Math.abs(avgWin/avgLoss)} decimals={2} /> : "0.00"}</p>
-                          <p className="text-[11px] text-slate-400">평균 {avgWin.toFixed(2)}% / {avgLoss.toFixed(2)}%</p>
-                      </div>
-                      <div className={`${cardCls} p-4 flex flex-col justify-center`}>
-                          <p className="text-[12px] text-slate-500 mb-1">주당 누적 실현손익금</p>
-                          <p className="text-lg md:text-xl font-semibold tracking-tight tabular-nums" style={{ color: totalProfitAmt > 0 ? POS : NEG }}>
-                              <CountUp value={totalProfitAmt} decimals={0} formatter={(v) => parseInt(v).toLocaleString('ko-KR')} />원
-                          </p>
-                      </div>
+                      <Card padding="none" className="p-4 flex flex-col justify-center">
+                          <Metric size="md" label="총 매도 횟수" value={<><CountUp value={sellTrades.length} decimals={0} />회</>} sub={`승 ${wins.length} / 패 ${losses.length}`} />
+                      </Card>
+                      <Card padding="none" className="p-4 flex flex-col justify-center">
+                          <Metric size="md" label="승률 (타율)" tone="negative" value={<><CountUp value={winRate} decimals={1} />%</>} />
+                      </Card>
+                      <Card padding="none" className="p-4 flex flex-col justify-center">
+                          <Metric
+                            size="md"
+                            label="손익비"
+                            value={avgLoss !== 0 ? <CountUp value={Math.abs(avgWin/avgLoss)} decimals={2} /> : "0.00"}
+                            sub={`평균 ${avgWin.toFixed(2)}% / ${avgLoss.toFixed(2)}%`}
+                          />
+                      </Card>
+                      <Card padding="none" className="p-4 flex flex-col justify-center">
+                          <Metric
+                            size="md"
+                            label="주당 누적 실현손익금"
+                            tone={totalProfitAmt > 0 ? 'positive' : 'negative'}
+                            value={<><CountUp value={totalProfitAmt} decimals={0} formatter={(v) => parseInt(v).toLocaleString('ko-KR')} />원</>}
+                          />
+                      </Card>
                   </div>
 
                   <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-md overflow-hidden mb-10">
@@ -1188,21 +1188,19 @@ export default function QuantDesk() {
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-8">
                     {btHeadlineMetrics.map((m, i) => (
-                      <div key={i} className="p-3.5 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800">
-                        <p className="text-[11px] text-slate-500 mb-1">{m.label}</p>
-                        <p className="text-[15px] font-medium text-slate-900 dark:text-white tabular-nums">{m.value}</p>
-                        {m.sub && <p className="text-[10.5px] text-slate-400 mt-0.5 tabular-nums">{m.sub}</p>}
-                      </div>
+                      <Panel key={i} level="inset" padding="sm">
+                        <Metric size="sm" label={m.label} value={m.value} sub={m.sub} />
+                      </Panel>
                     ))}
                   </div>
 
                   {/* Equity Curve */}
-                  <div className={`${cardCls} p-5 mb-8`}>
+                  <Card padding="none" className="p-5 mb-8">
                     <div className="flex justify-between items-center mb-4">
                       <p className="text-[13.5px] font-medium text-slate-900 dark:text-white">전략 누적 수익률 추이 (벤치마크 대비 초과수익 {btTrackRecord.excess_return_pct > 0 ? '+' : ''}{btTrackRecord.excess_return_pct?.toFixed(1)}%)</p>
                       <div className="flex gap-1.5">
                         {['1Y', '3Y', '5Y', 'All'].map(r => (
-                          <button key={r} onClick={() => setBtEquityRange(r)} className={`text-[11px] font-medium px-2.5 py-1 rounded border ${btEquityRange === r ? 'bg-slate-900 dark:bg-slate-100 border-slate-900 dark:border-slate-100 text-white dark:text-slate-900' : 'bg-white dark:bg-[#0B1120] border-slate-200 dark:border-slate-700 text-slate-500'}`}>{r}</button>
+                          <Button key={r} variant="pill" size="sm" active={btEquityRange === r} onClick={() => setBtEquityRange(r)}>{r}</Button>
                         ))}
                       </div>
                     </div>
@@ -1221,11 +1219,11 @@ export default function QuantDesk() {
                         <div className="w-full h-full flex items-center justify-center text-[12px] text-slate-400">차트 데이터가 없습니다</div>
                       )}
                     </div>
-                  </div>
+                  </Card>
 
                   {/* 연도별 성과 */}
                   {btYearlyChartData.length > 0 && (
-                    <div className={`${cardCls} p-5 mb-8`}>
+                    <Card padding="none" className="p-5 mb-8">
                       <div className="flex items-center gap-2 mb-4">
                         <CalendarRange size={15} className="text-slate-400" strokeWidth={1.75} />
                         <p className="text-[13.5px] font-medium text-slate-900 dark:text-white">연도별 성과</p>
@@ -1265,12 +1263,12 @@ export default function QuantDesk() {
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </Card>
                   )}
 
                   {/* 레짐별 성과 + exit_type 분포 */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
-                    <div className={`${cardCls} p-5`}>
+                    <Card padding="none" className="p-5">
                       <p className="text-[13.5px] font-medium text-slate-900 dark:text-white mb-4">레짐(시장 국면)별 성과</p>
                       <div className="space-y-2.5">
                         {['BULL', 'NEUTRAL', 'BEAR'].map(r => {
@@ -1278,54 +1276,54 @@ export default function QuantDesk() {
                           const rMeta = getRegimeMeta(r);
                           if (!stat) return null;
                           return (
-                            <div key={r} className="p-3 rounded-md border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                            <Panel key={r} padding="none" className="p-3 flex items-center justify-between">
                               <span className="text-[12.5px] font-medium" style={{ color: rMeta.color }}>{rMeta.label}</span>
                               <div className="text-right">
                                 <div className="text-[11.5px] text-slate-600 dark:text-slate-400">{stat.trade_count}건 · 승률 {stat.win_rate?.toFixed(1)}%</div>
                                 <div className="text-[12.5px] font-medium tabular-nums" style={{ color: (stat.expectancy_pct || 0) >= 0 ? POS : NEG }}>기대값 {(stat.expectancy_pct || 0) > 0 ? '+' : ''}{stat.expectancy_pct?.toFixed(2)}%</div>
                               </div>
-                            </div>
+                            </Panel>
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
 
-                    <div className={`${cardCls} p-5`}>
+                    <Card padding="none" className="p-5">
                       <p className="text-[13.5px] font-medium text-slate-900 dark:text-white mb-4">청산 사유별 분포</p>
                       <div className="space-y-2.5">
                         {btExitTypeStats.map((s, i) => {
                           const meta = getExitTypeMeta(s.type);
                           return (
-                            <div key={i} className="p-3 rounded-md border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                            <Panel key={i} padding="none" className="p-3 flex items-center justify-between">
                               <span className="text-[12.5px] font-medium" style={{ color: meta.color }}>{meta.label}</span>
                               <div className="text-right">
                                 <div className="text-[11.5px] text-slate-600 dark:text-slate-400">{s.count}건</div>
                                 <div className="text-[12.5px] font-medium tabular-nums" style={{ color: s.avgRet >= 0 ? POS : NEG }}>평균 {s.avgRet > 0 ? '+' : ''}{s.avgRet.toFixed(2)}%</div>
                               </div>
-                            </div>
+                            </Panel>
                           );
                         })}
                       </div>
-                    </div>
+                    </Card>
                   </div>
 
                   {/* 전반기 vs 후반기 워크포워드 */}
                   {bt.walk_forward && (bt.walk_forward.first_half?.trade_count > 0 || bt.walk_forward.second_half?.trade_count > 0) && (
-                    <div className={`${cardCls} p-5 mb-8`}>
+                    <Card padding="none" className="p-5 mb-8">
                       <p className="text-[13.5px] font-medium text-slate-900 dark:text-white mb-1">전반기 vs 후반기 비교</p>
                       <p className="text-[11.5px] text-slate-500 mb-4">{bt.walk_forward.split_date} 기준으로 나눠, 특정 구간에만 잘 맞는 전략(과최적화)인지 점검합니다.</p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                         {[{ label: '전반기', d: bt.walk_forward.first_half }, { label: '후반기', d: bt.walk_forward.second_half }].map((seg, i) => (
-                          <div key={i} className="p-3.5 bg-slate-50 dark:bg-[#0B1120] rounded-md border border-slate-200 dark:border-slate-800">
+                          <Panel key={i} level="surface" padding="none" className="p-3.5">
                             <p className="text-[12px] font-medium text-slate-700 dark:text-slate-300 mb-2">{seg.label} ({seg.d?.trade_count ?? 0}건)</p>
                             <div className="grid grid-cols-2 gap-2 text-[12px]">
                               <div><span className="text-slate-500">승률 </span><span className="font-medium text-slate-900 dark:text-white tabular-nums">{seg.d?.win_rate?.toFixed(1) ?? '-'}%</span></div>
                               <div><span className="text-slate-500">기대값 </span><span className="font-medium text-slate-900 dark:text-white tabular-nums">{seg.d?.expectancy_pct != null ? `${seg.d.expectancy_pct > 0 ? '+' : ''}${seg.d.expectancy_pct.toFixed(2)}%` : '-'}</span></div>
                             </div>
-                          </div>
+                          </Panel>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   )}
 
                   {/* Best / Worst 트레이드 */}
@@ -1372,7 +1370,7 @@ export default function QuantDesk() {
 
                   {/* 반복 진입 종목 */}
                   {btDuplicateSymbols.length > 0 && (
-                    <div className={`${cardCls} p-5 mb-8`}>
+                    <Card padding="none" className="p-5 mb-8">
                       <div className="flex items-center gap-2 mb-4">
                         <Repeat size={15} className="text-slate-400" strokeWidth={1.75} />
                         <p className="text-[13.5px] font-medium text-slate-900 dark:text-white">반복 진입 종목 ({btDuplicateSymbols.length}종목)</p>
@@ -1396,12 +1394,12 @@ export default function QuantDesk() {
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </Card>
                   )}
 
                   {/* 보유기간 분포 + MFE 산점도 */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
-                    <div className={`${cardCls} p-5`}>
+                    <Card padding="none" className="p-5">
                       <p className="text-[13.5px] font-medium text-slate-900 dark:text-white mb-4">보유기간 분포</p>
                       <div className="w-full h-[200px]">
                         <ResponsiveContainer width="100%" height="100%">
@@ -1414,9 +1412,9 @@ export default function QuantDesk() {
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
-                    </div>
+                    </Card>
 
-                    <div className={`${cardCls} p-5`}>
+                    <Card padding="none" className="p-5">
                       <p className="text-[13.5px] font-medium text-slate-900 dark:text-white mb-1">MFE 대비 실제 수익률</p>
                       <p className="text-[10.5px] text-slate-400 mb-4">가로축: 보유 중 최대로 갈 수 있었던 수익률(MFE) · 세로축: 실제 실현 수익률</p>
                       <div className="w-full h-[200px]">
@@ -1430,7 +1428,7 @@ export default function QuantDesk() {
                           </ScatterChart>
                         </ResponsiveContainer>
                       </div>
-                    </div>
+                    </Card>
                   </div>
 
                   {/* 전체 거래내역 (필터 + 페이지네이션) */}
@@ -1501,14 +1499,14 @@ export default function QuantDesk() {
 
                   {/* 알려진 한계 */}
                   {bt.known_limitations && bt.known_limitations.length > 0 && (
-                    <div className="p-4 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800">
+                    <Panel level="inset" padding="none" className="p-4">
                       <p className="text-[12px] font-medium text-slate-500 mb-2 flex items-center gap-1.5"><Info size={13} strokeWidth={1.75}/> 이 백테스트가 재현하지 못하는 부분 (알려진 한계)</p>
                       <ul className="space-y-1.5">
                         {bt.known_limitations.map((l, i) => (
                           <li key={i} className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed">· {l}</li>
                         ))}
                       </ul>
-                    </div>
+                    </Panel>
                   )}
                 </>
               )}
@@ -1541,7 +1539,7 @@ export default function QuantDesk() {
                                 { label: 'E', title: '가격 돌파', sub: 'Price Breakout', desc: <>최근 3개월(60일) 최고가의 90% 이상 매물대를 2일 연속 돌파한 종목을 포착합니다. 단, 60일 평균 대비 2배 이상의 대량 거래량이 동반될 경우 강력한 신호로 판단하여 1일 차라도 즉시 진입을 허용합니다.</> },
                                 { label: 'F', title: '수급', sub: 'Volume Surge', desc: <>가격 상승을 뒷받침하는 강력한 자금 유입을 검증합니다. 최근 5일 평균 거래량과 당일 거래량이 모두 60일 평균 대비 1.5배 이상 폭발한 모멘텀 주도주만 선별합니다.</> },
                               ].map((g) => (
-                                <div key={g.label} className="bg-white dark:bg-[#131E30] border border-slate-200 dark:border-slate-800 p-5 md:p-6 rounded-md hover:border-slate-300 dark:hover:border-slate-600 transition-colors flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
+                                <Card key={g.label} interactive padding="none" className="qd-gate-card p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
                                     <div className="md:w-1/4 shrink-0 flex items-center gap-3">
                                         <div className="w-9 h-9 rounded-md bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-[14px]">{g.label}</div>
                                         <h4 className="font-medium text-[15px] text-slate-900 dark:text-white">{g.title} <span className="text-[12px] text-slate-400 block font-normal">{g.sub}</span></h4>
@@ -1551,7 +1549,7 @@ export default function QuantDesk() {
                                             {g.desc}
                                         </p>
                                     </div>
-                                </div>
+                                </Card>
                               ))}
                           </div>
                       )}
@@ -1577,7 +1575,7 @@ export default function QuantDesk() {
                                 { label: '2', title: '추세 붕괴', sub: 'Trend Breakdown', desc: <>주가의 20일선 이탈, 단기 이평선 데드크로스(10일 &lt; 20일), 20일선 기울기 하락 전환이라는 3대 하락 징후를 감시합니다. 노이즈 방지를 위해 시장 국면에 따라 다수결(강세장 2개 충족, 약세장 1개 충족) 규칙을 적용하여 하락 엔진이 켜지기 전 신속히 청산합니다.</> },
                                 { label: '3', title: '모멘텀 소진', sub: 'Momentum Exhaust', desc: <>초과 수익 상단을 제한하는 '목표가 고정 익절'을 전면 폐지했습니다. 단, 수익권에서 최근 5일 거래량이 20일 평균의 80% 밑으로 급감하고 주가가 10일선을 하향 이탈하면 시장의 관심이 소멸한 것으로 판단하여 즉시 실현 익절합니다.</> },
                               ].map((g) => (
-                                <div key={g.label} className="bg-white dark:bg-[#131E30] border border-slate-200 dark:border-slate-800 p-5 md:p-6 rounded-md hover:border-slate-300 dark:hover:border-slate-600 transition-colors flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
+                                <Card key={g.label} interactive padding="none" className="qd-gate-card p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
                                     <div className="md:w-1/4 shrink-0 flex items-center gap-3">
                                         <div className="w-9 h-9 rounded-md bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-[14px]">{g.label}</div>
                                         <h4 className="font-medium text-[15px] text-slate-900 dark:text-white">{g.title} <span className="text-[12px] text-slate-400 block font-normal">{g.sub}</span></h4>
@@ -1587,7 +1585,7 @@ export default function QuantDesk() {
                                             {g.desc}
                                         </p>
                                     </div>
-                                </div>
+                                </Card>
                               ))}
                           </div>
                       )}
@@ -1599,8 +1597,7 @@ export default function QuantDesk() {
 
       {/* RISK MODAL */}
       {riskStock && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-[2px] p-4">
-            <div className="qd-modal-panel bg-white dark:bg-[#0F1B2E] border border-slate-200 dark:border-slate-700/60 w-full max-w-md rounded-lg shadow-[0_24px_60px_-16px_rgba(0,0,0,0.45)] dark:shadow-[0_32px_70px_-16px_rgba(0,0,0,0.75)] p-6 relative">
+        <Modal open onClose={() => setRiskStock(null)} size="sm" className="p-6">
                 <div className="flex justify-between items-center mb-5">
                     <h3 className="text-[17px] font-semibold text-slate-900 dark:text-white flex items-center gap-2"><ShieldAlert size={17} className="text-amber-500" strokeWidth={1.75}/> {riskStock.name} Risk 분석</h3>
                     <button onClick={() => setRiskStock(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors text-[13px] font-medium">닫기</button>
@@ -1626,24 +1623,26 @@ export default function QuantDesk() {
                 </div>
 
                 <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-4">
-                    <div><p className="text-[12px] text-slate-500 mb-1">진입가 (Entry)</p><p className="text-[16px] font-semibold text-slate-900 dark:text-white tabular-nums">₩{Math.round(riskStock.entry_price || 0).toLocaleString()}</p></div>
-                    <div><p className="text-[12px] text-slate-500 mb-1">보유 수익률 (P&L)</p><p className="text-[16px] font-semibold tabular-nums" style={{ color: (riskStock.return_rate || 0) > 0 ? POS : NEG }}>{(riskStock.return_rate || 0) > 0 ? '+' : ''}<CountUp value={riskStock.return_rate || 0} decimals={2} />%</p></div>
+                    <Metric size="sm" label="진입가 (Entry)" value={`₩${Math.round(riskStock.entry_price || 0).toLocaleString()}`} />
+                    <Metric
+                      size="sm"
+                      label="보유 수익률 (P&L)"
+                      tone={(riskStock.return_rate || 0) > 0 ? 'positive' : 'negative'}
+                      value={<>{(riskStock.return_rate || 0) > 0 ? '+' : ''}<CountUp value={riskStock.return_rate || 0} decimals={2} />%</>}
+                    />
                 </div>
-            </div>
-        </div>
+        </Modal>
       )}
 
       {/* 종목별 상세 팝업 — 12년치 과거 신호 이력 표시 */}
       {backtestStock && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-[2px] p-4">
-            <div className="qd-modal-panel bg-white dark:bg-[#0F1B2E] border border-slate-200 dark:border-slate-700/60 w-full max-w-[720px] min-h-[40vh] max-h-[90vh] rounded-lg shadow-[0_24px_60px_-16px_rgba(0,0,0,0.45)] dark:shadow-[0_32px_70px_-16px_rgba(0,0,0,0.75)] flex flex-col overflow-hidden">
-
-                <div className="flex justify-between items-center px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+        <Modal open onClose={() => setBacktestStock(null)} size="lg" className="min-h-[40vh]">
+            <Modal.Header>
                     <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white">{backtestDisplayName} 과거 신호 이력</h3>
                     <button onClick={() => setBacktestStock(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors text-[13px] font-medium">닫기</button>
-                </div>
+            </Modal.Header>
 
-                <div className="p-6 overflow-y-auto flex-1">
+            <Modal.Body className="p-6">
                     {!bt ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-500 py-16">
                             <p className="text-[14px] text-center leading-relaxed">백테스팅 데이터가 없습니다.<br/>다음 배치(Cron) 실행 후 다시 확인해 주세요.</p>
@@ -1669,36 +1668,33 @@ export default function QuantDesk() {
                             ) : (
                                 <div className="space-y-2">
                                     {backtestOwnTrades.map((t, i) => (
-                                        <div key={i} className="flex flex-wrap items-center justify-between gap-2 p-3.5 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800">
+                                        <Panel key={i} level="inset" padding="none" className="flex flex-wrap items-center justify-between gap-2 p-3.5">
                                             <div className="text-[11.5px] text-slate-500 tabular-nums">{t.entry_date} → {t.exit_date} ({t.hold_days}일 보유)</div>
                                             <div className="text-[12.5px] font-medium text-slate-700 dark:text-slate-300 tabular-nums">₩{formatNumber(t.entry_price)} → ₩{formatNumber(t.exit_price)}</div>
                                             <div className="text-[13px] font-semibold tabular-nums" style={{ color: (t.return_pct || 0) >= 0 ? POS : NEG }}>{(t.return_pct || 0) > 0 ? '+' : ''}{t.return_pct?.toFixed(2)}%</div>
                                             <div className="text-[11.5px] text-slate-400 w-full md:w-auto">{t.reason}</div>
-                                        </div>
+                                        </Panel>
                                     ))}
                                 </div>
                             )}
                         </>
                     )}
-                </div>
-            </div>
-        </div>
+            </Modal.Body>
+        </Modal>
       )}
 
       {/* REPORT MODAL (종목 리포트 전용) */}
       {selectedStock && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-[2px] p-4">
-            <div className="qd-modal-panel bg-white dark:bg-[#0F1B2E] border border-slate-200 dark:border-slate-700/60 w-full max-w-[1160px] min-h-[60vh] md:min-h-[74vh] max-h-[92vh] rounded-lg shadow-[0_24px_60px_-16px_rgba(0,0,0,0.45)] dark:shadow-[0_32px_70px_-16px_rgba(0,0,0,0.75)] flex flex-col overflow-hidden">
-
-                <div className="flex justify-between items-center px-5 md:px-8 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+        <Modal open onClose={() => setSelectedStock(null)} size="xl" className="min-h-[60vh] md:min-h-[74vh]">
+            <Modal.Header>
                     <div className="flex gap-2 items-center">
                         <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400">{selectedStock.symbol} · {selectedStock.market || "KOSPI"}</span>
                         {selectedStock.sector && <span className="text-[12px] font-medium px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{selectedStock.sector}</span>}
                     </div>
                     <button onClick={() => setSelectedStock(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors text-[13px] font-medium">닫기</button>
-                </div>
+            </Modal.Header>
 
-                <div className="p-6 md:p-10 overflow-y-auto flex-1">
+            <Modal.Body className="p-6 md:p-10">
                     {reportLoading || selectedStock.isLoading ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-500 py-20">
                             <RefreshCcw className="animate-spin mb-4 text-slate-400" size={28} strokeWidth={1.75} />
@@ -1721,21 +1717,20 @@ export default function QuantDesk() {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
-                                <div className="p-6 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800">
+                                <Panel level="inset" padding="lg">
                                     <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-5">Quant Scores</h3>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div><p className="text-[12px] text-slate-500 mb-1">퀀트 랭킹 스코어</p><p className="text-[22px] font-semibold text-slate-900 dark:text-white tabular-nums"><CountUp value={selectedStock.score || 0} decimals={2} />점</p></div>
-                                        <div>
-                                            <p className="text-[12px] text-slate-500 mb-1">생존 필터 통과</p>
-                                            <p className="text-[22px] font-semibold text-slate-900 dark:text-white tabular-nums">
-                                                <CountUp value={selectedStock.total_pass !== undefined ? selectedStock.total_pass : (selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0)} decimals={0} /> / 6
-                                            </p>
-                                        </div>
+                                        <Metric size="md" label="퀀트 랭킹 스코어" value={<><CountUp value={selectedStock.score || 0} decimals={2} />점</>} />
+                                        <Metric
+                                          size="md"
+                                          label="생존 필터 통과"
+                                          value={<><CountUp value={selectedStock.total_pass !== undefined ? selectedStock.total_pass : (selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0)} decimals={0} /> / 6</>}
+                                        />
                                     </div>
                                     <p className="text-[11px] text-slate-500 mt-5 p-3 bg-white dark:bg-[#1E293B] rounded border border-slate-200 dark:border-slate-700/50 leading-relaxed">평가 지표(점수/게이트)는 가장 최근 배치(Cron) 시점을 기준으로 고정 표시됩니다. (재무 및 차트는 최신 반영)</p>
-                                </div>
+                                </Panel>
 
-                                <div className="p-6 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800 flex flex-col justify-center items-center relative">
+                                <Panel level="inset" padding="lg" className="flex flex-col justify-center items-center relative">
                                     <div className="relative w-44 md:w-52 h-24 md:h-28 mb-2 flex justify-center items-end">
                                         <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0 overflow-visible">
                                             <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="16" strokeLinecap="round" />
@@ -1751,7 +1746,7 @@ export default function QuantDesk() {
                                         </div>
                                     </div>
                                     <p className="text-[12.5px] text-slate-500 mt-2">퀀트 랭킹 스코어</p>
-                                </div>
+                                </Panel>
                             </div>
 
                             <div className="mb-8">
@@ -1775,21 +1770,21 @@ export default function QuantDesk() {
                                 </div>
                             </div>
 
-                            <div className="p-6 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800 mb-8">
+                            <Panel level="inset" padding="lg" className="mb-8">
                                 <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-5">Financials & Valuation</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-y-5 gap-x-4">
-                                    <div><p className="text-[12px] text-slate-500 mb-1">매출액</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatMarcap(selectedStock.fundamental?.revenue_cur)}</p></div>
-                                    <div><p className="text-[12px] text-slate-500 mb-1">영업이익</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatMarcap(selectedStock.fundamental?.op_profit_cur)}</p></div>
-                                    <div><p className="text-[12px] text-slate-500 mb-1">영업이익률</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatPct(selectedStock.fundamental?.op_margin)}</p></div>
-                                    <div><p className="text-[12px] text-slate-500 mb-1">ROE</p><p className="text-[14.5px] font-medium tabular-nums" style={{ color: POS }}>{formatPct(selectedStock.fundamental?.roe)}</p></div>
-                                    <div><p className="text-[12px] text-slate-500 mb-1">시가총액</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatMarcap(selectedStock.fundamental?.marcap_억)}</p></div>
-                                    <div><p className="text-[12px] text-slate-500 mb-1">PER</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatNumber(selectedStock.fundamental?.per)} 배</p></div>
-                                    <div><p className="text-[12px] text-slate-500 mb-1">PBR</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatNumber(selectedStock.fundamental?.pbr)} 배</p></div>
-                                    <div><p className="text-[12px] text-slate-500 mb-1">부채비율</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatPct(selectedStock.fundamental?.debt_ratio)}</p></div>
+                                    <Metric size="sm" label="매출액" value={formatMarcap(selectedStock.fundamental?.revenue_cur)} />
+                                    <Metric size="sm" label="영업이익" value={formatMarcap(selectedStock.fundamental?.op_profit_cur)} />
+                                    <Metric size="sm" label="영업이익률" value={formatPct(selectedStock.fundamental?.op_margin)} />
+                                    <Metric size="sm" label="ROE" value={formatPct(selectedStock.fundamental?.roe)} tone="positive" />
+                                    <Metric size="sm" label="시가총액" value={formatMarcap(selectedStock.fundamental?.marcap_억)} />
+                                    <Metric size="sm" label="PER" value={`${formatNumber(selectedStock.fundamental?.per)} 배`} />
+                                    <Metric size="sm" label="PBR" value={`${formatNumber(selectedStock.fundamental?.pbr)} 배`} />
+                                    <Metric size="sm" label="부채비율" value={formatPct(selectedStock.fundamental?.debt_ratio)} />
                                 </div>
-                            </div>
+                            </Panel>
 
-                            <div className="p-6 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800">
+                            <Panel level="inset" padding="lg">
                                 <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-5">가격 차트 (최근 250일)</h3>
                                 <div className="w-full h-[240px] md:h-[280px]">
                                     {selectedStock.chart_data && selectedStock.chart_data.length > 0 ? (
@@ -1806,28 +1801,25 @@ export default function QuantDesk() {
                                         <div className="w-full h-full flex items-center justify-center text-[13px] text-slate-500">차트 데이터가 없습니다.</div>
                                     )}
                                 </div>
-                            </div>
+                            </Panel>
                         </>
                     )}
-                </div>
-            </div>
-        </div>
+            </Modal.Body>
+        </Modal>
       )}
 
       {/* 글로벌 지수 비교 모달 */}
       {isIndexModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-[2px] p-4">
-          <div className="qd-modal-panel bg-white dark:bg-[#0F1B2E] border border-slate-200 dark:border-slate-700/60 w-full max-w-lg rounded-lg shadow-[0_24px_60px_-16px_rgba(0,0,0,0.45)] dark:shadow-[0_32px_70px_-16px_rgba(0,0,0,0.75)] flex flex-col overflow-hidden">
-
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
+        <Modal open onClose={() => setIsIndexModalOpen(false)} size="sm">
+            <Modal.Header style={{ alignItems: 'flex-start' }}>
               <div>
                 <h2 className="text-[16px] font-semibold text-slate-900 dark:text-white mb-1">지수 비교</h2>
                 <p className="text-[12.5px] text-slate-500">한국·미국 주요 지수</p>
               </div>
               <button onClick={() => setIsIndexModalOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors text-[13px] font-medium">닫기</button>
-            </div>
+            </Modal.Header>
 
-            <div className="p-4 flex flex-col gap-2.5 bg-slate-50/50 dark:bg-transparent">
+            <Modal.Body className="p-4 flex flex-col gap-2.5 bg-slate-50/50 dark:bg-transparent">
               {[
                 { key: 'kospi', name: '코스피', icon: 'K', color: 'bg-[#1e4e8c]' },
                 { key: 'kosdaq', name: '코스닥', icon: 'Q', color: 'bg-[#7e57c2]' },
@@ -1839,7 +1831,7 @@ export default function QuantDesk() {
                 const isPos = (data.ret_1d || 0) > 0;
 
                 return (
-                  <div key={idx.key} className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-md p-4 flex items-center justify-between">
+                  <Panel key={idx.key} level="surface" padding="none" className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-full ${idx.color} text-white flex items-center justify-center font-semibold text-[11px]`}>
                         {idx.icon}
@@ -1855,18 +1847,17 @@ export default function QuantDesk() {
                         {data.current_price?.toLocaleString()}
                       </span>
                     </div>
-                  </div>
+                  </Panel>
                 );
               })}
-            </div>
+            </Modal.Body>
 
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#111827]">
+            <Modal.Footer>
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 KR <span className="text-slate-500">KOSPI · KOSDAQ</span> &nbsp; US <span className="text-slate-500">NASDAQ · S&P 500</span>
               </p>
-            </div>
-          </div>
-        </div>
+            </Modal.Footer>
+        </Modal>
       )}
 
     </div>
