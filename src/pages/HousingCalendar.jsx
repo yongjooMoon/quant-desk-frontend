@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RefreshCcw, Check, X } from 'lucide-react';
 import { useRenderApi } from '../hooks/useRenderApi';
+// Phase 2 공통 UI 컴포넌트 — 이 페이지는 대부분 날짜 셀/필터 칩처럼 상태(과거/오늘/필터
+// 타입별 커스텀 hex)가 많은 캘린더 전용 UI라 Panel 두 곳 정도만 깔끔히 맞아떨어짐.
+import { Panel } from '../components';
 
 // =========================================================================
 // 색상 토큰 — 공급 유형별 식별 색상 (그라디언트 대신 단일 플랫 컬러로 통일)
@@ -206,9 +209,13 @@ function DayDetailSheet({ day, onClose }) {
       className="md:hidden fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-[2px]"
       onClick={onClose}
     >
-      <div
+      <Panel
+        level="elevated"
+        radius="none"
+        padding="none"
+        bordered={false}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-h-[75vh] bg-white dark:bg-[#0F1B2E] rounded-t-lg px-4 pt-3 pb-5 overflow-y-auto shadow-[0_-16px_40px_-16px_rgba(0,0,0,0.35)]"
+        className="w-full max-h-[75vh] rounded-t-lg px-4 pt-3 pb-5 overflow-y-auto shadow-[0_-16px_40px_-16px_rgba(0,0,0,0.35)]"
         style={{ animation: 'hcFadeInUpSheet 0.22s cubic-bezier(0.22,1,0.36,1)' }}
       >
         <div className="w-9 h-1 rounded-full bg-slate-200 dark:bg-slate-700 mx-auto mb-4" />
@@ -229,7 +236,7 @@ function DayDetailSheet({ day, onClose }) {
             <ListingRow key={item.id} item={item} />
           ))}
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }
@@ -388,7 +395,7 @@ export default function HousingCalendar() {
       <FilterChips activeFilters={activeFilters} onToggle={handleToggleFilter} />
 
       {/* 캘린더 본체 */}
-      <div className="w-full rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0B1120] p-3 md:p-5">
+      <Panel level="surface" padding="none" className="w-full p-3 md:p-5">
 
         {/* 요일 헤더 */}
         <div className="grid grid-cols-5 mb-2 md:mb-3">
@@ -429,7 +436,7 @@ export default function HousingCalendar() {
             </div>
           )}
         </div>
-      </div>
+      </Panel>
 
       {!loading && rawData.length === 0 && <EmptyState />}
 
