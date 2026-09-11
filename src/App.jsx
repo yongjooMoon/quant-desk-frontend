@@ -1,12 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Newspaper, TrendingUp, Building2, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays } from 'lucide-react';
 
-import NewsDesk from './pages/NewsDesk';
-import QuantDesk from './pages/QuantDesk';
-import HousingCalendar from './pages/HousingCalendar';
-import RealEstate from './pages/RealEstate';
-import StockSearch from './pages/StockSearch';
+// 라우트별 코드 스플리팅 — 첫 진입 시 방문한 페이지의 번들만 내려받는다.
+// (예: /news 진입 시 QuantDesk의 recharts 포함 번들은 받지 않음)
+const NewsDesk = lazy(() => import('./pages/NewsDesk'));
+const QuantDesk = lazy(() => import('./pages/QuantDesk'));
+const HousingCalendar = lazy(() => import('./pages/HousingCalendar'));
+const RealEstate = lazy(() => import('./pages/RealEstate'));
+const StockSearch = lazy(() => import('./pages/StockSearch'));
 
 // 메뉴(경로) 전환 시 스크롤을 맨 위로 리셋하는 컴포넌트.
 //    이 앱은 window가 아니라 <main>(overflow-y-auto)이 실제 스크롤 컨테이너이므로
@@ -26,9 +29,25 @@ function ScrollToTop({ containerRef }) {
 // 반복 hover가 아니라 경로가 바뀌는 순간에만 발생하므로 스프링 이징을 허용한다.
 function PageFade({ children }) {
   const { pathname } = useLocation();
+  const reduceMotion = useReducedMotion();
   return (
-    <div key={pathname} className="app-page-fade">
+    <motion.div
+      key={pathname}
+      initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.48, ease: [0.22, 1, 0.36, 1] }}
+      className="min-h-full"
+    >
       {children}
+    </motion.div>
+  );
+}
+
+// 라우트 코드가 아직 로딩 중일 때 보여줄 최소한의 자리표시자 (레이아웃 흔들림 방지용)
+function PageSuspenseFallback() {
+  return (
+    <div className="w-full h-40 flex items-center justify-center">
+      <div className="w-6 h-6 rounded-full border-2 border-slate-300 dark:border-slate-700 border-t-slate-500 dark:border-t-slate-400 animate-spin" />
     </div>
   );
 }
@@ -72,31 +91,8 @@ function App() {
         }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        /* Tailwind v4 다크모드 클래스 인식 오류 강제 우회
-           — 이전에는 slate-900/800/700이 전부 동일한 #F8FAFC로 강제되어
-             다크모드에서 타이포그래피 위계(제목/본문/보조텍스트)가 사라지는 문제가 있었다.
-             단계별로 다른 명도를 줘서 원래 의도한 대비 위계를 다크모드에서도 유지한다. */
-        .dark .text-slate-900 { color: #F8FAFC !important; }
-        .dark .text-slate-800 { color: #E2E8F0 !important; }
-        .dark .text-slate-700 { color: #CBD5E1 !important; }
-        .dark .bg-white { background-color: #111827 !important; border-color: #1E293B !important; }
-        .dark .bg-slate-50 { background-color: #0B1120 !important; }
-        .dark .border-slate-200, .dark .border-slate-100, .dark .border-slate-300 { border-color: #1E293B !important; }
-        .dark input, .dark select, .dark textarea { color: #F8FAFC !important; background-color: transparent !important; }
-        .dark option { background-color: #1E293B !important; color: #F8FAFC !important; }
-        .dark input::placeholder { color: #64748B !important; }
-
-        /* 모션 토큰 — fast(피드백) / normal(hover,dropdown) / reveal(1회성 전환만 스프링 허용) */
-        @keyframes appPageFade {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .app-page-fade { animation: appPageFade 0.48s cubic-bezier(0.22, 1, 0.36, 1); min-height: 100%; }
-        @media (prefers-reduced-motion: reduce) {
-          .app-page-fade { animation: none !important; }
-        }
       `}</style>
+      {/* 다크모드 호환 레이어와 모션(페이지 전환)은 각각 index.css / framer-motion(PageFade)으로 이동했다. */}
 
       {/* 최상위 래퍼 (Full Width & Height) */}
       <div className="flex w-full h-screen bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-hidden">
@@ -217,14 +213,16 @@ function App() {
           {/* 컨텐츠 래퍼 — 큰 화면에서 너무 좁게 갇히지 않도록 폭/패딩을 브레이크포인트별로 확장 */}
           <div className="w-full max-w-[1600px] min-h-full px-5 md:px-10 xl:px-14 2xl:px-20 py-6 md:py-10 pb-24 md:pb-10">
             <PageFade>
-              <Routes>
-                <Route path="/" element={<Navigate to="/news" replace />} />
-                <Route path="/news" element={<NewsDesk />} />
-                <Route path="/quant" element={<QuantDesk />} />
-                <Route path="/calendar" element={<HousingCalendar />} />
-                <Route path="/realestate" element={<RealEstate />} />
-                <Route path="/search" element={<StockSearch />} />
-              </Routes>
+              <Suspense fallback={<PageSuspenseFallback />}>
+                <Routes>
+                  <Route path="/" element={<Navigate to="/news" replace />} />
+                  <Route path="/news" element={<NewsDesk />} />
+                  <Route path="/quant" element={<QuantDesk />} />
+                  <Route path="/calendar" element={<HousingCalendar />} />
+                  <Route path="/realestate" element={<RealEstate />} />
+                  <Route path="/search" element={<StockSearch />} />
+                </Routes>
+              </Suspense>
             </PageFade>
           </div>
         </main>

@@ -5,6 +5,17 @@
 
 @theme {
   --font-sans: 'Nunito', 'Pretendard', system-ui, -apple-system, sans-serif;
+
+  /* Depth 계층 토큰 (Background -> Surface -> Panel -> Elevated) */
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+  --color-panel-elevated: var(--panel-elevated);
+
+  /* 금융 데이터 의미 색상 토큰 (국내 증시 관례: 빨강=상승, 파랑=하락) */
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-warning: var(--warning);
+  --color-neutral: var(--neutral);
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -20,6 +31,14 @@
   --accent-border: rgba(170, 59, 255, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+
+  --surface: #F8FAFC;
+  --panel: #FFFFFF;
+  --panel-elevated: #FFFFFF;
+  --positive: #DC2626;
+  --negative: #2563EB;
+  --warning: #D97706;
+  --neutral: #64748B;
 
   --sans: 'Nunito', 'Pretendard', system-ui, sans-serif;
   --heading: 'Nunito', 'Pretendard', system-ui, sans-serif;
@@ -41,20 +60,49 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+/* 다크모드 CSS 변수는 .dark 클래스 기준으로 전환한다.
+   과거에는 이 블록이 @media (prefers-color-scheme: dark)였는데, 그 방식은 OS
+   설정에만 반응하고 앱 내 다크모드 토글(App.jsx의 .dark 클래스)은 무시했다.
+   즉 OS가 라이트여도 앱에서 다크로 전환하면 Tailwind dark: 유틸리티는 바뀌는데
+   h1/h2/code 등 CSS 변수 기반 스타일은 안 바뀌는 두 시스템 불일치가 실제 버그였다.
+   Tailwind 자체의 dark: 인식 오류가 아니라 이 불일치가 원인이었다. */
+:root.dark {
+  --text: #9ca3af;
+  --text-h: #f3f4f6;
+  --bg: #16171d;
+  --border: #2e303a;
+  --code-bg: #1f2028;
+  --accent: #c084fc;
+  --accent-bg: rgba(192, 132, 252, 0.15);
+  --accent-border: rgba(192, 132, 252, 0.5);
+  --social-bg: rgba(47, 48, 58, 0.5);
+  --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+
+  --surface: #0B1120;
+  --panel: #111827;
+  --panel-elevated: #16213A;
+  --positive: #F87171;
+  --negative: #60A5FA;
+  --warning: #FBBF24;
+  --neutral: #94A3B8;
 }
+
+/* 레거시 다크모드 호환 레이어 (임시, Phase 3+ 페이지별 마이그레이션 시 제거 예정)
+   실제 원인: 여러 페이지 컴포넌트가 text-slate-900/800/700 등을 dark: 짝 없이
+   단독으로 쓰고 있어(전체 181회 중 dark: 짝이 확인된 건 65회뿐), 다크모드에서
+   대비가 깨진다. Tailwind v4 dark: variant 엔진 자체는 정상 동작한다
+   (@custom-variant dark 선언 확인됨). 근본 해결은 각 페이지를 위 depth/색상
+   토큰으로 마이그레이션하는 것이며, 그 전까지 기존 화면이 깨지지 않도록
+   여기서 강제 오버라이드한다. */
+.dark .text-slate-900 { color: #F8FAFC !important; }
+.dark .text-slate-800 { color: #E2E8F0 !important; }
+.dark .text-slate-700 { color: #CBD5E1 !important; }
+.dark .bg-white { background-color: #111827 !important; border-color: #1E293B !important; }
+.dark .bg-slate-50 { background-color: #0B1120 !important; }
+.dark .border-slate-200, .dark .border-slate-100, .dark .border-slate-300 { border-color: #1E293B !important; }
+.dark input, .dark select, .dark textarea { color: #F8FAFC !important; background-color: transparent !important; }
+.dark option { background-color: #1E293B !important; color: #F8FAFC !important; }
+.dark input::placeholder { color: #64748B !important; }
 
 /* 🌟 기존에 에러/충돌을 일으키던 기본 태그 속성들을 layer base 안으로 안전하게 격리! */
 @layer base {
