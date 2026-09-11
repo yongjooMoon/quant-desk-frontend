@@ -4,6 +4,10 @@ import { Search, BarChart2, RefreshCcw } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip, XAxis, CartesianGrid } from 'recharts';
 // 공통 API 훅 임포트
 import { useRenderApi } from '../hooks/useRenderApi';
+// Phase 2 공통 UI 컴포넌트 — Panel/Card/Badge/Metric만 그대로 맞아떨어짐.
+// Entry Gates 박스는 QuantScreener의 Trend Template gate와 동일하게 pass/fail 동적
+// 스타일이라 Badge로 억지로 옮기지 않고 그대로 유지.
+import { Panel, Badge, Metric } from '../components';
 
 // 색상 토큰 — 다른 페이지와 동일한 팔레트
 const POS = '#DC2626';
@@ -179,7 +183,7 @@ export default function StockSearch() {
       {/* 메인 검색 컨테이너 */}
       <div className="mb-8 relative z-50 w-full" ref={wrapperRef}>
         <div className="relative">
-          <div className="flex items-center bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800 rounded-md px-4 py-3 focus-within:border-slate-400 dark:focus-within:border-slate-600 transition-colors">
+          <Panel level="surface" padding="none" className="flex items-center px-4 py-3 focus-within:border-slate-400 dark:focus-within:border-slate-600 transition-colors">
             <Search className="text-slate-400 mr-3" size={18} strokeWidth={1.75} />
             <input
               ref={inputRef}
@@ -191,13 +195,15 @@ export default function StockSearch() {
               placeholder="종목명 또는 코드를 입력하세요 (예: 삼성전자)"
               className="flex-1 bg-transparent border-none outline-none text-slate-900 dark:text-white text-[15px] placeholder-slate-400 dark:placeholder-slate-600"
             />
-          </div>
+          </Panel>
 
           {/* 드롭다운 리스트 */}
           {isDropdownOpen && searchTerm && (
-            <div
+            <Panel
+              level="elevated"
+              padding="none"
               ref={optionsListRef}
-              className="ss-custom-scrollbar absolute z-[100] w-full mt-2 bg-white dark:bg-[#0F1B2E] border border-slate-200 dark:border-slate-700/60 rounded-md shadow-md max-h-[320px] overflow-y-auto"
+              className="ss-custom-scrollbar absolute z-[100] w-full mt-2 shadow-md max-h-[320px] overflow-y-auto"
             >
               {filteredOptions.length > 0 ? filteredOptions.map((opt, idx) => (
                   <div
@@ -217,7 +223,7 @@ export default function StockSearch() {
                     검색 결과가 없습니다.
                   </div>
                 )}
-            </div>
+            </Panel>
           )}
         </div>
 
@@ -239,9 +245,9 @@ export default function StockSearch() {
 
             <div className="mb-5 flex flex-col items-start gap-1 border-b border-slate-200 dark:border-slate-800 pb-4">
                 <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{result.symbol}</span>
-                    <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{result.market || "KOSPI"}</span>
-                    {result.sector && <span className="text-[12px] font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{result.sector}</span>}
+                    <Badge tone="neutral">{result.symbol}</Badge>
+                    <Badge tone="neutral">{result.market || "KOSPI"}</Badge>
+                    {result.sector && <Badge tone="neutral">{result.sector}</Badge>}
                 </div>
                 <h2 className="text-[26px] md:text-[32px] font-semibold text-slate-900 dark:text-white mb-1 leading-tight tracking-tight">
                     {result.name}
@@ -256,29 +262,21 @@ export default function StockSearch() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
                 {/* Quant Scores Card */}
-                <div className="p-6 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+                <Panel level="inset" padding="lg" className="flex flex-col justify-between">
                     <div>
                         <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-5">Quant Scores</h3>
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <p className="text-[12px] text-slate-500 mb-1">실시간 랭킹 스코어</p>
-                                <p className="text-[22px] font-semibold text-slate-900 dark:text-white tabular-nums">{(result.score || 0).toFixed(2)}점</p>
-                            </div>
-                            <div>
-                                <p className="text-[12px] text-slate-500 mb-1">현재시점 생존 필터</p>
-                                <p className="text-[22px] font-semibold text-slate-900 dark:text-white tabular-nums">
-                                    {result.gates ? Object.values(result.gates).filter(g => g.pass).length : 0} / 6
-                                </p>
-                            </div>
+                            <Metric size="md" label="실시간 랭킹 스코어" value={`${(result.score || 0).toFixed(2)}점`} />
+                            <Metric size="md" label="현재시점 생존 필터" value={`${result.gates ? Object.values(result.gates).filter(g => g.pass).length : 0} / 6`} />
                         </div>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-5 p-3 bg-white dark:bg-[#1E293B] rounded border border-slate-200 dark:border-slate-700/50 leading-relaxed">
                         과거 배치(Cron) 시점엔 6/6 통과였어도, 현재 실시간 주가 변동에 따라 다를 수 있습니다.
                     </p>
-                </div>
+                </Panel>
 
                 {/* SVG Half Circle Gauge Card */}
-                <div className="p-6 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800 flex flex-col justify-center items-center relative min-h-[180px]">
+                <Panel level="inset" padding="lg" className="flex flex-col justify-center items-center relative min-h-[180px]">
                     <div className="relative w-44 md:w-52 h-24 md:h-28 mb-2 flex justify-center items-end">
                         <svg viewBox="0 0 200 110" className="w-full h-full absolute bottom-0">
                             <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="16" strokeLinecap="round" />
@@ -291,7 +289,7 @@ export default function StockSearch() {
                         </div>
                     </div>
                     <p className="text-[12.5px] text-slate-500 mt-2">퀀트 랭킹 스코어</p>
-                </div>
+                </Panel>
             </div>
 
             {/* Entry Gates */}
@@ -317,22 +315,22 @@ export default function StockSearch() {
             </div>
 
             {/* Financials & Valuation */}
-            <div className="p-6 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800 mb-8">
+            <Panel level="inset" padding="lg" className="mb-8">
                 <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-5">Financials & Valuation</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-y-5 gap-x-4">
-                    <div><p className="text-[12px] text-slate-500 mb-1">매출액</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatMarcap(result.fundamental?.revenue_cur)}</p></div>
-                    <div><p className="text-[12px] text-slate-500 mb-1">영업이익</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatMarcap(result.fundamental?.op_profit_cur)}</p></div>
-                    <div><p className="text-[12px] text-slate-500 mb-1">영업이익률</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatPct(result.fundamental?.op_margin)}</p></div>
-                    <div><p className="text-[12px] text-slate-500 mb-1">ROE</p><p className="text-[14.5px] font-medium tabular-nums" style={{ color: POS }}>{formatPct(result.fundamental?.roe)}</p></div>
-                    <div><p className="text-[12px] text-slate-500 mb-1">시가총액</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatMarcap(result.fundamental?.marcap_억)}</p></div>
-                    <div><p className="text-[12px] text-slate-500 mb-1">PER</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatNumber(result.fundamental?.per)} 배</p></div>
-                    <div><p className="text-[12px] text-slate-500 mb-1">PBR</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatNumber(result.fundamental?.pbr)} 배</p></div>
-                    <div><p className="text-[12px] text-slate-500 mb-1">부채비율</p><p className="text-[14.5px] font-medium text-slate-900 dark:text-white tabular-nums">{formatPct(result.fundamental?.debt_ratio)}</p></div>
+                    <Metric size="sm" label="매출액" value={formatMarcap(result.fundamental?.revenue_cur)} />
+                    <Metric size="sm" label="영업이익" value={formatMarcap(result.fundamental?.op_profit_cur)} />
+                    <Metric size="sm" label="영업이익률" value={formatPct(result.fundamental?.op_margin)} />
+                    <Metric size="sm" label="ROE" value={formatPct(result.fundamental?.roe)} tone="positive" />
+                    <Metric size="sm" label="시가총액" value={formatMarcap(result.fundamental?.marcap_억)} />
+                    <Metric size="sm" label="PER" value={`${formatNumber(result.fundamental?.per)} 배`} />
+                    <Metric size="sm" label="PBR" value={`${formatNumber(result.fundamental?.pbr)} 배`} />
+                    <Metric size="sm" label="부채비율" value={formatPct(result.fundamental?.debt_ratio)} />
                 </div>
-            </div>
+            </Panel>
 
             {/* Price History Chart */}
-            <div className="p-6 bg-slate-50 dark:bg-[#111827] rounded-md border border-slate-200 dark:border-slate-800 mb-8">
+            <Panel level="inset" padding="lg" className="mb-8">
                 <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-5 flex items-center gap-2">
                   <BarChart2 className="text-slate-400" size={16} strokeWidth={1.75} /> 가격 차트 (최근 120일)
                 </h3>
@@ -351,7 +349,7 @@ export default function StockSearch() {
                         <div className="w-full h-full flex items-center justify-center text-[13px] text-slate-500">차트 데이터가 없습니다.</div>
                     )}
                 </div>
-            </div>
+            </Panel>
 
         </div>
       )}
