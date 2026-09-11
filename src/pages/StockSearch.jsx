@@ -55,13 +55,6 @@ export default function StockSearch() {
         }
       })
       .catch(err => console.error(err));
-
-    callApi("/api/fundamentals")
-      .then(data => {
-        if (data.status === "success") {
-          console.log("백엔드 펀더멘털 일괄 캐싱 완료");
-        }
-      });
   }, [callApi]);
 
   useEffect(() => {

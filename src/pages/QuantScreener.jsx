@@ -545,7 +545,7 @@ function ScreenerReportModal({ selectedStock, reportLoading, onClose }) {
                   {selectedStock.name}
                 </h2>
                 <h1 className="text-[20px] md:text-[26px] font-semibold text-slate-900 dark:text-white tracking-tight flex items-baseline tabular-nums">
-                  {formatWon(selectedStock.current_price)} 원 <span className="text-[14px] md:text-[17px] ml-2.5 font-medium" style={{ color: (selectedStock.ret_1m || 0) > 0 ? POS : NEG }}>{(selectedStock.ret_1m || 0) > 0 ? '+' : ''}{formatPct(selectedStock.ret_1m || 0)} (1M)</span>
+                  {formatWon(selectedStock.current_price)} 원 <span className="text-[14px] md:text-[17px] ml-2.5 font-medium" style={{ color: (selectedStock.ret_1m || 0) > 0 ? POS : NEG }}>{formatPct(selectedStock.ret_1m || 0)} (1M)</span>
                 </h1>
               </div>
 
