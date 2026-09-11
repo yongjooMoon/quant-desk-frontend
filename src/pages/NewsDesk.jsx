@@ -116,7 +116,7 @@ export default function NewsDesk() {
   // 세로 피드 백엔드 페이지 크기(데이터 계층 관심사)는 서로 다른 개념이라 분리 유지.
   const HERO_INITIAL_COUNT = 6;
   const HERO_BATCH_SIZE = 6;
-  const LIST_PAGE_SIZE = 60;
+  const LIST_PAGE_SIZE = 20;
   const [visibleMajorCount, setVisibleMajorCount] = useState(HERO_INITIAL_COUNT);
 
   const sentinelRef = useRef(null);
