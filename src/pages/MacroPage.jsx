@@ -4,6 +4,10 @@ import {
   AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart,
 } from 'recharts';
+// Phase 2 공통 UI 컴포넌트 — Panel/Card/Modal/Button만 깔끔히 맞아떨어짐.
+// 상태 배지(getStatusStyle)는 tone/color가 아니라 상태별 Tailwind 시맨틱 클래스 3개
+// (text/bg/border)를 그대로 조합하는 방식이라 Badge에 억지로 끼워맞추지 않음.
+import { Panel, Card, Modal, Button } from '../components';
 
 // =========================================================================
 // 색상 토큰 — NewsDesk / QuantDesk와 동일한 팔레트로 통일 (네온톤 제거)
@@ -17,11 +21,10 @@ const GlobalStyle = () => (
     @keyframes qdFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
     .qd-fade-in { animation: qdFadeIn 0.2s ease-out both; }
 
-    @keyframes qdModalIn { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-    .qd-modal-panel { animation: qdModalIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+    /* 모달 진입 애니메이션은 이제 components/Modal.jsx가 담당 */
 
     @media (prefers-reduced-motion: reduce) {
-      .qd-fade-in, .qd-modal-panel { animation: none !important; }
+      .qd-fade-in { animation: none !important; }
     }
   `}</style>
 );
@@ -342,7 +345,7 @@ const FearGreedCard = ({ item }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-700/60 p-4 md:p-6 rounded-md mb-6 flex flex-col lg:flex-row gap-8">
+    <Panel level="surface" padding="none" className="p-4 md:p-6 mb-6 flex flex-col lg:flex-row gap-8">
 
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="w-full flex items-center gap-2.5 mb-2">
@@ -368,7 +371,7 @@ const FearGreedCard = ({ item }) => {
         </div>
       </div>
 
-    </div>
+    </Panel>
   );
 };
 
@@ -401,7 +404,7 @@ const RegimeSummary = ({ regimeData }) => {
   const conf = REGIME_CONFIG[regime] || REGIME_CONFIG.Neutral;
 
   return (
-    <div className="relative w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-md px-5 py-3.5 mb-8 flex items-center flex-wrap gap-x-3 gap-y-1.5">
+    <Panel padding="none" className="relative px-5 py-3.5 mb-8 flex items-center flex-wrap gap-x-3 gap-y-1.5">
 
       <span className="text-[12.5px] font-medium text-slate-500 dark:text-slate-400 tracking-tight">
         America Market Regime
@@ -423,7 +426,7 @@ const RegimeSummary = ({ regimeData }) => {
         </button>
         <RegimePopover isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
       </div>
-    </div>
+    </Panel>
   );
 };
 
@@ -470,9 +473,11 @@ const MacroCard = ({ item, onClick }) => {
   const lastIndex = chartData.length - 1;
 
   return (
-    <div
+    <Card
+      interactive
+      padding="none"
       onClick={() => onClick(item)}
-      className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 p-4 rounded-md transition-colors cursor-pointer flex flex-col justify-between h-36"
+      className="p-4 cursor-pointer flex flex-col justify-between h-36"
     >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-1.5 min-w-0 pr-2">
@@ -517,7 +522,7 @@ const MacroCard = ({ item, onClick }) => {
           </ResponsiveContainer>
         </div>
       </div>
-    </div>
+    </Card>
   );
 };
 
@@ -560,19 +565,18 @@ const MacroChartModal = ({ item, onClose }) => {
   }, [item.history, range]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-[2px] p-4">
-      <div className="qd-modal-panel bg-white dark:bg-[#0F1B2E] border border-slate-200 dark:border-slate-700/60 w-full max-w-4xl rounded-lg shadow-[0_24px_60px_-16px_rgba(0,0,0,0.45)] dark:shadow-[0_32px_70px_-16px_rgba(0,0,0,0.75)] flex flex-col overflow-hidden">
-        <div className="flex justify-between items-center px-5 md:px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-          <div>
-            <h3 className="text-[18px] font-semibold text-slate-900 dark:text-white mb-1">{item.display_name || item.indicator}</h3>
-            <p className="text-[12.5px] text-slate-500">{item.indicator} · {item.source}</p>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors text-[13px] font-medium">
-            닫기
-          </button>
+    <Modal open onClose={onClose} size="xl">
+      <Modal.Header>
+        <div>
+          <h3 className="text-[18px] font-semibold text-slate-900 dark:text-white mb-1">{item.display_name || item.indicator}</h3>
+          <p className="text-[12.5px] text-slate-500">{item.indicator} · {item.source}</p>
         </div>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors text-[13px] font-medium">
+          닫기
+        </button>
+      </Modal.Header>
 
-        <div className="p-6 md:p-8">
+      <Modal.Body className="p-6 md:p-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
             <div className="flex items-center gap-6">
               <div>
@@ -586,13 +590,9 @@ const MacroChartModal = ({ item, onClose }) => {
             </div>
             <div className="flex gap-1.5">
               {Object.keys(RANGE_TRADING_DAYS).map(r => (
-                <button
-                  key={r}
-                  onClick={() => setRange(r)}
-                  className={`text-[11.5px] font-medium px-2.5 py-1.5 rounded transition-colors cursor-pointer border ${range === r ? 'bg-slate-900 border-slate-900 text-white dark:bg-slate-100 dark:border-slate-100 dark:text-slate-900' : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                >
+                <Button key={r} variant="pill" active={range === r} onClick={() => setRange(r)}>
                   {r}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -614,9 +614,8 @@ const MacroChartModal = ({ item, onClose }) => {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+    </Modal>
   );
 };
 
