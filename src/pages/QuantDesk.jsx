@@ -387,15 +387,20 @@ export default function QuantDesk() {
       const screenerResult = results[3].status === 'fulfilled' ? results[3].value : null;
       const backtest12yResult = results[4].status === 'fulfilled' ? results[4].value : null;
 
+      // macro/screener/backtest12y 중 하나만 일시적으로 실패해도 캐시에 빈 값으로
+      // 저장되면 다음 방문 때도 재시도 없이 그 빈 값을 계속 재사용하게 된다
+      // (최대 다음날 15:10까지). 실패한 항목은 [] 로 덮어쓰지 말고 직전 캐시 값을 유지한다.
+      const prevCache = readQuantMacroCache();
+
       let mergedDataForCache = null;
       let processedKospiForCache = [];
 
       if (quantResult && quantResult.status === "success" && quantResult.data) {
         const mergedData = { ...quantResult.data };
 
-        mergedData.macro = (macroResult && macroResult.status === "success" && macroResult.data) ? macroResult.data : [];
-        mergedData.screener = (screenerResult && screenerResult.status === "success" && screenerResult.data) ? screenerResult.data : [];
-        mergedData.backtest12y = (backtest12yResult && backtest12yResult.status === "success" && backtest12yResult.data) ? backtest12yResult.data : null;
+        mergedData.macro = (macroResult && macroResult.status === "success" && macroResult.data) ? macroResult.data : (prevCache?.macro || []);
+        mergedData.screener = (screenerResult && screenerResult.status === "success" && screenerResult.data) ? screenerResult.data : (prevCache?.screener || []);
+        mergedData.backtest12y = (backtest12yResult && backtest12yResult.status === "success" && backtest12yResult.data) ? backtest12yResult.data : (prevCache?.backtest12y || null);
 
         setData(mergedData);
         mergedDataForCache = mergedData;
