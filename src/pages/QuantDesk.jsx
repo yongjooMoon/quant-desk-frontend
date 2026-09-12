@@ -1255,7 +1255,7 @@ export default function QuantDesk() {
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
                             <XAxis dataKey="year" tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '500'}} tickLine={false} axisLine={false} />
                             <YAxis tick={{fill: '#94A3B8', fontSize: 11, fontWeight: '500'}} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
-                            <Tooltip formatter={(v) => [`${v > 0 ? '+' : ''}${v.toFixed(2)}%`, '수익률']} contentStyle={{backgroundColor: '#0F1B2E', borderColor: '#334155', borderRadius: '8px', color: 'white', fontWeight: '500'}} />
+                            <Tooltip formatter={(v) => [`${v > 0 ? '+' : ''}${v.toFixed(2)}%`, '수익률']} contentStyle={{backgroundColor: '#0F1B2E', borderColor: '#334155', borderRadius: '8px', color: 'white', fontWeight: '500'}} itemStyle={{color: 'white'}} />
                             <Bar dataKey="return_pct" radius={[3, 3, 0, 0]}>
                               {btYearlyChartData.map((d, i) => (
                                 <Cell key={i} fill={d.return_pct >= 0 ? POS : NEG} />
