@@ -270,12 +270,15 @@ export default function QuantDesk() {
   const [isExitOpen, setIsExitOpen] = useState(true);
 
   // 백테스팅 탭 — 거래내역 필터/페이지네이션 + Equity Curve 구간
+  const [btSubTab, setBtSubTab] = useState("summary"); // 'summary' | 'detail' | 'trades' — 한눈에 안 들어오는 문제 해결용 서브탭
   const [btEquityRange, setBtEquityRange] = useState("All"); // '1Y' | '3Y' | '5Y' | 'All'
   const [btYearFilter, setBtYearFilter] = useState("All");
   const [btExitTypeFilter, setBtExitTypeFilter] = useState("All");
   const [btResultFilter, setBtResultFilter] = useState("All"); // 'All' | 'WIN' | 'LOSS'
   const [btPage, setBtPage] = useState(1);
+  const [btShowAllDuplicates, setBtShowAllDuplicates] = useState(false);
   const BT_PAGE_SIZE = 20;
+  const BT_DUPLICATE_PREVIEW_COUNT = 10;
 
   const { callApi, ServerWakeupOverlay } = useRenderApi();
 
@@ -1186,6 +1189,20 @@ export default function QuantDesk() {
                     {btTrackRecord.confidence_note} 아래 통계는 특정 종목이 아니라 전략 자체가 12년간(상장폐지 종목 포함) 전체 시장에서 어떻게 작동했는지를 보여줍니다.
                   </p>
 
+                  <Tabs
+                    variant="static"
+                    className="mb-6"
+                    value={btSubTab}
+                    onChange={setBtSubTab}
+                    items={[
+                      { key: "summary", label: "요약" },
+                      { key: "detail", label: "상세 분석" },
+                      { key: "trades", label: `거래내역 (${btTrades.length})` },
+                    ]}
+                  />
+
+                  {btSubTab === "summary" && (
+                  <>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-8">
                     {btHeadlineMetrics.map((m, i) => (
                       <Panel key={i} level="inset" padding="sm">
@@ -1196,7 +1213,7 @@ export default function QuantDesk() {
 
                   {/* Equity Curve */}
                   <Card padding="none" className="p-5 mb-8">
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2 mb-4">
                       <p className="text-[13.5px] font-medium text-slate-900 dark:text-white">전략 누적 수익률 추이 (벤치마크 대비 초과수익 {btTrackRecord.excess_return_pct > 0 ? '+' : ''}{btTrackRecord.excess_return_pct?.toFixed(1)}%)</p>
                       <div className="flex gap-1.5">
                         {['1Y', '3Y', '5Y', 'All'].map(r => (
@@ -1220,7 +1237,11 @@ export default function QuantDesk() {
                       )}
                     </div>
                   </Card>
+                  </>
+                  )}
 
+                  {btSubTab === "detail" && (
+                  <>
                   {/* 연도별 성과 */}
                   {btYearlyChartData.length > 0 && (
                     <Card padding="none" className="p-5 mb-8">
@@ -1368,12 +1389,19 @@ export default function QuantDesk() {
                     </div>
                   </div>
 
-                  {/* 반복 진입 종목 */}
+                  {/* 반복 진입 종목 — 63종목까지 나올 수 있어 기본은 상위 10개만, 필요하면 펼치기 */}
                   {btDuplicateSymbols.length > 0 && (
                     <Card padding="none" className="p-5 mb-8">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Repeat size={15} className="text-slate-400" strokeWidth={1.75} />
-                        <p className="text-[13.5px] font-medium text-slate-900 dark:text-white">반복 진입 종목 ({btDuplicateSymbols.length}종목)</p>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <Repeat size={15} className="text-slate-400" strokeWidth={1.75} />
+                          <p className="text-[13.5px] font-medium text-slate-900 dark:text-white">반복 진입 종목 ({btDuplicateSymbols.length}종목)</p>
+                        </div>
+                        {btDuplicateSymbols.length > BT_DUPLICATE_PREVIEW_COUNT && (
+                          <button onClick={() => setBtShowAllDuplicates(v => !v)} className="text-[11.5px] font-medium text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
+                            {btShowAllDuplicates ? '접기' : `전체 보기 (+${btDuplicateSymbols.length - BT_DUPLICATE_PREVIEW_COUNT})`}
+                          </button>
+                        )}
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-[12px]">
@@ -1383,7 +1411,7 @@ export default function QuantDesk() {
                             </tr>
                           </thead>
                           <tbody>
-                            {btDuplicateSymbols.map((s, i) => (
+                            {(btShowAllDuplicates ? btDuplicateSymbols : btDuplicateSymbols.slice(0, BT_DUPLICATE_PREVIEW_COUNT)).map((s, i) => (
                               <tr key={i} className="border-b border-slate-100 dark:border-slate-800/60">
                                 <td className="py-2 font-medium text-slate-900 dark:text-white">{s.name}</td>
                                 <td className="py-2 text-right text-slate-600 dark:text-slate-400 tabular-nums">{s.count}회</td>
@@ -1430,7 +1458,11 @@ export default function QuantDesk() {
                       </div>
                     </Card>
                   </div>
+                  </>
+                  )}
 
+                  {btSubTab === "trades" && (
+                  <>
                   {/* 전체 거래내역 (필터 + 페이지네이션) */}
                   <div className="mb-6">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
@@ -1496,8 +1528,10 @@ export default function QuantDesk() {
                       </div>
                     )}
                   </div>
+                  </>
+                  )}
 
-                  {/* 알려진 한계 */}
+                  {/* 알려진 한계 — 어느 서브탭에서나 항상 보이도록 */}
                   {bt.known_limitations && bt.known_limitations.length > 0 && (
                     <Panel level="inset" padding="none" className="p-4">
                       <p className="text-[12px] font-medium text-slate-500 mb-2 flex items-center gap-1.5"><Info size={13} strokeWidth={1.75}/> 이 백테스트가 재현하지 못하는 부분 (알려진 한계)</p>
