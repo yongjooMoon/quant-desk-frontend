@@ -268,6 +268,7 @@ export default function QuantDesk() {
 
   const [isEntryOpen, setIsEntryOpen] = useState(true);
   const [isExitOpen, setIsExitOpen] = useState(true);
+  const [isOverlayOpen, setIsOverlayOpen] = useState(true);
 
   // 백테스팅 탭 — 거래내역 필터/페이지네이션 + Equity Curve 구간
   const [btSubTab, setBtSubTab] = useState("summary"); // 'summary' | 'detail' | 'trades' — 한눈에 안 들어오는 문제 해결용 서브탭
@@ -1574,7 +1575,7 @@ export default function QuantDesk() {
                                 { label: 'A', title: '성장성', sub: 'Growth Composite', desc: <>최근 실적 기준 매출액, 영업이익, 당기순이익의 YoY 성장률(%)을 종합 산출하여 기초 체력이 확실하게 검증된 흑자 성장 기업만 선별합니다.</> },
                                 { label: 'B', title: '방어력', sub: 'Dynamic MDD', desc: <>최근 60일 고점 대비 하락폭(MDD)을 추적합니다. 단순히 고정된 비율을 쓰지 않고, 종목별 변동성지표인 ATR(Average True Range)에 연동하여 한계 하락폭을 동적으로 계산해 맷집이 약한 종목을 차단합니다.</> },
                                 { label: 'C', title: '유동성', sub: 'Liquidity', desc: <>원활한 진입과 슬리피지(Slippage) 없는 청산을 위해 최근 20일 일평균 거래대금이 최소 50억 원 이상인 메이저 종목들 사이에서만 트레이딩을 수행합니다.</> },
-                                { label: 'D', title: '추세', sub: 'Trend Alignment', desc: <>현재가가 20일 이동평균선 위에, 20일선이 60일선 위에 위치한 완벽한 정배열 상승 기류 종목만 선별합니다. 동시에 ATR 기반의 동적 이격도 제한(15~50% 캡)을 적용해 이미 과열된 상투를 잡지 않습니다.</> },
+                                { label: 'D', title: '추세', sub: 'Trend Alignment (Minervini Template)', desc: <>미너비니 트렌드 템플릿 기준: 현재가가 50일선 &gt; 150일선 &gt; 200일선 순으로 완벽하게 정배열되어 있고, 200일선 자체가 1개월·3개월 전보다 더 높게(상승 추세로) 유지되고 있는 종목만 선별합니다. 동시에 52주 신고가 대비 25% 이내로 근접해 있으면서, 52주 신저가 대비는 30% 이상 벗어나 있어야 해 바닥권 눌림목이 아닌 진짜 주도주만 통과시킵니다.</> },
                                 { label: 'E', title: '가격 돌파', sub: 'Price Breakout', desc: <>최근 3개월(60일) 최고가의 90% 이상 매물대를 2일 연속 돌파한 종목을 포착합니다. 단, 60일 평균 대비 2배 이상의 대량 거래량이 동반될 경우 강력한 신호로 판단하여 1일 차라도 즉시 진입을 허용합니다.</> },
                                 { label: 'F', title: '수급', sub: 'Volume Surge', desc: <>가격 상승을 뒷받침하는 강력한 자금 유입을 검증합니다. 최근 5일 평균 거래량과 당일 거래량이 모두 60일 평균 대비 1.5배 이상 폭발한 모멘텀 주도주만 선별합니다.</> },
                               ].map((g) => (
@@ -1610,7 +1611,7 @@ export default function QuantDesk() {
                       {isExitOpen && (
                           <div className="grid grid-cols-1 gap-3">
                               {[
-                                { label: '1', title: '동적 손절', sub: 'Trailing Stop', desc: <>고정된 비율(-5% 등) 대신 종목별 일간 변동성(ATR) 수치에 연동된 손절선을 그립니다. 주가가 오르면 손절선도 추적하여 올라가며, +15% 이상 수익권 진입 시 방어선 추적 배수를 0.6배로 타이트하게 좁혀 실현 수익을 보호합니다.</> },
+                                { label: '1', title: '동적 손절', sub: 'Trailing Stop', desc: <>고정된 비율(-5% 등) 대신 종목별 일간 변동성(ATR) 수치에 연동된 손절선을 그리고, 주가가 오르면 손절선도 함께 추적하여 올라갑니다. 12년치 데이터로 검증한 결과 손절폭을 너무 타이트하게 좁히면(과거엔 수익 +15% 진입 시 추적 배수를 0.6배로 조였음) 오히려 승자를 조기 청산시켜 MDD를 키우는 역효과가 확인되어, 지금은 손절폭을 넉넉하게(최대 -37.5%까지) 열어두고 수익권에서도 더 이상 인위적으로 조이지 않습니다.</> },
                                 { label: '2', title: '추세 붕괴', sub: 'Trend Breakdown', desc: <>주가의 20일선 이탈, 단기 이평선 데드크로스(10일 &lt; 20일), 20일선 기울기 하락 전환이라는 3대 하락 징후를 감시합니다. 노이즈 방지를 위해 시장 국면에 따라 다수결(강세장 2개 충족, 약세장 1개 충족) 규칙을 적용하여 하락 엔진이 켜지기 전 신속히 청산합니다.</> },
                                 { label: '3', title: '모멘텀 소진', sub: 'Momentum Exhaust', desc: <>초과 수익 상단을 제한하는 '목표가 고정 익절'을 전면 폐지했습니다. 단, 수익권에서 최근 5일 거래량이 20일 평균의 80% 밑으로 급감하고 주가가 10일선을 하향 이탈하면 시장의 관심이 소멸한 것으로 판단하여 즉시 실현 익절합니다.</> },
                               ].map((g) => (
@@ -1626,6 +1627,36 @@ export default function QuantDesk() {
                                     </div>
                                 </Card>
                               ))}
+                          </div>
+                      )}
+                  </div>
+
+                  {/* 포트폴리오 오버레이 섹션 */}
+                  <div className="mt-10">
+                      <div
+                        className="flex items-center justify-between cursor-pointer group mb-5 px-1"
+                        onClick={() => setIsOverlayOpen(!isOverlayOpen)}
+                      >
+                          <div className="flex items-center gap-2.5">
+                              <Activity className="text-slate-400" size={19} strokeWidth={1.75} />
+                              <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white tracking-tight">지수 오버레이 (Index Overlay)</h3>
+                          </div>
+                          <ChevronDown className={`text-slate-400 transition-transform duration-200 ${isOverlayOpen ? 'rotate-180' : ''}`} size={18} />
+                      </div>
+
+                      {isOverlayOpen && (
+                          <div className="grid grid-cols-1 gap-3">
+                              <Card interactive padding="none" className="qd-gate-card p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
+                                  <div className="md:w-1/4 shrink-0 flex items-center gap-3">
+                                      <div className="w-9 h-9 rounded-md bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-[14px]">+</div>
+                                      <h4 className="font-medium text-[15px] text-slate-900 dark:text-white">유휴자본 시장 노출 <span className="text-[12px] text-slate-400 block font-normal">Idle Capital Overlay</span></h4>
+                                  </div>
+                                  <div className="md:w-3/4">
+                                      <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                                          개별종목 6대 관문을 통과하는 종목이 항상 10개가 채워지진 않아, 그날 아직 투입되지 않은 자본(유휴자본)이 남는 날이 많습니다. 시장 국면(레짐)이 뚜렷한 상승 추세(BULL)로 확인된 날에 한해서만, 이 유휴자본만큼을 코스피 지수 당일 수익률에 노출시킵니다. 개별종목 매수/매도 로직과는 완전히 분리된 별도 전략 층이며, 레짐이 BULL이 아니면 유휴자본은 그대로 현금으로 남습니다.
+                                      </p>
+                                  </div>
+                              </Card>
                           </div>
                       )}
                   </div>
