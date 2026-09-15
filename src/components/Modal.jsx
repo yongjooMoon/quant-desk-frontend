@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from './cn';
 
 // NewsDesk/QuantScreener/QuantDesk에 거의 동일하게 3번 중복돼 있던 모달 뼈대
@@ -42,7 +43,16 @@ export function Modal({
 
   if (!open) return null;
 
-  return (
+  // [2026-09-15] 실제 원인 확인: 모달이 QuantDesk의 .qd-fade-in 래퍼(탭 전환 애니메이션)
+  // 안에 그대로 렌더되고 있었는데, 이 클래스가 애니메이션 종료 후에도 transform:
+  // matrix(1,0,0,1,0,0)(항등행렬이라 시각적으로는 이동 없음)을 계속 갖고 있었음. CSS 스펙상
+  // transform이 none이 아니면(항등행렬이어도) 그 조상이 position:fixed 자손의 containing
+  // block이 되어버려서, "뷰포트 기준 고정"이어야 할 모달이 그 탭 콘텐츠 전체 높이(수천px,
+  // 스크롤 가능한 실제 페이지 길이) 기준으로 배치되고 있었음 — 그래서 모바일처럼 뷰포트가
+  // 작을수록 모달이 화면 훨씬 아래로 밀려나 잘려 보였던 것(vh 단위 문제가 아니었음).
+  // 모달을 document.body에 직접 포탈로 올려서 어떤 조상의 transform/overflow에도 영향
+  //안 받게 하는 게 표준적인 해결책 — 이후 비슷한 애니메이션 래퍼가 추가돼도 안전함.
+  return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-[2px] p-4"
       onMouseDown={closeOnBackdrop ? (e) => { if (e.target === e.currentTarget) onClose?.(); } : undefined}
@@ -50,19 +60,17 @@ export function Modal({
       <style>{MODAL_STYLES}</style>
       <div
         className={cn(
-          // [2026-09-15] Panel/Card가 보더 없는 그림자 스타일(12px 라운드)로 바뀌었는데
-          // Modal은 Panel을 안 쓰고 독자적으로 스타일을 갖고 있어서 그대로 남아있었음 —
-          // 같은 톤으로 맞춤(보더 제거, rounded-lg->xl).
           'ui-modal-panel bg-white dark:bg-panel-elevated w-full rounded-xl',
           'shadow-[0_24px_60px_-16px_rgba(0,0,0,0.45)] dark:shadow-[0_32px_70px_-16px_rgba(0,0,0,0.75)]',
-          'max-h-[92vh] flex flex-col overflow-hidden',
+          'max-h-[92dvh] flex flex-col overflow-hidden',
           SIZE_CLASSES[size],
           className
         )}
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
