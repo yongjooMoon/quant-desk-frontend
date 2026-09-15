@@ -839,6 +839,43 @@ export default function QuantDesk() {
           {activeTab === "Portfolio" && (
             <div className="qd-fade-in w-full">
 
+                {/* 보유종목 실제 데이터로만 계산한 요약 지표 — 계좌 총자산/현금 등
+                    프론트가 못 받는 값은 만들어내지 않고, 보유종목 현재가*수량 합계만 표시 */}
+                {holdings.length > 0 && (() => {
+                  const totalValue = holdings.reduce((s, h) => s + (h.current_price || 0) * (h.quantity || 0), 0);
+                  const totalCost = holdings.reduce((s, h) => s + (h.entry_price || 0) * (h.quantity || 0), 0);
+                  const totalPnl = totalValue - totalCost;
+                  const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 w-full">
+                      <Card padding="none" className="p-4 md:p-5 flex flex-col justify-center col-span-2 md:col-span-1">
+                        <Metric size="lg" label="보유종목 평가금액" value={`₩${Math.round(totalValue).toLocaleString()}`} />
+                      </Card>
+                      <Card padding="none" className="p-4 md:p-5 flex flex-col justify-center">
+                        <Metric
+                          size="md"
+                          label="평가손익"
+                          tone={totalPnl > 0 ? 'positive' : totalPnl < 0 ? 'negative' : 'default'}
+                          value={`${totalPnl > 0 ? '+' : ''}₩${Math.round(totalPnl).toLocaleString()}`}
+                          sub={`${totalPnlPct > 0 ? '+' : ''}${totalPnlPct.toFixed(2)}%`}
+                        />
+                      </Card>
+                      <Card padding="none" className="p-4 md:p-5 flex flex-col justify-center">
+                        <Metric size="md" label="보유 종목수" value={`${holdings.length}개`} />
+                      </Card>
+                      <Card padding="none" className="p-4 md:p-5 flex flex-col justify-center">
+                        <Metric
+                          size="md"
+                          label="KOSPI 대비 Alpha"
+                          tone={lastChartData.alpha >= 0 ? 'positive' : 'negative'}
+                          value={`${lastChartData.alpha > 0 ? '+' : ''}${lastChartData.alpha.toFixed(2)}%`}
+                          sub="매도 완료 기준 누적"
+                        />
+                      </Card>
+                    </div>
+                  );
+                })()}
+
                 {/* 세그먼트 2 클릭 시 팝업 대신 "백테스팅" 탭으로 이동.
                     레짐 정보는 12y 데이터에 없어 배지는 신뢰도만 표시. */}
                 {(indices.kospi || btTrackRecord) && (
