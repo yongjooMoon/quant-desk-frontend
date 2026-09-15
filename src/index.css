@@ -23,6 +23,13 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* 애플/구글류 "매끄럽게 둥근" 인상 — 모서리를 초타원(squircle)으로.
+   네이티브 CSS 프로퍼티라 크롬 계열(전세계 약 65%)에서만 적용되고, 미지원
+   브라우저(사파리/파이어폭스)는 기존 border-radius로 그대로 폴백되어 위험 없음. */
+[class*="rounded"] {
+  corner-shape: squircle;
+}
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;
