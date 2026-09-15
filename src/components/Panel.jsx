@@ -17,9 +17,19 @@ const LEVEL_CLASSES = {
 
 const BORDER_CLASSES = {
   surface: 'border-slate-200 dark:border-slate-800',
-  panel: 'border-slate-200 dark:border-slate-800',
+  panel: 'border-slate-200/70 dark:border-slate-800/70',
   inset: 'border-slate-200 dark:border-slate-800',
-  elevated: 'border-slate-200 dark:border-slate-700/60',
+  elevated: 'border-slate-200/70 dark:border-slate-700/50',
+};
+
+// panel/elevated는 "떠 있는" 표면이라 은은한 다층 그림자로 깊이감을 보탠다(테두리는
+// 그대로 두고 옅게만 조정 — 테두리를 완전히 없애면 배경 대비가 약한 라이트모드에서
+// 카드 경계가 안 보이는 회귀 위험이 있어 보수적으로 병행).
+const SHADOW_CLASSES = {
+  surface: '',
+  panel: 'shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_20px_-12px_rgba(15,23,42,0.10)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_12px_28px_-14px_rgba(0,0,0,0.45)]',
+  inset: '',
+  elevated: 'shadow-[0_1px_2px_rgba(15,23,42,0.04),0_16px_36px_-16px_rgba(15,23,42,0.14)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.25),0_20px_44px_-16px_rgba(0,0,0,0.55)]',
 };
 
 const RADIUS_CLASSES = {
@@ -56,6 +66,7 @@ export function Panel({
         LEVEL_CLASSES[level],
         bordered && 'border',
         bordered && BORDER_CLASSES[level],
+        SHADOW_CLASSES[level],
         RADIUS_CLASSES[radius],
         PADDING_CLASSES[padding],
         interactive &&
@@ -76,6 +87,7 @@ export function Panel({
  */
 export function Card({
   padding = 'md',
+  radius = 'lg',
   interactive = false,
   className,
   children,
@@ -85,6 +97,7 @@ export function Card({
     <Panel
       level="panel"
       padding={padding}
+      radius={radius}
       interactive={interactive}
       className={cn(
         interactive &&
