@@ -17,25 +17,28 @@ const LEVEL_CLASSES = {
 
 const BORDER_CLASSES = {
   surface: 'border-slate-200 dark:border-slate-800',
-  panel: 'border-slate-200/70 dark:border-slate-800/70',
+  // [2026-09-15 2차] 1차(보더 투명도만 살짝 낮춤 + 그림자 약하게)는 눈에 안 띈다는
+  // 피드백 — panel/elevated는 평상시 보더를 투명 처리하고 그림자만으로 띄운다(흰 카드
+  // vs slate-50 페이지 배경, 다크 패널 vs 더 어두운 배경 둘 다 보더 없이도 구분 가능한
+  // 대비라 안전하게 제거 가능함을 스크린샷으로 확인). border 너비 클래스 자체는 유지해서
+  // interactive hover 시(아래 hover:border-*) 레이아웃 흔들림 없이 보더 색만 나타난다.
+  panel: 'border-transparent',
   inset: 'border-slate-200 dark:border-slate-800',
-  elevated: 'border-slate-200/70 dark:border-slate-700/50',
+  elevated: 'border-transparent',
 };
 
-// panel/elevated는 "떠 있는" 표면이라 은은한 다층 그림자로 깊이감을 보탠다(테두리는
-// 그대로 두고 옅게만 조정 — 테두리를 완전히 없애면 배경 대비가 약한 라이트모드에서
-// 카드 경계가 안 보이는 회귀 위험이 있어 보수적으로 병행).
 const SHADOW_CLASSES = {
   surface: '',
-  panel: 'shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_20px_-12px_rgba(15,23,42,0.10)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_12px_28px_-14px_rgba(0,0,0,0.45)]',
+  panel: 'shadow-[0_2px_4px_rgba(15,23,42,0.06),0_16px_32px_-12px_rgba(15,23,42,0.18)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3),0_20px_40px_-12px_rgba(0,0,0,0.65)]',
   inset: '',
-  elevated: 'shadow-[0_1px_2px_rgba(15,23,42,0.04),0_16px_36px_-16px_rgba(15,23,42,0.14)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.25),0_20px_44px_-16px_rgba(0,0,0,0.55)]',
+  elevated: 'shadow-[0_4px_8px_rgba(15,23,42,0.08),0_28px_56px_-16px_rgba(15,23,42,0.24)] dark:shadow-[0_4px_8px_rgba(0,0,0,0.35),0_32px_64px_-16px_rgba(0,0,0,0.75)]',
 };
 
 const RADIUS_CLASSES = {
   none: '',
   md: 'rounded-md',
   lg: 'rounded-lg',
+  xl: 'rounded-xl',
 };
 
 const PADDING_CLASSES = {
@@ -87,7 +90,7 @@ export function Panel({
  */
 export function Card({
   padding = 'md',
-  radius = 'lg',
+  radius = 'xl',
   interactive = false,
   className,
   children,
