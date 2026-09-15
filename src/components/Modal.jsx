@@ -50,7 +50,10 @@ export function Modal({
       <style>{MODAL_STYLES}</style>
       <div
         className={cn(
-          'ui-modal-panel bg-white dark:bg-panel-elevated border border-slate-200 dark:border-slate-700/60 w-full rounded-lg',
+          // [2026-09-15] Panel/Card가 보더 없는 그림자 스타일(12px 라운드)로 바뀌었는데
+          // Modal은 Panel을 안 쓰고 독자적으로 스타일을 갖고 있어서 그대로 남아있었음 —
+          // 같은 톤으로 맞춤(보더 제거, rounded-lg->xl).
+          'ui-modal-panel bg-white dark:bg-panel-elevated w-full rounded-xl',
           'shadow-[0_24px_60px_-16px_rgba(0,0,0,0.45)] dark:shadow-[0_32px_70px_-16px_rgba(0,0,0,0.75)]',
           'max-h-[92vh] flex flex-col overflow-hidden',
           SIZE_CLASSES[size],
