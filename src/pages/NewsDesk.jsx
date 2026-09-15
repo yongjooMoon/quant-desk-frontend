@@ -85,6 +85,10 @@ export default function NewsDesk() {
   // 히어로 레일("오늘 주요뉴스")은 별도 전용 조회 — 세로 피드가 아직 오늘자까지
   // 다 안 당겨왔어도 항상 정확해야 하므로 서버의 major_only=true로 직접 받는다.
   const [heroNews, setHeroNews] = useState([]);
+  // 히어로 밴드의 "금일 수집" 통계 — 세로 피드가 지금까지 스크롤로 당겨온 개수(news.length)는
+  // 오늘 날짜로 스코프된 값이 아니라서 실제 수치와 다를 수 있었다. 서버에 today_only=true로
+  // 직접 물어 정확한 오늘자 전체 수집 건수를 받는다.
+  const [todayCount, setTodayCount] = useState(0);
 
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -162,13 +166,17 @@ export default function NewsDesk() {
     Promise.allSettled([
       callApi(`/api/news?offset=0&limit=${LIST_PAGE_SIZE}`),
       callApi("/api/news?major_only=true"),
-    ]).then(([feedResult, heroResult]) => {
+      callApi("/api/news?today_only=true"),
+    ]).then(([feedResult, heroResult, todayResult]) => {
       if (feedResult.status === "fulfilled" && feedResult.value.status === "success") {
         setNews(feedResult.value.data);
         setFeedHasMore(Boolean(feedResult.value.has_more));
       }
       if (heroResult.status === "fulfilled" && heroResult.value.status === "success") {
         setHeroNews(heroResult.value.data);
+      }
+      if (todayResult.status === "fulfilled" && todayResult.value.status === "success") {
+        setTodayCount(todayResult.value.total || 0);
       }
       setLoading(false);
     });
@@ -413,7 +421,7 @@ export default function NewsDesk() {
             오늘의 마켓 브리핑
           </h1>
           <p className="mt-2 text-slate-300 text-[12.5px] md:text-[14px]">
-            주요뉴스 {heroNews.length}건 · 누적 수집 {news.length}건
+            주요뉴스 {heroNews.length}건 · 금일 수집 {todayCount}건
           </p>
         </div>
       </div>
