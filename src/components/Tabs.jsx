@@ -39,7 +39,7 @@ export function Tabs({ items, value, onChange, variant = 'sliding', className, g
             className={cn(
               'pb-2.5 px-0.5 text-[13.5px] font-medium transition-colors cursor-pointer border-b-2 -mb-px',
               value === item.key
-                ? 'text-slate-900 dark:text-slate-100 border-slate-900 dark:border-slate-100'
+                ? 'text-slate-900 dark:text-slate-100 border-brand'
                 : 'text-slate-500 dark:text-slate-500 border-transparent hover:text-slate-700 dark:hover:text-slate-300'
             )}
           >
@@ -68,7 +68,7 @@ export function Tabs({ items, value, onChange, variant = 'sliding', className, g
         </button>
       ))}
       <div
-        className="absolute bottom-0 h-[2px] bg-slate-900 dark:bg-slate-100 transition-all duration-200 ease-out pointer-events-none"
+        className="absolute bottom-0 h-[2px] bg-brand transition-all duration-200 ease-out pointer-events-none"
         style={{ left: underline.left, width: underline.width }}
       />
     </div>

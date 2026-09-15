@@ -141,7 +141,7 @@ function App() {
               >
                 {({ isActive }) => (
                   <>
-                    {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-full bg-slate-900 dark:bg-slate-100" />}
+                    {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-full bg-brand" />}
                     <item.icon size={18} strokeWidth={isActive ? 2.25 : 1.75} className="shrink-0 transition-transform duration-200 group-hover:scale-110" />
 
                     {/* 펼쳤을 때 라벨 */}
