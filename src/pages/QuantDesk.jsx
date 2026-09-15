@@ -1075,6 +1075,27 @@ export default function QuantDesk() {
           {/* ===================== WATCHLIST TAB ===================== */}
           {activeTab === "Watchlist" && (
               <div className="qd-fade-in w-full">
+                {filWatchlist.length > 0 && (() => {
+                  const readyCount = filWatchlist.filter(c => c.total_pass === 6).length;
+                  const avgPass = filWatchlist.reduce((s, c) => s + (c.total_pass || 0), 0) / filWatchlist.length;
+                  const topScore = Math.max(...filWatchlist.map(c => c.factor_score || 0));
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 w-full">
+                      <Card padding="none" className="p-4 md:p-5 flex flex-col justify-center">
+                        <Metric size="md" label="관심종목 수" value={`${filWatchlist.length}개`} />
+                      </Card>
+                      <Card padding="none" className="p-4 md:p-5 flex flex-col justify-center">
+                        <Metric size="md" label="진입대상 (6/6 통과)" tone={readyCount > 0 ? 'positive' : 'default'} value={`${readyCount}개`} />
+                      </Card>
+                      <Card padding="none" className="p-4 md:p-5 flex flex-col justify-center">
+                        <Metric size="md" label="평균 통과 게이트" value={`${avgPass.toFixed(1)} / 6`} />
+                      </Card>
+                      <Card padding="none" className="p-4 md:p-5 flex flex-col justify-center">
+                        <Metric size="md" label="최고 랭킹점수" value={`${topScore.toFixed(2)}점`} />
+                      </Card>
+                    </div>
+                  );
+                })()}
                 <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-md overflow-hidden mb-10">
                     <div className="w-full">
                         <div className="hidden md:flex px-4 md:px-5 py-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
