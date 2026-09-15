@@ -1,10 +1,17 @@
 /* 🌟 반드시 폰트 url()이 tailwindcss보다 위에 있어야 에러가 나지 않습니다! */
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap');
+/* [2026-09-16] 대대적 리디자인: Nunito(범용 블로그 톤) → Manrope(둥글고 절제된
+   그로테스크, 애플/구글류 소프트 인상) + IBM Plex Mono(실제 트레이딩 터미널
+   계열에서 쓰는 monospace, 숫자 정렬용) 자체 호스팅으로 교체. */
+@import '@fontsource-variable/manrope';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Nunito', 'Pretendard', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Manrope Variable', 'Pretendard', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
 
   /* Depth 계층 토큰 (Background -> Surface -> Panel -> Elevated) */
   --color-surface: var(--surface);
@@ -19,6 +26,12 @@
   /* 통과/신뢰 의미(초록) — positive(가격 상승)와는 별개 축. 기존 페이지들이
      JS 상수 GOOD='#059669'로 다크모드 대응 없이 하드코딩해오던 색을 토큰화. */
   --color-success: var(--success);
+
+  /* [2026-09-16] 브랜드 accent — 상승(빨강)/하락(파랑) 의미 축과 충돌하지 않도록
+     둘 다에서 먼 톤(금색 계열)으로 선택. 포커스 링/active 탭/주요 버튼/3D 히어로 등
+     "의미"가 아니라 "브랜드"를 나타내는 자리에만 쓴다. */
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -50,10 +63,12 @@
   --warning: #D97706;
   --neutral: #64748B;
   --success: #059669;
+  --brand: #A66F1E;
+  --brand-soft: rgba(166, 111, 30, 0.10);
 
-  --sans: 'Nunito', 'Pretendard', system-ui, sans-serif;
-  --heading: 'Nunito', 'Pretendard', system-ui, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --sans: 'Manrope Variable', 'Pretendard', system-ui, sans-serif;
+  --heading: 'Manrope Variable', 'Pretendard', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
 
   letter-spacing: 0.18px;
   color-scheme: light dark;
@@ -101,6 +116,8 @@
   --warning: #FBBF24;
   --neutral: #94A3B8;
   --success: #34D399;
+  --brand: #E3A24A;
+  --brand-soft: rgba(227, 162, 74, 0.14);
 }
 
 /* 레거시 다크모드 호환 레이어 (임시, Phase 3+ 페이지별 마이그레이션 시 제거 예정)
