@@ -249,6 +249,9 @@ const EMPTY_QUANT_DATA = { holdings: [], trades: [], history: [], confirmed: [],
 
 export default function QuantDesk() {
   const [activeTab, setActiveTab] = useState("Macro");
+  // Watchlist 탭을 없애고 Portfolio 탭 옆 패널로 흡수하면서 생긴 페이징 상태
+  // (5개씩, 옆으로 넘겨보는 용도 — 탭 전체를 스크롤하던 예전 방식 대체)
+  const [watchPage, setWatchPage] = useState(0);
   const [data, setData] = useState(EMPTY_QUANT_DATA);
   const [kospiData, setKospiData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -816,7 +819,6 @@ export default function QuantDesk() {
           { key: "Macro", label: "Macro" },
           { key: "Backtest", label: "BackTesting" },
           { key: "Portfolio", label: `Portfolio (${holdings.length})` },
-          { key: "Watchlist", label: `Watchlist (${filWatchlist.length})` },
           { key: "Screener", label: "Screener" },
           { key: "History", label: "History" },
           { key: "Whitepaper", label: "Explain" },
@@ -952,8 +954,12 @@ export default function QuantDesk() {
                   </div>
                 )}
 
-                <div className={`w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-md overflow-hidden mb-10`}>
-                    <div className="w-full">
+                {/* [2026-09-16] Watchlist 탭 제거, 이 옆자리로 흡수 — 보유종목이 비어도
+                    grid 기본 align-items(stretch) 덕에 오른쪽 관심종목 패널과 같은 높이로
+                    늘어나서 레이아웃이 빈 것처럼 보이지 않는다. */}
+                <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr] gap-4 mb-10 items-stretch">
+                  <div className={`w-full h-full flex flex-col bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-md overflow-hidden`}>
+                    <div className="w-full flex-1 flex flex-col">
                         <div className="hidden md:flex px-4 md:px-5 py-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent w-full">
                             <div className="w-[18%] text-[12.5px] font-medium text-slate-500">종목명</div>
                             <div className="w-[12%] text-[12.5px] font-medium text-slate-500 text-right">진입가</div>
@@ -965,7 +971,7 @@ export default function QuantDesk() {
                         </div>
 
                         {holdings.length === 0 ? (
-                            <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-[13.5px]">현재 보유 중인 종목이 없습니다.</div>
+                            <div className="flex-1 flex items-center justify-center text-center text-slate-500 dark:text-slate-400 text-[13.5px] p-8">현재 보유 중인 종목이 없습니다.</div>
                         ) : holdings.map((h, i) => {
                             const ret = h.return_rate || 0.0;
                             const pnlColor = ret > 0 ? POS : (ret < 0 ? NEG : NEUTRAL);
@@ -1014,6 +1020,60 @@ export default function QuantDesk() {
                             );
                         })}
                     </div>
+                  </div>
+
+                  {/* 관심종목 — 예전 Watchlist 탭 전체를 여기로 흡수. 5개씩 페이징,
+                      글자를 작게 해서 종목명/현재가/게이트/점수가 잘리지 않게 하고,
+                      행 전체를 클릭하면 기존 Watchlist와 동일한 리포트 모달이 뜬다. */}
+                  {(() => {
+                    const WATCH_PAGE_SIZE = 5;
+                    const pageCount = Math.max(1, Math.ceil(filWatchlist.length / WATCH_PAGE_SIZE));
+                    const page = Math.min(watchPage, pageCount - 1);
+                    const pageItems = filWatchlist.slice(page * WATCH_PAGE_SIZE, page * WATCH_PAGE_SIZE + WATCH_PAGE_SIZE);
+                    return (
+                      <Card padding="none" className="w-full h-full flex flex-col">
+                        <div className="flex items-baseline justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800/80">
+                          <h3 className="text-[13.5px] font-bold text-slate-900 dark:text-white">관심종목</h3>
+                          <span className="text-[11px] text-slate-400">{filWatchlist.length}개 · 게이트 진행</span>
+                        </div>
+                        <div className="flex-1 flex flex-col">
+                          {pageItems.length === 0 ? (
+                            <div className="flex-1 flex items-center justify-center text-center text-slate-500 dark:text-slate-400 text-[12.5px] p-6">종목이 없습니다.</div>
+                          ) : pageItems.map((c, i) => (
+                            <button
+                              key={page * WATCH_PAGE_SIZE + i}
+                              onClick={() => handleStockClick(c.symbol, c)}
+                              className={`flex items-center gap-2 px-4 py-2 border-t border-slate-100 dark:border-slate-800/80 first:border-t-0 text-left w-full cursor-pointer ${rowHoverCls}`}
+                            >
+                              <span className="w-4 text-[10px] text-slate-400 font-mono shrink-0">{page * WATCH_PAGE_SIZE + i + 1}</span>
+                              <span className="text-[11.5px] font-semibold text-slate-900 dark:text-white flex-1 min-w-0 truncate">{c.name}</span>
+                              <span className="text-[10.5px] text-slate-500 dark:text-slate-400 tabular-nums shrink-0">₩{Math.round(c.current_price || 0).toLocaleString()}</span>
+                              <span className={`text-[10.5px] tabular-nums shrink-0 w-[64px] text-right ${c.total_pass === 6 ? 'text-brand font-bold' : 'text-slate-500 dark:text-slate-400'}`}>
+                                {c.total_pass}/6 · {(c.factor_score || 0).toFixed(1)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-100 dark:border-slate-800/80">
+                          <button
+                            onClick={() => setWatchPage(p => Math.max(0, p - 1))}
+                            disabled={page === 0}
+                            className="w-6 h-6 rounded-md border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 disabled:opacity-30 cursor-pointer disabled:cursor-default flex items-center justify-center"
+                          >‹</button>
+                          <div className="flex gap-1">
+                            {Array.from({ length: pageCount }).map((_, i) => (
+                              <span key={i} className={`h-[5px] rounded-full transition-all ${i === page ? 'w-3.5 bg-brand' : 'w-[5px] bg-slate-300 dark:bg-slate-700'}`} />
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => setWatchPage(p => Math.min(pageCount - 1, p + 1))}
+                            disabled={page === pageCount - 1}
+                            className="w-6 h-6 rounded-md border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 disabled:opacity-30 cursor-pointer disabled:cursor-default flex items-center justify-center"
+                          >›</button>
+                        </div>
+                      </Card>
+                    );
+                  })()}
                 </div>
 
                 <h2 className="text-[16px] font-semibold text-slate-900 dark:text-white mb-1.5 tracking-tight">KOSPI 대비 포트폴리오 성과 (Alpha)</h2>
@@ -1070,75 +1130,6 @@ export default function QuantDesk() {
                     </div>
                 </Card>
             </div>
-          )}
-
-          {/* ===================== WATCHLIST TAB ===================== */}
-          {activeTab === "Watchlist" && (
-              <div className="qd-fade-in w-full">
-                {filWatchlist.length > 0 && (() => {
-                  const readyCount = filWatchlist.filter(c => c.total_pass === 6).length;
-                  const avgPass = filWatchlist.reduce((s, c) => s + (c.total_pass || 0), 0) / filWatchlist.length;
-                  const topScore = Math.max(...filWatchlist.map(c => c.factor_score || 0));
-                  return (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 w-full">
-                      <Card padding="none" className="p-4 md:p-5 flex flex-col justify-center">
-                        <Metric size="md" label="관심종목 수" value={`${filWatchlist.length}개`} />
-                      </Card>
-                      <Card padding="none" className="p-4 md:p-5 flex flex-col justify-center">
-                        <Metric size="md" label="진입대상 (6/6 통과)" tone={readyCount > 0 ? 'positive' : 'default'} value={`${readyCount}개`} />
-                      </Card>
-                      <Card padding="none" className="p-4 md:p-5 flex flex-col justify-center">
-                        <Metric size="md" label="평균 통과 게이트" value={`${avgPass.toFixed(1)} / 6`} />
-                      </Card>
-                      <Card padding="none" className="p-4 md:p-5 flex flex-col justify-center">
-                        <Metric size="md" label="최고 랭킹점수" value={`${topScore.toFixed(2)}점`} />
-                      </Card>
-                    </div>
-                  );
-                })()}
-                <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-md overflow-hidden mb-10">
-                    <div className="w-full">
-                        <div className="hidden md:flex px-4 md:px-5 py-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
-                            <div className="w-[10%] text-[12.5px] font-medium text-slate-500 text-center">순위</div>
-                            <div className="w-[30%] text-[12.5px] font-medium text-slate-500">종목명</div>
-                            <div className="w-[20%] text-[12.5px] font-medium text-slate-500 text-right">현재가</div>
-                            <div className="w-[15%] text-[12.5px] font-medium text-slate-500 text-center">통과</div>
-                            <div className="w-[15%] text-[12.5px] font-medium text-slate-500 text-center">랭킹점수</div>
-                            <div className="w-[10%] text-[12.5px] font-medium text-slate-500 text-center">액션</div>
-                        </div>
-
-                        {filWatchlist.length === 0 ? <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-[13.5px]">종목이 없습니다.</div> : filWatchlist.map((c, idx) => {
-                          return (
-                            <div
-                                key={idx}
-                                className={`flex flex-col md:flex-row md:items-center px-4 md:px-5 py-3.5 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-md md:rounded-none mb-2.5 md:mb-0 ${rowHoverCls} w-full gap-3 md:gap-0`}>
-                                <div className="flex justify-between items-center w-full md:w-[40%] pr-0 md:pr-4">
-                                    <div className="flex items-center gap-3 w-full">
-                                        <span className="text-[11.5px] font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 rounded px-2 py-0.5 md:bg-transparent md:px-0 md:py-0 w-auto md:w-[25%] text-center">{idx+1}</span>
-                                        <span className="text-[15px] font-medium text-slate-900 dark:text-white truncate md:w-[75%]">{c.name}</span>
-                                    </div>
-                                    <div className="md:hidden text-[14.5px] font-semibold text-slate-900 dark:text-white tabular-nums shrink-0">₩{Math.round(c.current_price || 0).toLocaleString()}</div>
-                                </div>
-                                <div className="hidden md:block w-[20%] text-[14.5px] font-medium text-slate-900 dark:text-white text-right tabular-nums">₩{Math.round(c.current_price || 0).toLocaleString()}</div>
-                                <div className="flex justify-between items-center w-full md:w-[30%]">
-                                    <div className="flex flex-col md:flex-row md:w-1/2 md:justify-center text-left md:text-center">
-                                        <span className="text-[10.5px] font-medium text-slate-400 md:hidden mb-0.5">통과 관문</span>
-                                        <span className="text-[13.5px] font-medium text-slate-600 dark:text-slate-400">{c.total_pass}/6</span>
-                                    </div>
-                                    <div className="flex flex-col md:flex-row md:w-1/2 md:justify-center text-right md:text-center">
-                                        <span className="text-[10.5px] font-medium text-slate-400 md:hidden mb-0.5">랭킹 점수</span>
-                                        <span className="text-[14px] font-medium text-slate-500 dark:text-slate-400">{(c.factor_score || 0).toFixed(2)}점</span>
-                                    </div>
-                                </div>
-                                <div className="w-full md:w-[10%] flex justify-end md:justify-center mt-2 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 px-2">
-                                    <button onClick={() => handleStockClick(c.symbol, c)} className="inline-flex items-center gap-1 px-3 md:px-2.5 py-1.5 md:w-full justify-center bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[12.5px] font-medium rounded border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"><BarChart3 size={13} strokeWidth={1.75}/> 리포트</button>
-                                </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                </div>
-              </div>
           )}
 
           {/* ===================== SCREENER TAB ===================== */}
