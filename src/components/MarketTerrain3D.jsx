@@ -10,13 +10,39 @@ import * as THREE from 'three';
 const COLS = 26;
 const ROWS = 11;
 const SPACING = 0.34;
-const BASE_HEX = '#1a2030';
-const PEAK_HEX = '#E3A24A';
 
-function Terrain() {
+// [2026-09-17] 라이트모드에서 3D 색이 안 바뀌던 버그 수정: 이전엔 다크 전용 hex를
+// 상수로 고정해뒀었다 — 히어로 밴드 자체가 테마와 무관하게 항상 어둡게 고정이었으니
+// 그때는 문제가 안 됐지만, 밴드를 테마 반응형으로 바꾸면서 3D도 같이 반응해야 한다.
+// fog 색은 이 히어로 밴드의 실제 배경색과 반드시 같아야 경계가 자연스럽게 섞인다
+// (NewsDesk.jsx가 이 두 값을 그대로 import해서 배경색으로 쓴다 — 값 어긋나면 3D
+// 가장자리에 색 경계선이 보이는 원인이 되므로 한 곳에서만 정의).
+export const HERO_BG_DARK = '#0a0d13';
+export const HERO_BG_LIGHT = '#F1ECE0';
+
+const THEME_COLORS = {
+  dark: { base: '#1a2030', peak: '#E3A24A', fog: HERO_BG_DARK },
+  light: { base: '#D8D0BE', peak: '#A66F1E', fog: HERO_BG_LIGHT },
+};
+
+function useIsDark() {
+  const [isDark, setIsDark] = useState(
+    () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  );
+  useEffect(() => {
+    const root = document.documentElement;
+    const obs = new MutationObserver(() => setIsDark(root.classList.contains('dark')));
+    obs.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
+  return isDark;
+}
+
+function Terrain({ isDark }) {
   const ref = useRef();
-  const baseColor = useMemo(() => new THREE.Color(BASE_HEX), []);
-  const peakColor = useMemo(() => new THREE.Color(PEAK_HEX), []);
+  const colors = isDark ? THEME_COLORS.dark : THEME_COLORS.light;
+  const baseColor = useMemo(() => new THREE.Color(colors.base), [colors.base]);
+  const peakColor = useMemo(() => new THREE.Color(colors.peak), [colors.peak]);
   const tmpColor = useMemo(() => new THREE.Color(), []);
 
   const positions = useMemo(() => {
@@ -51,7 +77,7 @@ function Terrain() {
       <boxGeometry args={[0.22, 1, 0.22]} />
       <meshStandardMaterial roughness={0.5} metalness={0.15} />
       {positions.map((p, i) => (
-        <Instance key={i} position={[p.px, 0, p.pz]} color={BASE_HEX} />
+        <Instance key={i} position={[p.px, 0, p.pz]} color={colors.base} />
       ))}
     </Instances>
   );
@@ -85,8 +111,11 @@ function useIsDesktop() {
 export function MarketTerrain3D({ className = '' }) {
   const isDesktop = useIsDesktop();
   const reducedMotion = useReducedMotion();
+  const isDark = useIsDark();
 
   if (!isDesktop) return null;
+
+  const fogColor = isDark ? THEME_COLORS.dark.fog : THEME_COLORS.light.fog;
 
   return (
     <div className={className} aria-hidden="true">
@@ -96,10 +125,10 @@ export function MarketTerrain3D({ className = '' }) {
         gl={{ antialias: true, alpha: true }}
         frameloop={reducedMotion ? 'demand' : 'always'}
       >
-        <fog attach="fog" args={['#0a0d13', 6, 13]} />
-        <ambientLight intensity={0.55} />
+        <fog attach="fog" args={[fogColor, 6, 13]} />
+        <ambientLight intensity={isDark ? 0.55 : 0.85} />
         <directionalLight position={[3, 5, 2]} intensity={1.1} color="#fff3e0" />
-        <Terrain />
+        <Terrain isDark={isDark} />
       </Canvas>
     </div>
   );

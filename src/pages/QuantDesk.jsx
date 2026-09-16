@@ -247,6 +247,31 @@ function writeQuantMacroCache(payload) {
 
 const EMPTY_QUANT_DATA = { holdings: [], trades: [], history: [], confirmed: [], watchlist: [], backtest: null, macro: [], screener: [], backtest12y: null };
 
+// [2026-09-17] 실측 원인 확인: 5개 요청이 콜드스타트 직후 동시에 나가면 Render가
+// 완전히 깨어나기 전까지(직접 확인한 실측으로 최대 15~30초) 일부 요청만 503을
+// 받는 시점이 있다 — /api/macro만 유독 안 되는 게 아니라 그 순간에 걸린 요청이면
+// 뭐든 실패할 수 있다(quant-dashboard/screener/backtest12y도 동일 위험). 실패한
+// 항목을 직전 캐시도 없이 빈 값([])으로 확정해서 그대로 캐시에 저장해버리면
+// "조회는 됐다는 듯이" 다음날 15:10까지 그 빈 상태가 굳어버린다(매크로 탭에서
+// "매크로 없음"을 계속 보게 된 원인). 재조회는 최대 2회, 콜드스타트 대기시간에
+// 맞춰 점점 늘어나는 간격(2s → 4s)으로 — 첫 요청 실패가 "서버가 아직 깨어나는 중"
+// 상황일 가능성이 커서 곧바로 재시도해봐야 의미가 없기 때문.
+async function callApiWithRetry(callApi, endpoint, retries = 2, baseDelayMs = 2000) {
+  for (let attempt = 0; ; attempt++) {
+    let res = null;
+    try {
+      res = await callApi(endpoint);
+      if (res && res.status === "success") return res;
+    } catch (e) {
+      if (attempt >= retries) throw e;
+    }
+    if (attempt >= retries) return res;
+    const delay = baseDelayMs * Math.pow(2, attempt);
+    console.warn(`[재조회] ${endpoint} 실패 (${attempt + 1}/${retries + 1}차 시도) — ${delay}ms 후 재시도`);
+    await new Promise(r => setTimeout(r, delay));
+  }
+}
+
 export default function QuantDesk() {
   const [activeTab, setActiveTab] = useState("Macro");
   // Watchlist 탭을 없애고 Portfolio 탭 옆 패널로 흡수하면서 생긴 페이징 상태
@@ -377,12 +402,14 @@ export default function QuantDesk() {
     }
 
     // /api/backtesting/result(250일치) 대신 /api/backtesting/12y-result(12년치)를 호출
+    // 5개 전부 실패 시 최대 2회 추가 재조회(callApiWithRetry) — 콜드스타트 직후 일시적으로
+    // 몇 개만 실패하는 경우를 자체 복구한다.
     Promise.allSettled([
-      callApi("/api/quant-dashboard"),
-      callApi("/api/search/KS11"),
-      callApi("/api/macro"),
-      callApi("/api/screener"),
-      callApi("/api/backtesting/12y-result"),
+      callApiWithRetry(callApi, "/api/quant-dashboard"),
+      callApiWithRetry(callApi, "/api/search/KS11"),
+      callApiWithRetry(callApi, "/api/macro"),
+      callApiWithRetry(callApi, "/api/screener"),
+      callApiWithRetry(callApi, "/api/backtesting/12y-result"),
     ])
     .then((results) => {
       const quantResult = results[0].status === 'fulfilled' ? results[0].value : null;
@@ -391,23 +418,38 @@ export default function QuantDesk() {
       const screenerResult = results[3].status === 'fulfilled' ? results[3].value : null;
       const backtest12yResult = results[4].status === 'fulfilled' ? results[4].value : null;
 
-      // macro/screener/backtest12y 중 하나만 일시적으로 실패해도 캐시에 빈 값으로
+      // macro/screener/backtest12y 중 하나만 재조회까지 다 실패해도 캐시에 빈 값으로
       // 저장되면 다음 방문 때도 재시도 없이 그 빈 값을 계속 재사용하게 된다
-      // (최대 다음날 15:10까지). 실패한 항목은 [] 로 덮어쓰지 말고 직전 캐시 값을 유지한다.
+      // (최대 다음날 15:10까지). 실패한 항목은 [] 로 덮어쓰지 말고 직전 캐시 값을 유지하고,
+      // 이번에도 직전 캐시도 없어서 진짜로 못 채운 필드가 있으면 아예 캐시 저장 자체를
+      // 건너뛴다(healthy 플래그) — 그래야 다음 로드 때 캐시 대신 다시 네트워크로 시도한다.
       const prevCache = readQuantMacroCache();
 
+      const macroOk = !!(macroResult && macroResult.status === "success" && macroResult.data);
+      const screenerOk = !!(screenerResult && screenerResult.status === "success" && screenerResult.data);
+      const backtest12yOk = !!(backtest12yResult && backtest12yResult.status === "success" && backtest12yResult.data);
+      const macroHealthy = macroOk || !!(prevCache?.macro?.length);
+      const screenerHealthy = screenerOk || !!(prevCache?.screener?.length);
+      const backtest12yHealthy = backtest12yOk || !!prevCache?.backtest12y;
+
+      if (!macroOk) console.warn('[QuantDesk] /api/macro 최종 실패 — 매크로 탭 데이터 없음 가능성', macroResult);
+      if (!screenerOk) console.warn('[QuantDesk] /api/screener 최종 실패', screenerResult);
+      if (!backtest12yOk) console.warn('[QuantDesk] /api/backtesting/12y-result 최종 실패', backtest12yResult);
+
       let mergedDataForCache = null;
+      let cacheSafe = false;
       let processedKospiForCache = [];
 
       if (quantResult && quantResult.status === "success" && quantResult.data) {
         const mergedData = { ...quantResult.data };
 
-        mergedData.macro = (macroResult && macroResult.status === "success" && macroResult.data) ? macroResult.data : (prevCache?.macro || []);
-        mergedData.screener = (screenerResult && screenerResult.status === "success" && screenerResult.data) ? screenerResult.data : (prevCache?.screener || []);
-        mergedData.backtest12y = (backtest12yResult && backtest12yResult.status === "success" && backtest12yResult.data) ? backtest12yResult.data : (prevCache?.backtest12y || null);
+        mergedData.macro = macroOk ? macroResult.data : (prevCache?.macro || []);
+        mergedData.screener = screenerOk ? screenerResult.data : (prevCache?.screener || []);
+        mergedData.backtest12y = backtest12yOk ? backtest12yResult.data : (prevCache?.backtest12y || null);
 
         setData(mergedData);
         mergedDataForCache = mergedData;
+        cacheSafe = macroHealthy && screenerHealthy && backtest12yHealthy;
       }
 
       if (kospiResult && kospiResult.status === "success" && kospiResult.data && Array.isArray(kospiResult.data.chart_data)) {
@@ -430,7 +472,7 @@ export default function QuantDesk() {
         processedKospiForCache = [];
       }
 
-      if (mergedDataForCache) {
+      if (mergedDataForCache && cacheSafe) {
         writeQuantMacroCache({
           ...mergedDataForCache,
           kospiData: processedKospiForCache

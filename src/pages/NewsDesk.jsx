@@ -407,20 +407,23 @@ export default function NewsDesk() {
       {/* 통신 지연 시 띄워주는 서버 기상 오버레이 */}
       <ServerWakeupOverlay />
 
-      {/* [2026-09-16] 대대적 리디자인 — 시그니처 다크 히어로 밴드.
-          라이트/다크 앱 테마와 무관하게 항상 어둡게 고정한 "스포트라이트" 섹션
-          (Apple 제품 페이지가 종종 쓰는 패턴). 3D 지형은 실제 데이터가 아니라
-          장식이므로 aria-hidden 처리, 텍스트는 이 컴포넌트가 이미 들고 있는
-          실제 값(heroNews/news 건수)만 사용. */}
-      <div className="relative mb-8 overflow-hidden rounded-2xl bg-[#0a0d13] shadow-[0_24px_60px_-24px_rgba(0,0,0,0.55)]">
+      {/* [2026-09-16] 대대적 리디자인 — 시그니처 히어로 밴드 + 3D 지형.
+          [2026-09-17] 라이트모드에서 3D 색이 안 바뀌던 버그 수정: 배경을 다크
+          전용(#0a0d13) 하드코딩에서 테마 반응형으로 바꿨다. 아래 두 hex
+          (#F1ECE0/#0a0d13)는 components/MarketTerrain3D.jsx가 export하는
+          HERO_BG_LIGHT/HERO_BG_DARK와 반드시 같은 값이어야 3D 안개(fog) 색과
+          이 배경색이 정확히 일치해서 경계가 안 보인다 — 값 바꿀 땐 두 곳 다 같이.
+          3D 지형은 실제 데이터가 아니라 장식이므로 aria-hidden 처리, 텍스트는
+          이 컴포넌트가 이미 들고 있는 실제 값(heroNews/news 건수)만 사용. */}
+      <div className="relative mb-8 overflow-hidden rounded-2xl bg-[#F1ECE0] dark:bg-[#0a0d13] shadow-[0_24px_60px_-24px_rgba(20,20,25,0.16)] dark:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.55)]">
         <MarketTerrain3D className="absolute inset-0" />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0a0d13] via-[#0a0d13]/55 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#F1ECE0] dark:from-[#0a0d13] via-[#F1ECE0]/55 dark:via-[#0a0d13]/55 to-transparent" />
         <div className="relative z-10 px-6 md:px-10 py-9 md:py-14">
-          <p className="font-mono text-[10.5px] tracking-[0.16em] uppercase text-[#E3A24A]">Quant Desk</p>
-          <h1 className="mt-2.5 text-white text-[24px] md:text-[36px] font-bold tracking-tight leading-[1.18]" style={{ textWrap: 'balance' }}>
+          <p className="font-mono text-[10.5px] tracking-[0.16em] uppercase text-[#A66F1E] dark:text-[#E3A24A]">Quant Desk</p>
+          <h1 className="mt-2.5 text-slate-900 dark:text-white text-[24px] md:text-[36px] font-bold tracking-tight leading-[1.18]" style={{ textWrap: 'balance' }}>
             오늘의 마켓 브리핑
           </h1>
-          <p className="mt-2 text-slate-300 text-[12.5px] md:text-[14px]">
+          <p className="mt-2 text-slate-600 dark:text-slate-300 text-[12.5px] md:text-[14px]">
             주요뉴스 {heroNews.length}건 · 금일 수집 {todayCount}건
           </p>
         </div>
