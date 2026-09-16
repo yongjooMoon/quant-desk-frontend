@@ -1647,31 +1647,6 @@ export default function QuantDesk() {
           {/* ===================== WHITEPAPER TAB ===================== */}
           {activeTab === "Whitepaper" && (
               <div className="qd-fade-in w-full max-w-4xl mx-auto pb-10">
-                  {/* 현재 시장 레짐 + 지수 오버레이 작동 여부 — 이미 스크리너 API가 내려주는
-                      market_regime을 재사용(장식용 숫자 아님, /api/screener 응답의 실제 캐시값).
-                      오버레이는 quant_core.py의 INDEX_OVERLAY_REGIMES={"BULL"}과 반드시 동기화
-                      해서 유지할 것 — 그 상수가 바뀌면 아래 overlayActive 조건도 같이 고칠 것. */}
-                  {data.screener?.[0]?.market_regime && (() => {
-                    const regime = data.screener[0].market_regime;
-                    const rMeta = getRegimeMeta(regime);
-                    const overlayActive = regime === "BULL";
-                    return (
-                      <div className={`mb-8 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 rounded-md border ${rMeta.bg} ${rMeta.border}`}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">현재 시장 레짐</span>
-                          <span className="text-[13px] font-semibold" style={{ color: rMeta.color }}>{rMeta.label}</span>
-                        </div>
-                        <div className="hidden sm:block w-px h-4 bg-slate-300 dark:bg-slate-700" />
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">지수 오버레이</span>
-                          <span className={`text-[13px] font-semibold ${overlayActive ? '' : 'text-slate-400 dark:text-slate-500'}`} style={overlayActive ? { color: POS } : undefined}>
-                            {overlayActive ? "작동 중 (유휴자본 코스피 노출)" : "미작동 (BULL 국면에서만 켜짐)"}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
                   {/* 매수 진입 섹션 */}
                   <div className="mb-10">
                       <div
