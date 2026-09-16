@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Newspaper, TrendingUp, Building2, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 // 라우트별 코드 스플리팅 — 첫 진입 시 방문한 페이지의 번들만 내려받는다.
 // (예: /news 진입 시 QuantDesk의 recharts 포함 번들은 받지 않음)
@@ -228,6 +229,7 @@ function App() {
         </main>
 
       </div>
+      <Analytics />
     </BrowserRouter>
   );
 }
