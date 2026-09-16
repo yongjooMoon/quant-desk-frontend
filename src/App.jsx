@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Newspaper, TrendingUp, Building2, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays } from 'lucide-react';
+import { Newspaper, TrendingUp, Building2, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays, ArrowUp } from 'lucide-react';
 
 // 라우트별 코드 스플리팅 — 첫 진입 시 방문한 페이지의 번들만 내려받는다.
 // (예: /news 진입 시 QuantDesk의 recharts 포함 번들은 받지 않음)
@@ -23,6 +23,35 @@ function ScrollToTop({ containerRef }) {
   }, [pathname, containerRef]);
 
   return null;
+}
+
+// 스크롤이 일정 이상 내려가면 우측 하단에 나타나는 "맨 위로" 버튼.
+// 이 앱은 window가 아니라 <main>이 실제 스크롤 컨테이너라 window scroll 이벤트가 아니라
+// containerRef(main)에 직접 리스너를 붙인다. 페이지 전부에서 공용으로 쓰도록 App.jsx에 둔다.
+function BackToTopButton({ containerRef }) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onScroll = () => setVisible(el.scrollTop > 400);
+    onScroll();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [containerRef]);
+
+  if (!visible) return null;
+
+  return (
+    <button
+      onClick={() => containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+      aria-label="맨 위로 이동"
+      title="맨 위로"
+      className="fixed z-40 bottom-20 right-4 md:bottom-6 md:right-6 w-11 h-11 rounded-full bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/50 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-300 hover:text-brand hover:border-brand/40 transition-colors cursor-pointer"
+    >
+      <ArrowUp size={18} strokeWidth={2} />
+    </button>
+  );
 }
 
 // 페이지 전환 시 1회성으로 살짝 떠오르며 정착하는 트랜지션 ("reveal" 모션 토큰).
@@ -225,6 +254,8 @@ function App() {
               </Suspense>
             </PageFade>
           </div>
+
+          <BackToTopButton containerRef={mainRef} />
         </main>
 
       </div>
