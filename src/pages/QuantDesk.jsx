@@ -69,6 +69,19 @@ function getGaugePoint(percent) {
   return { x, y };
 }
 
+// [2026-09-18] 원화 금액을 억/만원 단위로 읽기 쉽게 — 143352000 -> "1억 4,335만원"
+// (백테스트 투자원금 대비 평가액 표시용. 143,352,000원처럼 자릿수가 많으면 읽기 어려움)
+function formatKrwShort(val) {
+  if (val === null || val === undefined || isNaN(val)) return "N/A";
+  const sign = val < 0 ? "-" : "";
+  const abs = Math.abs(Math.round(val));
+  const eok = Math.floor(abs / 100000000);
+  const man = Math.floor((abs % 100000000) / 10000);
+  if (eok > 0) return man > 0 ? `${sign}${eok}억 ${man.toLocaleString()}만원` : `${sign}${eok}억원`;
+  if (man > 0) return `${sign}${man.toLocaleString()}만원`;
+  return `${sign}${abs.toLocaleString()}원`;
+}
+
 // 매크로 지표 값 포맷 (unit이 통화기호면 접두어, 의미 없는 unit 텍스트는 생략)
 function formatMacroValue(item) {
   const val = item?.value;
@@ -205,7 +218,9 @@ const MICRO_INTERACTION_STYLES = `
 //    - 배치가 매일 14:30 시작, 약 10~20분 내 완료되므로 15:10을 만료 시각으로 사용
 //    - 새로고침 버튼은 이 캐시를 거치지 않고 항상 API를 호출합니다 (fetchQuantData(true))
 // =========================================================================
-const QUANT_CACHE_KEY = 'qd_quant_macro_cache_v3'; // 12y 백테스트 데이터 구조가 바뀌어서 캐시 키 버전업
+// [2026-09-18] v3 -> v4: 12y 백테스트 payload에 capital(투자원금 원화 환산) 블록이 추가돼서,
+// 기존 캐시(capital 없음)를 들고 있는 브라우저가 새 카드를 못 보는 문제를 막기 위해 키 버전업.
+const QUANT_CACHE_KEY = 'qd_quant_macro_cache_v4';
 const CACHE_EXPIRE_HOUR = 15;
 const CACHE_EXPIRE_MINUTE = 10;
 
@@ -284,6 +299,9 @@ export default function QuantDesk() {
 
   const [selectedStock, setSelectedStock] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
+  // [2026-09-17] handleStockClick 응답 경쟁조건 방지용 — 마지막으로 클릭된 종목만 기록해서
+  // 이미 stale해진 이전 요청의 응답이 늦게 도착해도 화면을 덮어쓰지 않게 한다.
+  const activeStockSymbolRef = useRef(null);
   const [riskStock, setRiskStock] = useState(null);
 
   // 종목별 상세 팝업 — data.backtest12y.trades를 이 종목 코드로 필터링한 "과거 신호 이력"만 보여준다.
@@ -486,6 +504,11 @@ export default function QuantDesk() {
   useEffect(() => { fetchQuantData(); }, []);
 
   const handleRefresh = () => {
+    // [2026-09-17] syncing은 클릭 직후 1.5초 동안만 켜지는 연출용 오버레이 플래그이고,
+    // 그 뒤 실제 fetch(loading)가 이어서 진행된다. 이 두 구간을 합쳐서 가드하지 않으면
+    // "1.5초 이내 연속 클릭"과 "fetch가 1.5초보다 오래 걸리는 동안 클릭" 양쪽 다
+    // fetchQuantData가 중복 실행되어 서로 다른 응답이 state를 경쟁적으로 덮어쓸 수 있었다.
+    if (syncing || loading) return;
     setSyncing(true);
     setTimeout(() => {
         fetchQuantData(true);
@@ -495,6 +518,9 @@ export default function QuantDesk() {
 
   const handleStockClick = (symbol, basicData) => {
     setReportLoading(true);
+    // 이 클릭이 "가장 최근" 클릭임을 기록 — 아래 응답이 도착했을 때 그 사이 다른 종목이
+    // 클릭되지 않았는지 확인하는 기준이 된다.
+    activeStockSymbolRef.current = symbol;
 
     let mappedGates = null;
     if (basicData.filter_details) {
@@ -512,6 +538,12 @@ export default function QuantDesk() {
 
     callApi(`/api/search/${symbol}`)
       .then(result => {
+        // [2026-09-17] 응답 도착 시점에 이미 다른 종목이 클릭되어 있으면(더 최근 요청이
+        // 진행 중이거나 완료됨) 이 응답은 stale하므로 화면을 덮어쓰지 않고 그냥 버린다 —
+        // 응답 도착 순서가 클릭 순서와 다를 때(느린 콜드스타트 등) 다른 종목 데이터가
+        // 섞여 보이던 문제 방지.
+        if (activeStockSymbolRef.current !== symbol) return;
+
         if (result.status === "success") {
             const fetchedData = result.data;
             const finalScore = basicData.factor_score !== undefined ? basicData.factor_score : fetchedData.score;
@@ -533,6 +565,7 @@ export default function QuantDesk() {
         setReportLoading(false);
       })
       .catch(() => {
+          if (activeStockSymbolRef.current !== symbol) return;
           setSelectedStock(prev => ({ ...prev, isLoading: false, fetchError: true }));
           setReportLoading(false);
       });
@@ -646,13 +679,20 @@ export default function QuantDesk() {
       .sort((a, b) => new Date(b.entry_date) - new Date(a.entry_date));
   }, [btTrades, backtestSymbol]);
 
+  // [2026-09-18] 투자원금 기준 원화 환산 — 백엔드 payload의 capital 블록
+  // ({initial_krw, final_krw, profit_krw, final_multiple, benchmark_final_krw}).
+  // 원화 자산곡선은 equity_curve(1.0 시작 배수) × initial_krw로 프론트에서 만든다.
+  const btCapital = bt?.capital || null;
+
   const btEquityChartData = useMemo(() => {
     if (!btTrackRecord?.equity_curve) return [];
+    const principal = btCapital?.initial_krw || 0;
     return btTrackRecord.equity_curve.map(pt => ({
       date: pt.date,
       strategy: (pt.value - 1) * 100,
+      assetKrw: principal ? Math.round(principal * pt.value) : null,
     }));
-  }, [btTrackRecord]);
+  }, [btTrackRecord, btCapital]);
 
   const btEquityDisplayData = useMemo(() => {
     if (btEquityChartData.length === 0 || btEquityRange === 'All') return btEquityChartData;
@@ -1300,6 +1340,40 @@ export default function QuantDesk() {
 
                   {btSubTab === "summary" && (
                   <>
+                  {/* [2026-09-18] 투자원금 기준 원화 환산 — "원금 얼마 넣었으면 지금 얼마"를
+                      퍼센트보다 먼저 보여준다. 수익이 쌓이면 매수 수량도 함께 늘어나는
+                      복리 사이징 기준(quant_backtest_12y._run_12y_core initial_capital). */}
+                  {btCapital && (
+                    <Card padding="none" className="p-5 mb-6">
+                      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">
+                            원금 {formatKrwShort(btCapital.initial_krw)} 투자 시 현재 평가액
+                          </p>
+                          <div className="flex items-end gap-3 flex-wrap">
+                            <span className={`text-[32px] leading-none font-bold tabular-nums ${btCapital.profit_krw >= 0 ? 'text-positive' : 'text-negative'}`}>
+                              {formatKrwShort(btCapital.final_krw)}
+                            </span>
+                            <span className={`text-[14px] font-semibold tabular-nums ${btCapital.profit_krw >= 0 ? 'text-positive' : 'text-negative'}`}>
+                              {btCapital.profit_krw >= 0 ? '+' : ''}{formatKrwShort(btCapital.profit_krw)}
+                              {btCapital.final_multiple ? ` (${btCapital.final_multiple.toFixed(2)}배)` : ''}
+                            </span>
+                          </div>
+                        </div>
+                        {btCapital.benchmark_final_krw != null && (
+                          <Panel level="inset" padding="sm" className="md:min-w-[210px]">
+                            <Metric
+                              size="sm"
+                              label="같은 금액을 코스피에 넣었다면"
+                              value={formatKrwShort(btCapital.benchmark_final_krw)}
+                              sub={`${btCapital.benchmark_profit_krw >= 0 ? '+' : ''}${formatKrwShort(btCapital.benchmark_profit_krw)}`}
+                            />
+                          </Panel>
+                        )}
+                      </div>
+                    </Card>
+                  )}
+
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-8">
                     {btHeadlineMetrics.map((m, i) => (
                       <Panel key={i} level="inset" padding="sm">
@@ -1325,7 +1399,16 @@ export default function QuantDesk() {
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(100,116,139,0.15)" vertical={false} />
                             <XAxis dataKey="date" tick={{fill: '#94A3B8', fontSize: 10, fontWeight: '500'}} tickLine={false} axisLine={false} minTickGap={50} tickFormatter={(val) => val ? String(val).substring(0, 7) : ''} />
                             <YAxis tick={{fill: '#94A3B8', fontSize: 10, fontWeight: '500'}} tickLine={false} axisLine={false} tickFormatter={(v) => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`} />
-                            <Tooltip formatter={(value) => [`${value > 0 ? '+' : ''}${value.toFixed(2)}%`, '전략']} contentStyle={{backgroundColor: '#0F1B2E', borderColor: '#334155', borderRadius: '8px', color: 'white', fontWeight: '500'}} labelStyle={{color: '#94A3B8'}} />
+                            {/* [2026-09-18] 퍼센트와 함께 그 시점 원화 평가액도 보여준다 */}
+                            <Tooltip
+                              formatter={(value, name, entry) => {
+                                const krw = entry?.payload?.assetKrw;
+                                const pct = `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+                                return [krw != null ? `${pct} · ${formatKrwShort(krw)}` : pct, '전략'];
+                              }}
+                              contentStyle={{backgroundColor: '#0F1B2E', borderColor: '#334155', borderRadius: '8px', color: 'white', fontWeight: '500'}}
+                              labelStyle={{color: '#94A3B8'}}
+                            />
                             <Line type="monotone" dataKey="strategy" name="전략" stroke={POS} strokeWidth={2} dot={false} isAnimationActive={true} animationDuration={700} />
                           </ComposedChart>
                         </ResponsiveContainer>

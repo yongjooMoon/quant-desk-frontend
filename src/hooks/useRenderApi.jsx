@@ -154,7 +154,16 @@ export function useRenderApi() {
   // 🎲 이번 대기화면에서 A(캔들 게임)/C(카드 뒤집기) 중 뭘 보여줄지 — sleep 진입 시 1번만 뽑음
   const [funMode, setFunMode] = useState('candle');
   // 💡 컴포넌트가 언마운트되거나 재요청될 때 타이머를 안전하게 클리어하기 위해 useRef 사용
-  const timerRef = useRef(null); 
+  const timerRef = useRef(null);
+
+  // [2026-09-17] 이 훅을 쓰는 컴포넌트가 언마운트된 뒤(예: 라우트 이동) 콜드스타트 타이머가
+  // 아직 안 끝난 상태로 남아있으면, 4초 뒤 이미 사라진 컴포넌트의 setFunMode/setIsSleeping을
+  // 호출하게 된다(크래시는 안 하지만 불필요한 상태 업데이트). 언마운트 시 명시적으로 정리.
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const callApi = useCallback(async (endpoint, options = {}) => {
     // 이전 타이머가 있다면 초기화

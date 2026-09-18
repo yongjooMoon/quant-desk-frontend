@@ -43,6 +43,9 @@ export default function StockSearch() {
   const wrapperRef = useRef(null);
   const optionsListRef = useRef(null);
   const inputRef = useRef(null);
+  // [2026-09-17] handleSelect 응답 경쟁조건 방지용 — 마지막으로 선택된 종목만 기록해서
+  // 이전 검색의 늦은 응답이 최신 검색 결과를 덮어쓰지 않게 한다.
+  const activeSymbolRef = useRef(null);
 
   // 공통 API 훅 및 오버레이 가져오기
   const { callApi, ServerWakeupOverlay } = useRenderApi();
@@ -95,6 +98,9 @@ export default function StockSearch() {
     setLoading(true);
     setError("");
     setResult(null);
+    // 이 선택이 "가장 최근" 검색임을 기록 — 응답 도착 시 그 사이 다른 종목이 선택되지
+    // 않았는지 확인하는 기준이 된다.
+    activeSymbolRef.current = symbol;
 
     if (inputRef.current) {
       inputRef.current.blur();
@@ -102,6 +108,10 @@ export default function StockSearch() {
 
     callApi(`/api/search/${symbol}`)
       .then(data => {
+        // [2026-09-17] 응답 도착 시점에 이미 다른 종목이 선택되어 있으면 이 응답은
+        // stale하므로 버린다 — 느린 응답이 늦게 도착해 최신 검색 결과를 덮어쓰는 것 방지.
+        if (activeSymbolRef.current !== symbol) return;
+
         if (data.status === "success") {
           if (!data.data.name) {
             const matched = options.find(o => o.Symbol === symbol);
@@ -111,6 +121,7 @@ export default function StockSearch() {
         } else setError(data.message || "종목 검색 실패");
         setLoading(false);
       }).catch(() => {
+        if (activeSymbolRef.current !== symbol) return;
         setError("서버 통신 오류가 발생했습니다.");
         setLoading(false);
       });
