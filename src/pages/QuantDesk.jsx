@@ -705,6 +705,28 @@ export default function QuantDesk() {
 
   const btConfidenceMeta = getConfidenceMeta(btTrackRecord?.confidence_level);
 
+  // [2026-09-18] 투자원금 원화 환산 — 아래 btHeadlineMetrics와 완전히 동일한 카드 스타일로
+  // 4개를 한 줄에 배치한다(별도 레이아웃을 만들지 않고 기존 디자인 언어를 그대로 씀).
+  const btCapitalMetrics = btCapital ? [
+    { label: '투자원금', value: formatKrwShort(btCapital.initial_krw) },
+    {
+      label: '현재 평가액',
+      value: formatKrwShort(btCapital.final_krw),
+      sub: btCapital.final_multiple ? `${btCapital.final_multiple.toFixed(2)}배` : undefined,
+    },
+    {
+      label: '수익금',
+      value: `${btCapital.profit_krw >= 0 ? '+' : ''}${formatKrwShort(btCapital.profit_krw)}`,
+    },
+    {
+      label: '코스피에 같은 금액 투자 시',
+      value: btCapital.benchmark_final_krw != null ? formatKrwShort(btCapital.benchmark_final_krw) : 'N/A',
+      sub: btCapital.benchmark_profit_krw != null
+        ? `${btCapital.benchmark_profit_krw >= 0 ? '+' : ''}${formatKrwShort(btCapital.benchmark_profit_krw)}`
+        : undefined,
+    },
+  ] : [];
+
   const btHeadlineMetrics = btTrackRecord ? [
     { label: '표본(트레이드) 수', value: `${btTrackRecord.trade_count}건` },
     { label: '승률', value: `${btTrackRecord.win_rate?.toFixed(1)}%`, sub: `95% CI ${btTrackRecord.win_rate_ci95?.[0]?.toFixed(1)}~${btTrackRecord.win_rate_ci95?.[1]?.toFixed(1)}%` },
@@ -1340,38 +1362,17 @@ export default function QuantDesk() {
 
                   {btSubTab === "summary" && (
                   <>
-                  {/* [2026-09-18] 투자원금 기준 원화 환산 — "원금 얼마 넣었으면 지금 얼마"를
-                      퍼센트보다 먼저 보여준다. 수익이 쌓이면 매수 수량도 함께 늘어나는
-                      복리 사이징 기준(quant_backtest_12y._run_12y_core initial_capital). */}
-                  {btCapital && (
-                    <Card padding="none" className="p-5 mb-6">
-                      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">
-                            원금 {formatKrwShort(btCapital.initial_krw)} 투자 시 현재 평가액
-                          </p>
-                          <div className="flex items-end gap-3 flex-wrap">
-                            <span className={`text-[32px] leading-none font-bold tabular-nums ${btCapital.profit_krw >= 0 ? 'text-positive' : 'text-negative'}`}>
-                              {formatKrwShort(btCapital.final_krw)}
-                            </span>
-                            <span className={`text-[14px] font-semibold tabular-nums ${btCapital.profit_krw >= 0 ? 'text-positive' : 'text-negative'}`}>
-                              {btCapital.profit_krw >= 0 ? '+' : ''}{formatKrwShort(btCapital.profit_krw)}
-                              {btCapital.final_multiple ? ` (${btCapital.final_multiple.toFixed(2)}배)` : ''}
-                            </span>
-                          </div>
-                        </div>
-                        {btCapital.benchmark_final_krw != null && (
-                          <Panel level="inset" padding="sm" className="md:min-w-[210px]">
-                            <Metric
-                              size="sm"
-                              label="같은 금액을 코스피에 넣었다면"
-                              value={formatKrwShort(btCapital.benchmark_final_krw)}
-                              sub={`${btCapital.benchmark_profit_krw >= 0 ? '+' : ''}${formatKrwShort(btCapital.benchmark_profit_krw)}`}
-                            />
-                          </Panel>
-                        )}
-                      </div>
-                    </Card>
+                  {/* [2026-09-18] 투자원금 기준 원화 환산 — 아래 지표 카드와 동일한 스타일/크기로
+                      4개를 한 줄에. 수익이 쌓이면 매수 수량도 함께 늘어나는 복리 사이징 기준
+                      (quant_backtest_12y._run_12y_core initial_capital). */}
+                  {btCapitalMetrics.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2.5">
+                      {btCapitalMetrics.map((m, i) => (
+                        <Panel key={i} level="inset" padding="sm">
+                          <Metric size="sm" label={m.label} value={m.value} sub={m.sub} />
+                        </Panel>
+                      ))}
+                    </div>
                   )}
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-8">
