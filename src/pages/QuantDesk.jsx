@@ -1272,12 +1272,13 @@ export default function QuantDesk() {
                   <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-md overflow-hidden mb-10">
                       <div className="w-full">
                           <div className="hidden md:flex px-4 md:px-5 py-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
-                              <div className="w-[15%] text-[12.5px] font-medium text-slate-500">매도 일자</div>
-                              <div className="w-[20%] text-[12.5px] font-medium text-slate-500">종목명</div>
-                              <div className="w-[15%] text-[12.5px] font-medium text-slate-500 text-right">진입가</div>
-                              <div className="w-[15%] text-[12.5px] font-medium text-slate-500 text-right">매도가</div>
+                              {/* [2026-09-18] 수량 컬럼 추가 — 실제로 몇 주를 매도했는지 기록 */}
+                              <div className="w-[32%] text-[12.5px] font-medium text-slate-500">매도 일자 / 종목명</div>
+                              <div className="w-[9%] text-[12.5px] font-medium text-slate-500 text-right">수량</div>
+                              <div className="w-[13%] text-[12.5px] font-medium text-slate-500 text-right">진입가</div>
+                              <div className="w-[13%] text-[12.5px] font-medium text-slate-500 text-right">매도가</div>
                               <div className="w-[15%] text-[12.5px] font-medium text-slate-500 text-right">실현손익(%)</div>
-                              <div className="w-[20%] text-[12.5px] font-medium text-slate-500 text-right">매도 사유</div>
+                              <div className="w-[18%] text-[12.5px] font-medium text-slate-500 text-right">매도 사유</div>
                           </div>
 
                           {sellTrades.length === 0 ? <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-[13.5px] w-full">매도 이력이 없습니다.</div> : sellTrades.map((t, idx) => {
@@ -1286,14 +1287,15 @@ export default function QuantDesk() {
                                   <div
                                     key={idx}
                                     className={`flex flex-col md:flex-row md:items-center px-4 md:px-5 py-3.5 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-md md:rounded-none mb-2.5 md:mb-0 ${rowHoverCls} w-full gap-3 md:gap-0`}>
-                                      <div className="flex justify-between items-center w-full md:w-[35%] pr-0 md:pr-4">
+                                      <div className="flex justify-between items-center w-full md:w-[32%] pr-0 md:pr-4">
                                           <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-4 w-full">
                                               <span className="text-[11px] text-slate-400 md:w-[42%] md:text-[13.5px] md:text-slate-500 tabular-nums">{t.trade_date}</span>
                                               <span className="text-[15px] font-medium text-slate-900 dark:text-white md:w-[58%] truncate">{t.name}</span>
                                           </div>
                                           <div className="md:hidden text-[15px] font-semibold tabular-nums shrink-0" style={{ color: (t.return_rate || 0) > 0 ? POS : NEG }}>{(t.return_rate || 0) > 0 ? "+" : ""}{(t.return_rate || 0).toFixed(2)}%</div>
                                       </div>
-                                      <div className="flex justify-between items-center w-full md:w-[30%]">
+                                      <div className="hidden md:block w-[9%] text-[13.5px] font-medium text-slate-600 dark:text-slate-400 text-right tabular-nums">{Math.round(t.quantity || 0).toLocaleString()}주</div>
+                                      <div className="flex justify-between items-center w-full md:w-[26%]">
                                           <div className="flex flex-col md:w-1/2 text-left md:text-right">
                                               <span className="text-[10.5px] font-medium text-slate-400 md:hidden mb-0.5">진입가</span>
                                               <span className="text-[13.5px] font-medium text-slate-600 dark:text-slate-400 tabular-nums">₩{Math.round(entryPrice).toLocaleString()}</span>
@@ -1303,8 +1305,26 @@ export default function QuantDesk() {
                                               <span className="text-[13.5px] font-medium text-slate-800 dark:text-slate-200 tabular-nums">₩{Math.round(t.trade_price || 0).toLocaleString()}</span>
                                           </div>
                                       </div>
-                                      <div className="hidden md:block w-[15%] text-[14.5px] font-semibold text-right tabular-nums" style={{ color: (t.return_rate || 0) > 0 ? POS : NEG }}>{(t.return_rate || 0) > 0 ? "+" : ""}{(t.return_rate || 0).toFixed(2)}%</div>
-                                      <div className="w-full md:w-[20%] text-[12px] text-slate-500 dark:text-slate-400 text-left md:text-right mt-1 md:mt-0 pt-2 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 leading-snug truncate" title={t.reason}>
+                                      {/* [2026-09-18] 모바일에서도 수량/실현손익금이 보이도록 별도 행 */}
+                                      <div className="flex md:hidden justify-between items-center w-full">
+                                          <div className="flex flex-col">
+                                              <span className="text-[10.5px] font-medium text-slate-400 mb-0.5">수량</span>
+                                              <span className="text-[13.5px] font-medium text-slate-600 dark:text-slate-400 tabular-nums">{Math.round(t.quantity || 0).toLocaleString()}주</span>
+                                          </div>
+                                          <div className="flex flex-col text-right">
+                                              <span className="text-[10.5px] font-medium text-slate-400 mb-0.5">실현손익금</span>
+                                              <span className="text-[13.5px] font-semibold tabular-nums" style={{ color: (t.realized_amount || 0) >= 0 ? POS : NEG }}>
+                                                  {(t.realized_amount || 0) > 0 ? "+" : ""}₩{Math.round(t.realized_amount || 0).toLocaleString()}
+                                              </span>
+                                          </div>
+                                      </div>
+                                      <div className="hidden md:flex md:flex-col w-[15%] text-right">
+                                          <span className="text-[14.5px] font-semibold tabular-nums" style={{ color: (t.return_rate || 0) > 0 ? POS : NEG }}>{(t.return_rate || 0) > 0 ? "+" : ""}{(t.return_rate || 0).toFixed(2)}%</span>
+                                          <span className="text-[11px] font-medium tabular-nums" style={{ color: (t.realized_amount || 0) >= 0 ? POS : NEG }}>
+                                              {(t.realized_amount || 0) > 0 ? "+" : ""}₩{Math.round(t.realized_amount || 0).toLocaleString()}
+                                          </span>
+                                      </div>
+                                      <div className="w-full md:w-[18%] text-[12px] text-slate-500 dark:text-slate-400 text-left md:text-right mt-1 md:mt-0 pt-2 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0 leading-snug truncate" title={t.reason}>
                                           <span className="text-slate-400 md:hidden mr-1">사유:</span>
                                           {t.reason}
                                       </div>
@@ -1669,13 +1689,18 @@ export default function QuantDesk() {
 
                     <div className="w-full bg-white dark:bg-transparent md:border border-slate-200 dark:border-slate-800 md:rounded-md overflow-hidden">
                       <div className="hidden md:flex px-4 md:px-5 py-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-transparent">
-                        <div className="w-[14%] text-[12px] font-medium text-slate-500">매수일</div>
-                        <div className="w-[18%] text-[12px] font-medium text-slate-500">종목명</div>
-                        <div className="w-[14%] text-[12px] font-medium text-slate-500">매도일</div>
-                        <div className="w-[12%] text-[12px] font-medium text-slate-500 text-right">매수가</div>
-                        <div className="w-[12%] text-[12px] font-medium text-slate-500 text-right">매도가</div>
-                        <div className="w-[10%] text-[12px] font-medium text-slate-500 text-right">수익률</div>
-                        <div className="w-[20%] text-[12px] font-medium text-slate-500 text-right">사유</div>
+                        {/* [2026-09-18] 수량/투자금액/손익금 컬럼 추가 — "얼마에 몇 주 사서
+                            얼마 벌었나"를 기록용으로 남긴다(데이터는 원래 payload에 있었음) */}
+                        <div className="w-[11%] text-[12px] font-medium text-slate-500">매수일</div>
+                        <div className="w-[15%] text-[12px] font-medium text-slate-500">종목명</div>
+                        <div className="w-[11%] text-[12px] font-medium text-slate-500">매도일</div>
+                        <div className="w-[10%] text-[12px] font-medium text-slate-500 text-right">매수가</div>
+                        <div className="w-[10%] text-[12px] font-medium text-slate-500 text-right">매도가</div>
+                        <div className="w-[7%] text-[12px] font-medium text-slate-500 text-right">수량</div>
+                        <div className="w-[11%] text-[12px] font-medium text-slate-500 text-right">투자금액</div>
+                        <div className="w-[11%] text-[12px] font-medium text-slate-500 text-right">손익금</div>
+                        <div className="w-[8%] text-[12px] font-medium text-slate-500 text-right">수익률</div>
+                        <div className="w-[6%] text-[12px] font-medium text-slate-500 text-right">사유</div>
                       </div>
                       {btPagedTrades.length === 0 ? (
                         <div className="p-8 text-center text-slate-500 text-[13px]">조건에 맞는 거래가 없습니다.</div>
@@ -1686,16 +1711,30 @@ export default function QuantDesk() {
                             key={idx}
                             className={`flex flex-col md:flex-row md:items-center px-4 md:px-5 py-2.5 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-md md:rounded-none mb-2 md:mb-0 ${rowHoverCls} w-full gap-1 md:gap-0`}
                           >
-                            <div className="hidden md:block w-[14%] text-[11.5px] text-slate-500 tabular-nums">{t.entry_date}</div>
-                            <div className="w-full md:w-[18%] flex justify-between md:block">
+                            <div className="hidden md:block w-[11%] text-[11.5px] text-slate-500 tabular-nums">{t.entry_date}</div>
+                            <div className="w-full md:w-[15%] flex justify-between md:block">
                               <span className="text-[13.5px] font-medium text-slate-900 dark:text-white">{t.name}</span>
                               <span className="md:hidden text-[13.5px] font-medium tabular-nums" style={{ color: (t.return_pct || 0) >= 0 ? POS : NEG }}>{(t.return_pct || 0) > 0 ? '+' : ''}{t.return_pct?.toFixed(2)}%</span>
                             </div>
-                            <div className="hidden md:block w-[14%] text-[11.5px] text-slate-500 tabular-nums">{t.exit_date}</div>
-                            <div className="w-1/2 md:w-[12%] text-[11.5px] text-slate-600 dark:text-slate-400 text-left md:text-right tabular-nums">₩{formatNumber(t.entry_price)}</div>
-                            <div className="w-1/2 md:w-[12%] text-[11.5px] text-slate-600 dark:text-slate-400 text-right tabular-nums">₩{formatNumber(t.exit_price)}</div>
-                            <div className="hidden md:block w-[10%] text-[12.5px] font-medium text-right tabular-nums" style={{ color: (t.return_pct || 0) >= 0 ? POS : NEG }}>{(t.return_pct || 0) > 0 ? '+' : ''}{t.return_pct?.toFixed(2)}%</div>
-                            <div className="w-full md:w-[20%] text-[11px] text-right truncate" style={{ color: meta.color }} title={t.reason}>{t.reason}</div>
+                            <div className="hidden md:block w-[11%] text-[11.5px] text-slate-500 tabular-nums">{t.exit_date}</div>
+                            <div className="w-1/2 md:w-[10%] text-[11.5px] text-slate-600 dark:text-slate-400 text-left md:text-right tabular-nums">
+                              <span className="md:hidden text-slate-400 mr-1">매수</span>₩{formatNumber(t.entry_price)}
+                            </div>
+                            <div className="w-1/2 md:w-[10%] text-[11.5px] text-slate-600 dark:text-slate-400 text-right tabular-nums">
+                              <span className="md:hidden text-slate-400 mr-1">매도</span>₩{formatNumber(t.exit_price)}
+                            </div>
+                            <div className="w-1/2 md:w-[7%] text-[11.5px] text-slate-600 dark:text-slate-400 text-left md:text-right tabular-nums">
+                              <span className="md:hidden text-slate-400 mr-1">수량</span>{formatNumber(t.quantity)}주
+                            </div>
+                            <div className="w-1/2 md:w-[11%] text-[11.5px] text-slate-600 dark:text-slate-400 text-right tabular-nums">
+                              <span className="md:hidden text-slate-400 mr-1">투자금</span>₩{formatNumber(t.position_value)}
+                            </div>
+                            <div className="w-full md:w-[11%] text-[11.5px] font-medium text-left md:text-right tabular-nums" style={{ color: (t.pnl_amount || 0) >= 0 ? POS : NEG }}>
+                              <span className="md:hidden text-slate-400 mr-1 font-normal">손익금</span>
+                              {(t.pnl_amount || 0) > 0 ? '+' : ''}₩{formatNumber(t.pnl_amount)}
+                            </div>
+                            <div className="hidden md:block w-[8%] text-[12.5px] font-medium text-right tabular-nums" style={{ color: (t.return_pct || 0) >= 0 ? POS : NEG }}>{(t.return_pct || 0) > 0 ? '+' : ''}{t.return_pct?.toFixed(2)}%</div>
+                            <div className="w-full md:w-[6%] text-[11px] text-right truncate" style={{ color: meta.color }} title={t.reason}>{t.reason}</div>
                           </div>
                         );
                       })}
