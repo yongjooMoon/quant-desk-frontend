@@ -583,7 +583,11 @@ export default function QuantDesk() {
   const holdingSyms = holdings.map(h => h.symbol);
   const filWatchlist = watchlist.filter(w => !holdingSyms.includes(w.symbol)).slice(0, 20);
 
-  const sellTrades = trades.filter(t => t.type === 'SELL').reverse();
+  // [2026-09-18] 2026-09-13 실계좌(KIS) 전환 이전은 실제 돈이 전혀 움직이지 않은 순수
+  // 가상 시뮬레이션 기간이다 — 그 이전 매도내역(전환 당일 "가상 포지션 강제청산" 3건 포함)이
+  // 실거래와 섞여 승률/누적손익/차트에 그대로 합산되고 있어서, 여기서 한 번에 걸러낸다.
+  const LIVE_TRADING_START_DATE = '2026-09-13';
+  const sellTrades = trades.filter(t => t.type === 'SELL' && t.trade_date >= LIVE_TRADING_START_DATE).reverse();
   const wins = sellTrades.filter(t => t.return_rate > 0);
   const losses = sellTrades.filter(t => t.return_rate <= 0);
   const winRate = sellTrades.length > 0 ? (wins.length / sellTrades.length) * 100 : 0;
