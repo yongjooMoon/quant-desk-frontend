@@ -1724,7 +1724,7 @@ export default function QuantDesk() {
                         return (
                           <div
                             key={idx}
-                            className={`flex flex-col md:flex-row md:items-center px-4 md:px-5 py-2.5 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-md md:rounded-none mb-2 md:mb-0 ${rowHoverCls} ${t.asset === 'ETF' ? 'bg-slate-50 dark:bg-slate-800/30' : ''} w-full gap-1 md:gap-0`}
+                            className={`flex flex-wrap md:flex-nowrap md:items-center px-4 md:px-5 py-2.5 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-md md:rounded-none mb-2 md:mb-0 ${rowHoverCls} ${t.asset === 'ETF' ? 'bg-slate-50 dark:bg-slate-800/30' : ''} w-full gap-y-1.5 md:gap-0`}
                           >
                             <div className="hidden md:block w-[11%] text-[11.5px] text-slate-500 tabular-nums">{t.entry_date}</div>
                             <div className="w-full md:w-[15%] flex justify-between md:block">
@@ -1745,12 +1745,12 @@ export default function QuantDesk() {
                             <div className="w-1/2 md:w-[11%] text-[11.5px] text-slate-600 dark:text-slate-400 text-right tabular-nums">
                               <span className="md:hidden text-slate-400 mr-1">투자금</span>₩{formatNumber(t.position_value)}
                             </div>
-                            <div className="w-full md:w-[11%] text-[11.5px] font-medium text-left md:text-right tabular-nums" style={{ color: (t.pnl_amount || 0) >= 0 ? POS : NEG }}>
+                            <div className="w-1/2 md:w-[11%] text-[11.5px] font-medium text-left md:text-right tabular-nums" style={{ color: (t.pnl_amount || 0) >= 0 ? POS : NEG }}>
                               <span className="md:hidden text-slate-400 mr-1 font-normal">손익금</span>
                               {(t.pnl_amount || 0) > 0 ? '+' : ''}₩{formatNumber(t.pnl_amount)}
                             </div>
                             <div className="hidden md:block w-[8%] text-[12.5px] font-medium text-right tabular-nums" style={{ color: (t.return_pct || 0) >= 0 ? POS : NEG }}>{(t.return_pct || 0) > 0 ? '+' : ''}{t.return_pct?.toFixed(2)}%</div>
-                            <div className="w-full md:w-[6%] text-[11px] text-right truncate" style={{ color: meta.color }} title={t.reason}>{t.reason}</div>
+                            <div className="w-1/2 md:w-[6%] text-[11px] text-right truncate" style={{ color: meta.color }} title={t.reason}>{t.reason}</div>
                           </div>
                         );
                       })}
