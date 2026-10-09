@@ -672,6 +672,10 @@ export default function QuantDesk() {
   // =========================================================================
   const bt = data.backtest12y; // { track_record, track_record_by_regime, yearly_stats, walk_forward, trades, known_limitations, ... }
   const btTrades = bt?.trades || [];
+  // [2026-10-09] ETF overlay round-trips (asset==='ETF') are shown in the table only; all derived stats use stock rows.
+  const btStockTrades = useMemo(() => btTrades.filter(t => t.asset !== 'ETF'), [btTrades]);
+  const btHasEtf = btStockTrades.length !== btTrades.length;
+  const [btShowEtf, setBtShowEtf] = useState(true);
   const btTrackRecord = bt?.track_record || null;
 
   // 이 종목 상세 팝업(backtestStock)이 참조할 "이 종목만의" 과거 신호 이력
@@ -757,7 +761,7 @@ export default function QuantDesk() {
   // exit_type별 분포/성과
   const btExitTypeStats = useMemo(() => {
     const map = {};
-    btTrades.forEach(t => {
+    btStockTrades.forEach(t => {
       const key = t.exit_type || 'UNKNOWN';
       if (!map[key]) map[key] = { count: 0, sumRet: 0 };
       map[key].count += 1;
@@ -766,20 +770,20 @@ export default function QuantDesk() {
     return Object.entries(map).map(([type, v]) => ({
       type, count: v.count, avgRet: v.count ? v.sumRet / v.count : 0,
     })).sort((a, b) => b.count - a.count);
-  }, [btTrades]);
+  }, [btStockTrades]);
 
   // Best / Worst 트레이드
   const btBestTrades = useMemo(() =>
-    [...btTrades].sort((a, b) => (b.return_pct || 0) - (a.return_pct || 0)).slice(0, 5)
-  , [btTrades]);
+    [...btStockTrades].sort((a, b) => (b.return_pct || 0) - (a.return_pct || 0)).slice(0, 5)
+  , [btStockTrades]);
   const btWorstTrades = useMemo(() =>
-    [...btTrades].sort((a, b) => (a.return_pct || 0) - (b.return_pct || 0)).slice(0, 5)
-  , [btTrades]);
+    [...btStockTrades].sort((a, b) => (a.return_pct || 0) - (b.return_pct || 0)).slice(0, 5)
+  , [btStockTrades]);
 
   // 종목 중복(반복 진입) 분석
   const btDuplicateSymbols = useMemo(() => {
     const map = {};
-    btTrades.forEach(t => {
+    btStockTrades.forEach(t => {
       if (!map[t.symbol]) map[t.symbol] = { symbol: t.symbol, name: t.name, count: 0, sumRet: 0, wins: 0 };
       map[t.symbol].count += 1;
       map[t.symbol].sumRet += (t.return_pct || 0);
@@ -789,7 +793,7 @@ export default function QuantDesk() {
       .filter(v => v.count >= 2)
       .map(v => ({ ...v, avgRet: v.sumRet / v.count, winRate: (v.wins / v.count) * 100 }))
       .sort((a, b) => b.count - a.count);
-  }, [btTrades]);
+  }, [btStockTrades]);
 
   // 보유기간 분포 히스토그램 (버킷: 0-5,6-10,11-20,21-40,41-80,80+)
   const btHoldDaysHistogram = useMemo(() => {
@@ -801,37 +805,38 @@ export default function QuantDesk() {
       { label: '41-80일', min: 41, max: 80, count: 0 },
       { label: '81일+', min: 81, max: Infinity, count: 0 },
     ];
-    btTrades.forEach(t => {
+    btStockTrades.forEach(t => {
       const d = t.hold_days || 0;
       const b = buckets.find(b => d >= b.min && d <= b.max);
       if (b) b.count += 1;
     });
     return buckets;
-  }, [btTrades]);
+  }, [btStockTrades]);
 
   // MFE vs 실제수익률 산점도
   const btMfeScatterData = useMemo(() => {
-    return btTrades.map(t => ({ x: t.mfe_pct || 0, y: t.return_pct || 0, symbol: t.symbol }));
-  }, [btTrades]);
+    return btStockTrades.map(t => ({ x: t.mfe_pct || 0, y: t.return_pct || 0, symbol: t.symbol }));
+  }, [btStockTrades]);
 
   // 거래내역 필터 + 페이지네이션
   const btAvailableYears = useMemo(() => {
-    const set = new Set(btTrades.map(t => (t.exit_date || '').substring(0, 4)).filter(Boolean));
+    const set = new Set(btStockTrades.map(t => (t.exit_date || '').substring(0, 4)).filter(Boolean));
     return Array.from(set).sort((a, b) => b.localeCompare(a));
-  }, [btTrades]);
+  }, [btStockTrades]);
 
   const btFilteredTrades = useMemo(() => {
     return [...btTrades]
+      .filter(t => btShowEtf || t.asset !== 'ETF')
       .filter(t => btYearFilter === 'All' || (t.exit_date || '').startsWith(btYearFilter))
       .filter(t => btExitTypeFilter === 'All' || t.exit_type === btExitTypeFilter)
       .filter(t => btResultFilter === 'All' || (btResultFilter === 'WIN' ? (t.return_pct || 0) > 0 : (t.return_pct || 0) <= 0))
       .sort((a, b) => new Date(b.exit_date) - new Date(a.exit_date));
-  }, [btTrades, btYearFilter, btExitTypeFilter, btResultFilter]);
+  }, [btTrades, btShowEtf, btYearFilter, btExitTypeFilter, btResultFilter]);
 
   const btTotalPages = Math.max(1, Math.ceil(btFilteredTrades.length / BT_PAGE_SIZE));
   const btPagedTrades = btFilteredTrades.slice((btPage - 1) * BT_PAGE_SIZE, btPage * BT_PAGE_SIZE);
 
-  useEffect(() => { setBtPage(1); }, [btYearFilter, btExitTypeFilter, btResultFilter]);
+  useEffect(() => { setBtPage(1); }, [btYearFilter, btExitTypeFilter, btResultFilter, btShowEtf]);
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -1380,7 +1385,7 @@ export default function QuantDesk() {
                     items={[
                       { key: "summary", label: "요약" },
                       { key: "detail", label: "상세 분석" },
-                      { key: "trades", label: `거래내역 (${btTrades.length})` },
+                      { key: "trades", label: `거래내역 (${btStockTrades.length})` },
                     ]}
                   />
 
@@ -1671,8 +1676,14 @@ export default function QuantDesk() {
                   {/* 전체 거래내역 (필터 + 페이지네이션) */}
                   <div className="mb-6">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
-                      <p className="text-[15px] font-medium text-slate-900 dark:text-white">전체 거래내역 ({btFilteredTrades.length}건 / 총 {btTrades.length}건)</p>
-                      <div className="flex flex-wrap gap-2">
+                      <p className="text-[15px] font-medium text-slate-900 dark:text-white">전체 거래내역 ({btFilteredTrades.length}건 / 총 {btShowEtf ? btTrades.length : btStockTrades.length}건)</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {btHasEtf && (
+                          <label className="flex items-center gap-1.5 text-[12px] font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                            <input type="checkbox" checked={btShowEtf} onChange={e => setBtShowEtf(e.target.checked)} />
+                            ETF 포함
+                          </label>
+                        )}
                         <select value={btYearFilter} onChange={e => setBtYearFilter(e.target.value)} className="text-[12px] font-medium px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0B1120] text-slate-700 dark:text-slate-300">
                           <option value="All">전체 연도</option>
                           {btAvailableYears.map(y => <option key={y} value={y}>{y}년</option>)}
@@ -1713,13 +1724,14 @@ export default function QuantDesk() {
                         return (
                           <div
                             key={idx}
-                            className={`flex flex-col md:flex-row md:items-center px-4 md:px-5 py-2.5 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-md md:rounded-none mb-2 md:mb-0 ${rowHoverCls} w-full gap-1 md:gap-0`}
+                            className={`flex flex-col md:flex-row md:items-center px-4 md:px-5 py-2.5 border-b border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827] md:bg-transparent rounded-md md:rounded-none mb-2 md:mb-0 ${rowHoverCls} ${t.asset === 'ETF' ? 'bg-slate-50 dark:bg-slate-800/30' : ''} w-full gap-1 md:gap-0`}
                           >
                             <div className="hidden md:block w-[11%] text-[11.5px] text-slate-500 tabular-nums">{t.entry_date}</div>
                             <div className="w-full md:w-[15%] flex justify-between md:block">
-                              <span className="text-[13.5px] font-medium text-slate-900 dark:text-white">{t.name}</span>
+                              <span className="text-[13.5px] font-medium text-slate-900 dark:text-white">{t.name}{t.asset === 'ETF' && <span className="ml-1.5 align-middle text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">ETF</span>}</span>
                               <span className="md:hidden text-[13.5px] font-medium tabular-nums" style={{ color: (t.return_pct || 0) >= 0 ? POS : NEG }}>{(t.return_pct || 0) > 0 ? '+' : ''}{t.return_pct?.toFixed(2)}%</span>
                             </div>
+                            <div className="md:hidden w-full text-[11.5px] text-slate-500 tabular-nums">{t.entry_date} → {t.exit_date}</div>
                             <div className="hidden md:block w-[11%] text-[11.5px] text-slate-500 tabular-nums">{t.exit_date}</div>
                             <div className="w-1/2 md:w-[10%] text-[11.5px] text-slate-600 dark:text-slate-400 text-left md:text-right tabular-nums">
                               <span className="md:hidden text-slate-400 mr-1">매수</span>₩{formatNumber(t.entry_price)}
