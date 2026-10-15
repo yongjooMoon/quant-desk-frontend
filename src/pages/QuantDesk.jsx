@@ -1144,8 +1144,8 @@ export default function QuantDesk() {
                               <span className="w-4 text-[10px] text-slate-400 font-mono shrink-0">{page * WATCH_PAGE_SIZE + i + 1}</span>
                               <span className="text-[11.5px] font-semibold text-slate-900 dark:text-white flex-1 min-w-0 truncate">{c.name}</span>
                               <span className="text-[10.5px] text-slate-500 dark:text-slate-400 tabular-nums shrink-0">₩{Math.round(c.current_price || 0).toLocaleString()}</span>
-                              <span className={`text-[10.5px] tabular-nums shrink-0 w-[110px] text-right ${c.total_pass === 6 ? 'text-brand font-bold' : 'text-slate-500 dark:text-slate-400'}`}>
-                                {c.total_pass}/6 · {(c.factor_score || 0).toFixed(1)}{c.recommended_qty > 0 ? ` · ${c.recommended_qty.toLocaleString()}주` : ''}
+                              <span className={`text-[10.5px] tabular-nums shrink-0 w-[96px] text-right ${c.total_pass === (c.filter_details ? Object.keys(c.filter_details).length : 6) ? 'text-brand font-bold' : 'text-slate-500 dark:text-slate-400'}`}>
+                                {c.total_pass}/{(c.filter_details ? Object.keys(c.filter_details).length : 6)} · {(c.factor_score || 0).toFixed(1)}{c.recommended_qty > 0 && c.total_pass === (c.filter_details ? Object.keys(c.filter_details).length : 6) ? ` · ${c.recommended_qty.toLocaleString()}주` : ''}
                               </span>
                             </button>
                           ))}
@@ -1859,7 +1859,7 @@ export default function QuantDesk() {
                                         <Metric
                                           size="md"
                                           label="생존 필터 통과"
-                                          value={<><CountUp value={selectedStock.total_pass !== undefined ? selectedStock.total_pass : (selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0)} decimals={0} /> / 6</>}
+                                          value={<><CountUp value={selectedStock.total_pass !== undefined ? selectedStock.total_pass : (selectedStock.gates ? Object.values(selectedStock.gates).filter(g => g.pass).length : 0)} decimals={0} /> / {selectedStock.gates ? Object.keys(selectedStock.gates).length : 6}</>}
                                         />
                                     </div>
                                     <p className="text-[11px] text-slate-500 mt-5 p-3 bg-white dark:bg-[#1E293B] rounded border border-slate-200 dark:border-slate-700/50 leading-relaxed">평가 지표(점수/게이트)는 가장 최근 배치(Cron) 시점을 기준으로 고정 표시됩니다. (재무 및 차트는 최신 반영)</p>
@@ -1885,11 +1885,11 @@ export default function QuantDesk() {
                             </div>
 
                             <div className="mb-8">
-                                <h5 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-4">Entry Gates (6 conditions)</h5>
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
-                                    {['A', 'B', 'C', 'D', 'E', 'F'].map((label, idx) => {
-                                        const gateKeys = selectedStock.gates ? Object.keys(selectedStock.gates) : [];
-                                        const gate = gateKeys.length > idx ? selectedStock.gates[gateKeys[idx]] : { pass: false, name: '-', reason: '-' };
+                                <h5 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-4">Entry Gates ({selectedStock.gates ? Object.keys(selectedStock.gates).length : 6} conditions)</h5>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                                    {(selectedStock.gates ? Object.keys(selectedStock.gates) : []).map((gk, idx) => {
+                                        const label = String.fromCharCode(65 + idx);
+                                        const gate = selectedStock.gates[gk] || { pass: false, name: '-', reason: '-' };
                                         const passed = gate.pass;
 
                                         return (
@@ -1899,7 +1899,7 @@ export default function QuantDesk() {
                                                 <span className="text-[11px]" style={{ color: passed ? GOOD : NEUTRAL }}>{passed ? '통과' : '미달'}</span>
                                             </div>
                                             <div className="h-1 rounded-full w-full mb-2" style={{ background: passed ? GOOD : '#E2E8F0' }}></div>
-                                            <p className="text-[11px] truncate" style={{ color: passed ? GOOD : NEUTRAL }} title={gate.reason || gate.name}>{gate.name}</p>
+                                            <p className="text-[11px] leading-snug break-words" style={{ color: passed ? GOOD : NEUTRAL }} title={gate.reason || gate.name}>{gate.name}</p>
                                         </div>
                                     )})}
                                 </div>
