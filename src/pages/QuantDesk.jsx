@@ -1894,13 +1894,12 @@ export default function QuantDesk() {
                                         const passed = gate.pass;
 
                                         return (
-                                        <div key={label} className={`p-3.5 rounded-md border ${passed ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/50' : 'bg-slate-50 dark:bg-[#1E2329] border-slate-200 dark:border-slate-800'} flex flex-col justify-between h-24`}>
+                                        <div key={label} className={`p-3.5 rounded-md border ${passed ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/50' : 'bg-slate-50 dark:bg-[#1E2329] border-slate-200 dark:border-slate-800'} flex flex-col justify-between h-20`}>
                                             <div className="flex justify-between items-center mb-2">
                                                 <span className="font-semibold text-[14px]" style={{ color: passed ? GOOD : NEUTRAL }}>{label}</span>
                                                 <span className="text-[11px]" style={{ color: passed ? GOOD : NEUTRAL }}>{passed ? '통과' : '미달'}</span>
                                             </div>
                                             <div className="h-1 rounded-full w-full mb-2" style={{ background: passed ? GOOD : '#E2E8F0' }}></div>
-                                            <p className="text-[11px] leading-snug break-words" style={{ color: passed ? GOOD : NEUTRAL }} title={gate.reason || gate.name}>{gate.name}</p>
                                         </div>
                                     )})}
                                 </div>
