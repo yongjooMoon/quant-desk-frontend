@@ -304,8 +304,6 @@ export default function QuantDesk() {
   const activeStockSymbolRef = useRef(null);
   const [riskStock, setRiskStock] = useState(null);
 
-  // 종목별 상세 팝업 — data.backtest12y.trades를 이 종목 코드로 필터링한 "과거 신호 이력"만 보여준다.
-  const [backtestStock, setBacktestStock] = useState(null);
 
   const [timeRange, setTimeRange] = useState("All");
 
@@ -571,10 +569,6 @@ export default function QuantDesk() {
       });
   };
 
-  // 켈리 사이징 대신, 이 종목의 12년치 과거 신호 이력만 로컬에서 필터링해 보여준다.
-  const handlePositionSizingClick = (symbol, basicData) => {
-    setBacktestStock({ symbol, name: basicData.name });
-  };
 
   const holdings = data.holdings || [];
   const trades = data.trades || [];
@@ -678,14 +672,6 @@ export default function QuantDesk() {
   const [btShowEtf, setBtShowEtf] = useState(true);
   const btTrackRecord = bt?.track_record || null;
 
-  // 이 종목 상세 팝업(backtestStock)이 참조할 "이 종목만의" 과거 신호 이력
-  const backtestSymbol = backtestStock?.symbol;
-  const backtestDisplayName = backtestStock?.name;
-  const backtestOwnTrades = useMemo(() => {
-    if (!backtestSymbol) return [];
-    return btTrades.filter(t => t.symbol === backtestSymbol)
-      .sort((a, b) => new Date(b.entry_date) - new Date(a.entry_date));
-  }, [btTrades, backtestSymbol]);
 
   // [2026-09-18] 투자원금 기준 원화 환산 — 백엔드 payload의 capital 블록
   // ({initial_krw, final_krw, profit_krw, final_multiple, benchmark_final_krw}).
@@ -934,7 +920,6 @@ export default function QuantDesk() {
           { key: "Portfolio", label: `Portfolio (${holdings.length})` },
           { key: "Screener", label: "Screener" },
           { key: "History", label: "History" },
-          { key: "Whitepaper", label: "Explain" },
         ]}
       />
 
@@ -953,6 +938,10 @@ export default function QuantDesk() {
           {/* ===================== PORTFOLIO TAB ===================== */}
           {activeTab === "Portfolio" && (
             <div className="qd-fade-in w-full">
+
+                <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-4 tabular-nums">
+                  nA3 가상 포트폴리오 · 시작금 ₩20,000,000 · 4슬롯 동일비중(슬롯당 ₩{Math.round((holdings[0] && holdings[0].slot_amount) || ((data.watchlist || [])[0] && (data.watchlist || [])[0].slot_amount) || 5000000).toLocaleString()}) · 종가 신호, 실주문 없음
+                </p>
 
                 {/* 보유종목 실제 데이터로만 계산한 요약 지표 — 계좌 총자산/현금 등
                     프론트가 못 받는 값은 만들어내지 않고, 보유종목 현재가*수량 합계만 표시 */}
@@ -1079,7 +1068,7 @@ export default function QuantDesk() {
                             <div className="w-[12%] text-[12.5px] font-medium text-slate-500 text-right">현재가</div>
                             <div className="w-[10%] text-[12.5px] font-medium text-slate-500 text-right">수량</div>
                             <div className="w-[13%] text-[12.5px] font-medium text-slate-500 text-right">수익률(P&L)</div>
-                            <div className="w-[15%] text-[12.5px] font-medium text-slate-500 text-center">Exit Risk</div>
+                            <div className="w-[15%] text-[12.5px] font-medium text-slate-500 text-center">청산까지 거리</div>
                             <div className="w-[20%] text-[12.5px] font-medium text-slate-500 text-center">상세 액션</div>
                         </div>
 
@@ -1088,7 +1077,7 @@ export default function QuantDesk() {
                         ) : holdings.map((h, i) => {
                             const ret = h.return_rate || 0.0;
                             const pnlColor = ret > 0 ? POS : (ret < 0 ? NEG : NEUTRAL);
-                            const dummyRisk = Math.min(100, Math.max(0, 100 - (ret * 2 + 50)));
+                            const nearDist = h.nearest_exit && h.nearest_exit.dist_pct != null ? h.nearest_exit.dist_pct : null;
 
                             return (
                             <div
@@ -1109,23 +1098,17 @@ export default function QuantDesk() {
                                     </div>
                                     <div className="flex flex-col md:w-1/3 items-end">
                                         <span className="text-[10.5px] font-medium text-slate-400 md:hidden mb-0.5">수량</span>
-                                        <button
-                                            onClick={() => handlePositionSizingClick(h.symbol, h)}
-                                            title={`${h.name} 과거 신호 이력 보기`}
-                                            className="qd-qty-chip inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[13px] font-medium text-slate-600 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors"
-                                        >
-                                            {formatNumber(h.quantity)}주
-                                        </button>
+                                        <span className="inline-flex items-center px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[13px] font-medium text-slate-600 dark:text-slate-400">{formatNumber(h.quantity)}주</span>
                                     </div>
                                 </div>
                                 <div className="hidden md:block w-[13%] text-[15px] font-semibold text-right tabular-nums" style={{ color: pnlColor }}>{ret > 0 ? "+" : ""}{ret.toFixed(2)}%</div>
                                 <div className="flex justify-between items-center w-full md:w-[35%] mt-1 md:mt-0 pt-3 md:pt-0 border-t border-slate-100 dark:border-slate-800/80 md:border-0">
                                     <div className="flex items-center md:w-[28%] md:justify-center gap-2">
-                                        <span className="text-[10.5px] font-medium text-slate-400 md:hidden">Exit Risk</span>
-                                        <span className="text-[13.5px] font-semibold tabular-nums" style={{ color: WARN }}>{(h.exit_risk || dummyRisk).toFixed(2)}%</span>
+                                        <span className="text-[10.5px] font-medium text-slate-400 md:hidden">청산까지 거리</span>
+                                        <span className="text-[13.5px] font-semibold tabular-nums" style={{ color: nearDist != null && nearDist < 3 ? NEG : WARN }} title={h.nearest_exit ? h.nearest_exit.label : ""}>{nearDist != null ? `${nearDist.toFixed(2)}%` : '-'}</span>
                                     </div>
                                     <div className="flex justify-end md:w-[72%] md:justify-center gap-2 flex-wrap">
-                                        <button onClick={() => setRiskStock({...h, exit_risk: (h.exit_risk || dummyRisk)})} className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[12.5px] font-medium rounded border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-amber-600 dark:hover:text-amber-400 transition-colors cursor-pointer"><ShieldAlert size={13} strokeWidth={1.75}/> Risk</button>
+                                        <button onClick={() => setRiskStock(h)} className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[12.5px] font-medium rounded border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-amber-600 dark:hover:text-amber-400 transition-colors cursor-pointer"><ShieldAlert size={13} strokeWidth={1.75}/> Risk</button>
                                         <button onClick={() => handleStockClick(h.symbol, h)} className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[12.5px] font-medium rounded border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer"><BarChart3 size={13} strokeWidth={1.75}/> 리포트</button>
                                     </div>
                                 </div>
@@ -1161,8 +1144,8 @@ export default function QuantDesk() {
                               <span className="w-4 text-[10px] text-slate-400 font-mono shrink-0">{page * WATCH_PAGE_SIZE + i + 1}</span>
                               <span className="text-[11.5px] font-semibold text-slate-900 dark:text-white flex-1 min-w-0 truncate">{c.name}</span>
                               <span className="text-[10.5px] text-slate-500 dark:text-slate-400 tabular-nums shrink-0">₩{Math.round(c.current_price || 0).toLocaleString()}</span>
-                              <span className={`text-[10.5px] tabular-nums shrink-0 w-[64px] text-right ${c.total_pass === 6 ? 'text-brand font-bold' : 'text-slate-500 dark:text-slate-400'}`}>
-                                {c.total_pass}/6 · {(c.factor_score || 0).toFixed(1)}
+                              <span className={`text-[10.5px] tabular-nums shrink-0 w-[110px] text-right ${c.total_pass === 6 ? 'text-brand font-bold' : 'text-slate-500 dark:text-slate-400'}`}>
+                                {c.total_pass}/6 · {(c.factor_score || 0).toFixed(1)}{c.recommended_qty > 0 ? ` · ${c.recommended_qty.toLocaleString()}주` : ''}
                               </span>
                             </button>
                           ))}
@@ -1784,142 +1767,42 @@ export default function QuantDesk() {
           )}
 
           {/* ===================== WHITEPAPER TAB ===================== */}
-          {activeTab === "Whitepaper" && (
-              <div className="qd-fade-in w-full max-w-4xl mx-auto pb-10">
-                  {/* 매수 진입 섹션 */}
-                  <div className="mb-10">
-                      <div
-                        className="flex items-center justify-between cursor-pointer group mb-5 px-1"
-                        onClick={() => setIsEntryOpen(!isEntryOpen)}
-                      >
-                          <div className="flex items-center gap-2.5">
-                              <Rocket className="text-slate-400" size={19} strokeWidth={1.75} />
-                              <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white tracking-tight">매수 진입 6대 관문 (Entry Gates)</h3>
-                          </div>
-                          <ChevronDown className={`text-slate-400 transition-transform duration-200 ${isEntryOpen ? 'rotate-180' : ''}`} size={18} />
-                      </div>
-
-                      {isEntryOpen && (
-                          <div className="grid grid-cols-1 gap-3">
-                              {[
-                                { label: 'A', title: '성장성', sub: 'Growth Composite', desc: <>최근 실적 기준 매출액, 영업이익, 당기순이익의 YoY 성장률(%)을 종합 산출하여 기초 체력이 확실하게 검증된 흑자 성장 기업만 선별합니다.</> },
-                                { label: 'B', title: '방어력', sub: 'Dynamic MDD', desc: <>최근 60일 고점 대비 하락폭(MDD)을 추적합니다. 단순히 고정된 비율을 쓰지 않고, 종목별 변동성지표인 ATR(Average True Range)에 연동하여 한계 하락폭을 동적으로 계산해 맷집이 약한 종목을 차단합니다.</> },
-                                { label: 'C', title: '유동성', sub: 'Liquidity', desc: <>원활한 진입과 슬리피지(Slippage) 없는 청산을 위해 최근 20일 일평균 거래대금이 최소 50억 원 이상인 메이저 종목들 사이에서만 트레이딩을 수행합니다.</> },
-                                { label: 'D', title: '추세', sub: 'Trend Alignment (Minervini Template)', desc: <>미너비니 트렌드 템플릿 기준: 현재가가 50일선 &gt; 150일선 &gt; 200일선 순으로 완벽하게 정배열되어 있고, 200일선 자체가 1개월·3개월 전보다 더 높게(상승 추세로) 유지되고 있는 종목만 선별합니다. 동시에 52주 신고가 대비 25% 이내로 근접해 있으면서, 52주 신저가 대비는 30% 이상 벗어나 있어야 해 바닥권 눌림목이 아닌 진짜 주도주만 통과시킵니다.</> },
-                                { label: 'E', title: '가격 돌파', sub: 'Price Breakout', desc: <>최근 3개월(60일) 최고가의 90% 이상 매물대를 2일 연속 돌파한 종목을 포착합니다. 단, 60일 평균 대비 2배 이상의 대량 거래량이 동반될 경우 강력한 신호로 판단하여 1일 차라도 즉시 진입을 허용합니다.</> },
-                                { label: 'F', title: '수급', sub: 'Volume Surge', desc: <>가격 상승을 뒷받침하는 강력한 자금 유입을 검증합니다. 최근 5일 평균 거래량과 당일 거래량이 모두 60일 평균 대비 1.5배 이상 폭발한 모멘텀 주도주만 선별합니다.</> },
-                              ].map((g) => (
-                                <Card key={g.label} interactive padding="none" className="qd-gate-card p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
-                                    <div className="md:w-1/4 shrink-0 flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-md bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-[14px]">{g.label}</div>
-                                        <h4 className="font-medium text-[15px] text-slate-900 dark:text-white">{g.title} <span className="text-[12px] text-slate-400 block font-normal">{g.sub}</span></h4>
-                                    </div>
-                                    <div className="md:w-3/4">
-                                        <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                                            {g.desc}
-                                        </p>
-                                    </div>
-                                </Card>
-                              ))}
-                          </div>
-                      )}
-                  </div>
-
-                  {/* 생존 매도 섹션 */}
-                  <div>
-                      <div
-                        className="flex items-center justify-between cursor-pointer group mb-5 px-1"
-                        onClick={() => setIsExitOpen(!isExitOpen)}
-                      >
-                          <div className="flex items-center gap-2.5">
-                              <ShieldAlert className="text-slate-400" size={19} strokeWidth={1.75} />
-                              <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white tracking-tight">생존 매도 3대 원칙 (Exit Signals)</h3>
-                          </div>
-                          <ChevronDown className={`text-slate-400 transition-transform duration-200 ${isExitOpen ? 'rotate-180' : ''}`} size={18} />
-                      </div>
-
-                      {isExitOpen && (
-                          <div className="grid grid-cols-1 gap-3">
-                              {[
-                                { label: '1', title: '동적 손절', sub: 'Trailing Stop', desc: <>고정된 비율(-5% 등) 대신 종목별 일간 변동성(ATR) 수치에 연동된 손절선을 그리고, 주가가 오르면 손절선도 함께 추적하여 올라갑니다. 12년치 데이터로 검증한 결과 손절폭을 너무 타이트하게 좁히면(과거엔 수익 +15% 진입 시 추적 배수를 0.6배로 조였음) 오히려 승자를 조기 청산시켜 MDD를 키우는 역효과가 확인되어, 지금은 손절폭을 넉넉하게(최대 -37.5%까지) 열어두고 수익권에서도 더 이상 인위적으로 조이지 않습니다.</> },
-                                { label: '2', title: '추세 붕괴', sub: 'Trend Breakdown', desc: <>주가의 20일선 이탈, 단기 이평선 데드크로스(10일 &lt; 20일), 20일선 기울기 하락 전환이라는 3대 하락 징후를 감시합니다. 노이즈 방지를 위해 시장 국면에 따라 다수결(강세장 2개 충족, 약세장 1개 충족) 규칙을 적용하여 하락 엔진이 켜지기 전 신속히 청산합니다.</> },
-                                { label: '3', title: '모멘텀 소진', sub: 'Momentum Exhaust', desc: <>초과 수익 상단을 제한하는 '목표가 고정 익절'을 전면 폐지했습니다. 단, 수익권에서 최근 5일 거래량이 20일 평균의 80% 밑으로 급감하고 주가가 10일선을 하향 이탈하면 시장의 관심이 소멸한 것으로 판단하여 즉시 실현 익절합니다.</> },
-                              ].map((g) => (
-                                <Card key={g.label} interactive padding="none" className="qd-gate-card p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
-                                    <div className="md:w-1/4 shrink-0 flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-md bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-[14px]">{g.label}</div>
-                                        <h4 className="font-medium text-[15px] text-slate-900 dark:text-white">{g.title} <span className="text-[12px] text-slate-400 block font-normal">{g.sub}</span></h4>
-                                    </div>
-                                    <div className="md:w-3/4">
-                                        <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                                            {g.desc}
-                                        </p>
-                                    </div>
-                                </Card>
-                              ))}
-                          </div>
-                      )}
-                  </div>
-
-                  {/* 포트폴리오 오버레이 섹션 */}
-                  <div className="mt-10">
-                      <div
-                        className="flex items-center justify-between cursor-pointer group mb-5 px-1"
-                        onClick={() => setIsOverlayOpen(!isOverlayOpen)}
-                      >
-                          <div className="flex items-center gap-2.5">
-                              <Activity className="text-slate-400" size={19} strokeWidth={1.75} />
-                              <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white tracking-tight">지수 오버레이 (Index Overlay)</h3>
-                          </div>
-                          <ChevronDown className={`text-slate-400 transition-transform duration-200 ${isOverlayOpen ? 'rotate-180' : ''}`} size={18} />
-                      </div>
-
-                      {isOverlayOpen && (
-                          <div className="grid grid-cols-1 gap-3">
-                              <Card interactive padding="none" className="qd-gate-card p-5 md:p-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
-                                  <div className="md:w-1/4 shrink-0 flex items-center gap-3">
-                                      <div className="w-9 h-9 rounded-md bg-slate-100 dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-[14px]">+</div>
-                                      <h4 className="font-medium text-[15px] text-slate-900 dark:text-white">유휴자본 시장 노출 <span className="text-[12px] text-slate-400 block font-normal">Idle Capital Overlay</span></h4>
-                                  </div>
-                                  <div className="md:w-3/4">
-                                      <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                                          개별종목 6대 관문을 통과하는 종목이 항상 10개가 채워지진 않아, 그날 아직 투입되지 않은 자본(유휴자본)이 남는 날이 많습니다. 시장 국면(레짐)이 뚜렷한 상승 추세(BULL)로 확인된 날에 한해서만, 이 유휴자본만큼을 코스피 지수 당일 수익률에 노출시킵니다. 개별종목 매수/매도 로직과는 완전히 분리된 별도 전략 층이며, 레짐이 BULL이 아니면 유휴자본은 그대로 현금으로 남습니다.
-                                      </p>
-                                  </div>
-                              </Card>
-                          </div>
-                      )}
-                  </div>
-              </div>
-          )}
         </div>
       )}
 
-      {/* RISK MODAL */}
+      {/* RISK MODAL — nA3 exit rules (close-based) and position risk */}
       {riskStock && (
         <Modal open onClose={() => setRiskStock(null)} size="sm" className="p-6">
                 <div className="flex justify-between items-center mb-5">
-                    <h3 className="text-[17px] font-semibold text-slate-900 dark:text-white flex items-center gap-2"><ShieldAlert size={17} className="text-amber-500" strokeWidth={1.75}/> {riskStock.name} Risk 분석</h3>
+                    <h3 className="text-[17px] font-semibold text-slate-900 dark:text-white flex items-center gap-2"><ShieldAlert size={17} className="text-amber-500" strokeWidth={1.75}/> {riskStock.name} 리스크 (nA3)</h3>
                     <button onClick={() => setRiskStock(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors text-[13px] font-medium">닫기</button>
                 </div>
 
                 <p className="text-[13px] text-slate-600 dark:text-slate-400 mb-5 pb-4 border-b border-slate-100 dark:border-slate-800 tabular-nums">
-                    현재가: ₩{Math.round(riskStock.current_price || 0).toLocaleString()} &nbsp;|&nbsp; 손절가: ₩{Math.round(riskStock.stop_price || 0).toLocaleString()}
+                    현재가 ₩{Math.round(riskStock.current_price || 0).toLocaleString()} &nbsp;|&nbsp; 손절가 ₩{Math.round(riskStock.stop_price || 0).toLocaleString()} &nbsp;|&nbsp; 최고 종가 ₩{Math.round(riskStock.highest_close || 0).toLocaleString()}
                 </p>
 
-                <div className="space-y-5">
-                    <div>
-                        <div className="flex justify-between text-[13px] font-medium mb-2"><span>OVERALL EXIT PROXIMITY</span><span className="tabular-nums"><CountUp value={riskStock.exit_risk || 0} decimals={2} />%</span></div>
-                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden"><div className="qd-bar-fill h-2 rounded-full" style={{width: `${riskStock.exit_risk || 0}%`, background: (riskStock.exit_risk || 0) > 70 ? POS : GOOD}}></div></div>
-                    </div>
-                    <div>
-                        <div className="flex justify-between text-[12.5px] mb-2 text-slate-500"><span>Trailing Stop (ATR) 추정</span><span className="tabular-nums"><CountUp value={Math.max(0, (riskStock.exit_risk || 0) - 15)} decimals={2} />%</span></div>
-                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden"><div className="qd-bar-fill bg-slate-400 dark:bg-slate-600 h-1.5 rounded-full" style={{width: `${Math.max(0, (riskStock.exit_risk || 0) - 15)}%`}}></div></div>
-                    </div>
-                    <div>
-                        <div className="flex justify-between text-[12.5px] mb-2 text-slate-500"><span>Trend Break (MA20) 추정</span><span className="tabular-nums"><CountUp value={Math.max(0, (riskStock.exit_risk || 0) - 5)} decimals={2} />%</span></div>
-                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden"><div className="qd-bar-fill bg-slate-400 dark:bg-slate-600 h-1.5 rounded-full" style={{width: `${Math.max(0, (riskStock.exit_risk || 0) - 5)}%`}}></div></div>
-                    </div>
+                <div className="grid grid-cols-2 gap-4 mb-5">
+                    <Metric size="sm" label="포트폴리오 비중" value={`${(riskStock.weight_pct || 0).toFixed(1)}%`} />
+                    <Metric size="sm" label="손절 시 추가 손실" value={`₩${Math.round(riskStock.risk_krw || 0).toLocaleString()}`} sub={`포트폴리오의 ${(riskStock.risk_pct_equity || 0).toFixed(2)}%`} />
+                    <Metric size="sm" label="진입 시 최대 손실(-5%)" value={`₩${Math.round(riskStock.initial_risk_krw || 0).toLocaleString()}`} />
+                    <Metric size="sm" label="슬롯당 금액 (4슬롯 동일비중)" value={`₩${Math.round(riskStock.slot_amount || 0).toLocaleString()}`} />
+                </div>
+
+                <div className="space-y-3">
+                    <div className="text-[12px] font-medium text-slate-500">청산 규칙 (종가 기준, 해당 종가에 즉시 청산)</div>
+                    {(riskStock.exit_rules || []).map((r, i) => (
+                        <div key={i} className={`flex justify-between items-start gap-3 text-[12.5px] ${r.active ? '' : 'opacity-50'}`}>
+                            <div className="min-w-0">
+                                <div className="font-medium text-slate-800 dark:text-slate-200">{r.label}</div>
+                                <div className="text-[11px] text-slate-500 tabular-nums">{r.level != null ? `기준가 ₩${Math.round(r.level).toLocaleString()}` : '기준가 없음'}{r.active ? '' : ' · 현재 조건 미충족(비활성)'}</div>
+                            </div>
+                            <div className="text-right tabular-nums shrink-0">
+                                <div className="font-semibold" style={{ color: r.active && r.dist_pct != null && r.dist_pct < 3 ? NEG : WARN }}>{r.dist_pct != null ? `${r.dist_pct.toFixed(2)}%` : '-'}</div>
+                                <div className="text-[10.5px] text-slate-500">현재가 대비 여유</div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
 
                 <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-4">
@@ -1934,54 +1817,6 @@ export default function QuantDesk() {
         </Modal>
       )}
 
-      {/* 종목별 상세 팝업 — 12년치 과거 신호 이력 표시 */}
-      {backtestStock && (
-        <Modal open onClose={() => setBacktestStock(null)} size="lg" className="min-h-[40vh]">
-            <Modal.Header>
-                    <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white">{backtestDisplayName} 과거 신호 이력</h3>
-                    <button onClick={() => setBacktestStock(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors text-[13px] font-medium">닫기</button>
-            </Modal.Header>
-
-            <Modal.Body className="p-6">
-                    {!bt ? (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-500 py-16">
-                            <p className="text-[14px] text-center leading-relaxed">백테스팅 데이터가 없습니다.<br/>다음 배치(Cron) 실행 후 다시 확인해 주세요.</p>
-                        </div>
-                    ) : (
-                        <>
-                            <button
-                                onClick={() => { setBacktestStock(null); setActiveTab("Backtest"); }}
-                                className="text-[12px] font-medium text-blue-600 dark:text-blue-400 underline underline-offset-2 mb-5 cursor-pointer"
-                            >
-                                전략 자체의 신뢰도(12년 트랙레코드)는 백테스팅 탭에서 확인하세요
-                            </button>
-
-                            <div className="flex items-center gap-2 mb-3">
-                                <p className="text-[13.5px] font-medium text-slate-900 dark:text-white">이 종목의 12년치 과거 신호 이력 ({backtestOwnTrades.length}건)</p>
-                                <Info size={13} className="text-slate-400" />
-                            </div>
-                            <p className="text-[12px] text-slate-500 mb-4 leading-relaxed">
-                                표본이 작을 수 있어 참고용 보조지표로만 사용하세요. 신뢰도 판단은 백테스팅 탭의 전체 통계를 기준으로 합니다.
-                            </p>
-                            {backtestOwnTrades.length === 0 ? (
-                                <p className="text-[13px] text-slate-400">해당 종목의 과거 신호 이력이 없습니다.</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {backtestOwnTrades.map((t, i) => (
-                                        <Panel key={i} level="inset" padding="none" className="flex flex-wrap items-center justify-between gap-2 p-3.5">
-                                            <div className="text-[11.5px] text-slate-500 tabular-nums">{t.entry_date} → {t.exit_date} ({t.hold_days}일 보유)</div>
-                                            <div className="text-[12.5px] font-medium text-slate-700 dark:text-slate-300 tabular-nums">₩{formatNumber(t.entry_price)} → ₩{formatNumber(t.exit_price)}</div>
-                                            <div className="text-[13px] font-semibold tabular-nums" style={{ color: (t.return_pct || 0) >= 0 ? POS : NEG }}>{(t.return_pct || 0) > 0 ? '+' : ''}{t.return_pct?.toFixed(2)}%</div>
-                                            <div className="text-[11.5px] text-slate-400 w-full md:w-auto">{t.reason}</div>
-                                        </Panel>
-                                    ))}
-                                </div>
-                            )}
-                        </>
-                    )}
-            </Modal.Body>
-        </Modal>
-      )}
 
       {/* REPORT MODAL (종목 리포트 전용) */}
       {selectedStock && (
