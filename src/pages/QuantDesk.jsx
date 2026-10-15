@@ -940,9 +940,21 @@ export default function QuantDesk() {
           {activeTab === "Portfolio" && (
             <div className="qd-fade-in w-full">
 
-                <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-4 tabular-nums">
-                  nA3 가상 포트폴리오 · 시작금 ₩20,000,000 · 4슬롯 동일비중(슬롯당 ₩{Math.round((holdings[0] && holdings[0].slot_amount) || ((data.watchlist || [])[0] && (data.watchlist || [])[0].slot_amount) || 5000000).toLocaleString()}) · 종가 신호, 실주문 없음
-                </p>
+                {(() => {
+                  const regimeOn = !!(data.regime && (data.regime.KOSPI || data.regime.KOSDAQ));
+                  const lamp = (on, label) => (
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md border text-[12px] font-semibold ${on ? 'border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400' : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'}`}>
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: on ? '#EF4444' : '#94A3B8', boxShadow: on ? '0 0 8px 2px rgba(239,68,68,0.7)' : 'none' }}></span>{label}
+                    </span>
+                  );
+                  return data.regime ? (
+                    <div className="flex items-center gap-2 mb-4" title={`KOSPI ${data.regime.KOSPI ? 'ON' : 'OFF'} · KOSDAQ ${data.regime.KOSDAQ ? 'ON' : 'OFF'}`}>
+                      <span className="text-[13px] font-medium text-slate-600 dark:text-slate-300 mr-1">레짐</span>
+                      {lamp(regimeOn, 'ON')}
+                      {lamp(!regimeOn, 'OFF')}
+                    </div>
+                  ) : null;
+                })()}
 
                 {/* 보유종목 실제 데이터로만 계산한 요약 지표 — 계좌 총자산/현금 등
                     프론트가 못 받는 값은 만들어내지 않고, 보유종목 현재가*수량 합계만 표시 */}
@@ -1005,9 +1017,6 @@ export default function QuantDesk() {
                                 ) : (
                                   <span className="text-[9.5px] font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 whitespace-nowrap">장마감</span>
                                 )}
-                                {data.regime && [["KOSPI", data.regime.KOSPI], ["KOSDAQ", data.regime.KOSDAQ]].map(([mk, on]) => (
-                                  <span key={mk} title="nA3 레짐 필터 (지수 > 200일선, MA50 핀 해제)" className={`text-[9.5px] font-medium px-1.5 py-0.5 rounded border whitespace-nowrap ${on ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50' : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800/50'}`}>레짐 {mk} {on ? 'ON' : 'OFF'}</span>
-                                ))}
                               </div>
                               <div className="text-[11px] font-medium text-slate-500 truncate">
                                 전일대비 <span style={{ color: (indices.kospi.ret_1d || 0) > 0 ? POS : NEG }}>{(indices.kospi.ret_1d > 0 ? '+' : '')}{indices.kospi.ret_1d?.toFixed(2)}%</span>
