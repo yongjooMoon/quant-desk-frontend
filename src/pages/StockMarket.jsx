@@ -1,4 +1,4 @@
-// src/pages/StockMarket.jsx — "증시": 국내 종목 목록(거래량/시총/거래대금/등락률) + MTS형 차트(일/주/월/년, 이동평균) + 애널리스트 목표가
+// src/pages/StockMarket.jsx — "증시": 국내 종목 목록(거래량/시총/거래대금/등락률) + MTS형 차트(일/주/월/년, 이동평균) + 거래량 + 애널리스트 목표가 + 재무 + 관련 뉴스
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Search, ArrowLeft, RefreshCcw } from 'lucide-react';
 import { createChart, CandlestickSeries, HistogramSeries, LineSeries, CrosshairMode } from 'lightweight-charts';
@@ -9,14 +9,18 @@ const UP = '#DC2626';    // 상승 = 빨강 (프로젝트 공통 축)
 const DOWN = '#2563EB';  // 하락 = 파랑
 const MA_DEF = [{ k: 'ma20', label: 'MA20', color: '#F59E0B' }, { k: 'ma60', label: 'MA60', color: '#3B82F6' }, { k: 'ma120', label: 'MA120', color: '#94A3B8' }];
 const TFS = [['D', '일'], ['W', '주'], ['M', '월'], ['Y', '년']];
+const RANGES = [['1M', '1개월', 1], ['6M', '6개월', 6], ['1Y', '1년', 12], ['3Y', '3년', 36], ['ALL', '전체', 0]];
+const DEFAULT_RANGE = { D: '6M', W: '3Y', M: 'ALL', Y: 'ALL' };
 const SORTS = [['volume', '거래량'], ['marcap', '시가총액'], ['amount', '거래대금'], ['chg', '등락률']];
 const MARKETS = [['ALL', '전체'], ['KOSPI', '코스피'], ['KOSDAQ', '코스닥']];
 
+const PANEL = 'rounded-lg border border-slate-200 dark:border-[#2C323A] bg-white dark:bg-[#1E2329]';
 const fmt = (n) => (n == null || Number.isNaN(n) ? '-' : Math.round(n).toLocaleString());
 const sign = (v) => (v > 0 ? '+' : '');
 const tone = (v) => (v > 0 ? UP : v < 0 ? DOWN : undefined);
-const fmtEok = (e) => { if (e == null) return '-'; const jo = Math.floor(e / 10000), eok = Math.round(e % 10000); return jo ? `${jo.toLocaleString()}조 ${eok ? eok.toLocaleString() + '억' : ''}` : `${eok.toLocaleString()}억`; };
+const fmtEok = (e) => { if (e == null) return '-'; const neg = e < 0, a = Math.abs(e), jo = Math.floor(a / 10000), eok = Math.round(a % 10000); const t = jo ? `${jo.toLocaleString()}조${eok ? ' ' + eok.toLocaleString() + '억' : ''}` : `${eok.toLocaleString()}억`; return neg ? '-' + t : t; };
 const fmtVol = (v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(0)}K` : String(v ?? '-'));
+const yoy = (cur, prev) => (cur != null && prev ? ((cur - prev) / Math.abs(prev)) * 100 : null);
 
 function useIsDark() {
   const get = () => document.documentElement.classList.contains('dark');
@@ -29,93 +33,107 @@ function useIsDark() {
   return dark;
 }
 
-// ── MTS형 캔들 차트: 캔들 + 거래량 + 이동평균, 십자선 범례(OHLC / 거래량 / MA 값)
-function PriceChart({ candles, tf, maOn, dark }) {
+const SectionTitle = ({ title, sub, right }) => (
+  <div className="flex items-baseline justify-between gap-3 mb-4">
+    <div className="flex items-baseline gap-2 min-w-0">
+      <h3 className="text-[17px] font-semibold text-slate-900 dark:text-white whitespace-nowrap">{title}</h3>
+      {sub && <span className="text-[12px] text-slate-500 dark:text-slate-400 truncate">{sub}</span>}
+    </div>
+    {right}
+  </div>
+);
+
+// ── MTS형 캔들 차트: 캔들 + 거래량 + 이동평균, 십자선 범례(OHLC / 등락 / 거래량 / MA 값)
+function PriceChart({ candles, tf, range, maOn, dark }) {
   const boxRef = useRef(null);
   const [legend, setLegend] = useState(null);
 
   useEffect(() => {
     if (!boxRef.current || !candles.length) return;
-    const text = dark ? '#94A3B8' : '#64748B', grid = dark ? 'rgba(148,163,184,0.08)' : 'rgba(100,116,139,0.10)';
+    const text = dark ? '#9AA4B2' : '#64748B', grid = dark ? 'rgba(148,163,184,0.10)' : 'rgba(100,116,139,0.12)';
     const chart = createChart(boxRef.current, {
       autoSize: true,
-      layout: { background: { color: 'transparent' }, textColor: text, fontFamily: 'inherit', fontSize: 11 },
+      layout: { background: { color: 'transparent' }, textColor: text, fontFamily: 'inherit', fontSize: 12 },
+      localization: { priceFormatter: (p) => Math.round(p).toLocaleString() },
       grid: { vertLines: { color: grid }, horzLines: { color: grid } },
-      crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.06, bottom: 0.26 } },
+      crosshair: { mode: CrosshairMode.Normal, vertLine: { labelBackgroundColor: dark ? '#475569' : '#334155' }, horzLine: { labelBackgroundColor: dark ? '#475569' : '#334155' } },
+      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.07, bottom: 0.27 } },
       timeScale: { borderVisible: false, timeVisible: false, rightOffset: 4 },
     });
     const candle = chart.addSeries(CandlestickSeries, { upColor: UP, downColor: DOWN, borderVisible: false, wickUpColor: UP, wickDownColor: DOWN, priceFormat: { type: 'price', precision: 0, minMove: 1 } });
     candle.setData(candles.map(c => ({ time: c.t, open: c.o, high: c.h, low: c.l, close: c.c })));
     const vol = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'vol', lastValueVisible: false, priceLineVisible: false });
-    chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
-    vol.setData(candles.map(c => ({ time: c.t, value: c.v, color: c.c >= c.o ? 'rgba(220,38,38,0.45)' : 'rgba(37,99,235,0.45)' })));
-    const lines = {};
+    chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+    vol.setData(candles.map(c => ({ time: c.t, value: c.v, color: c.c >= c.o ? 'rgba(220,38,38,0.5)' : 'rgba(37,99,235,0.5)' })));
     MA_DEF.forEach(m => {
       if (!maOn[m.k]) return;
-      const s = chart.addSeries(LineSeries, { color: m.color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+      const s = chart.addSeries(LineSeries, { color: m.color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
       s.setData(candles.filter(c => c[m.k] != null).map(c => ({ time: c.t, value: c[m.k] })));
-      lines[m.k] = s;
     });
     const byTime = new Map(candles.map(c => [c.t, c]));
-    const show = (c) => setLegend(c ? { t: c.t, o: c.o, h: c.h, l: c.l, c: c.c, v: c.v, chg: c.o ? (c.c / c.o - 1) * 100 : null, ma20: c.ma20, ma60: c.ma60, ma120: c.ma120 } : null);
     const lastC = candles[candles.length - 1];
+    const prevOf = new Map(candles.map((c, i) => [c.t, i > 0 ? candles[i - 1].c : null]));
+    const show = (c) => { const pc = c ? prevOf.get(c.t) : null; setLegend(c ? { ...c, chg: pc ? (c.c / pc - 1) * 100 : null } : null); };
     show(lastC);
     chart.subscribeCrosshairMove(p => { const c = p.time ? byTime.get(p.time) : null; show(c || lastC); });
-    // 기본 표시 구간: 일봉 약 6개월, 주봉 약 2년, 월봉/년봉은 전체
-    const n = candles.length, shown = tf === 'D' ? 130 : tf === 'W' ? 104 : n;
-    chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - shown), to: n + 3 });
+    // 표시 구간
+    const months = (RANGES.find(r => r[0] === range) || [])[2];
+    if (!months) chart.timeScale().fitContent();
+    else {
+      const d = new Date(lastC.t); d.setMonth(d.getMonth() - months);
+      const from = d.toISOString().slice(0, 10);
+      const first = candles.find(c => c.t >= from) || candles[0];
+      chart.timeScale().setVisibleRange({ from: first.t, to: lastC.t });
+    }
     return () => chart.remove();
-  }, [candles, tf, maOn, dark]);
+  }, [candles, tf, range, maOn, dark]);
 
+  const up = legend && legend.c >= legend.o;
   return (
     <div className="relative">
       {legend && (
-        <div className="absolute top-1 left-2 z-10 text-[11px] tabular-nums leading-relaxed pointer-events-none">
+        <div className="absolute top-1 left-2 z-10 text-[12px] tabular-nums leading-relaxed pointer-events-none">
           <div className="flex flex-wrap gap-x-3 text-slate-500 dark:text-slate-400">
-            <span>{legend.t}</span>
-            <span>시 <b style={{ color: tone(legend.c - legend.o) }}>{fmt(legend.o)}</b></span>
-            <span>고 <b style={{ color: tone(legend.c - legend.o) }}>{fmt(legend.h)}</b></span>
-            <span>저 <b style={{ color: tone(legend.c - legend.o) }}>{fmt(legend.l)}</b></span>
-            <span>종 <b style={{ color: tone(legend.c - legend.o) }}>{fmt(legend.c)}</b></span>
-            <span>거래량 <b className="text-slate-700 dark:text-slate-200">{fmt(legend.v)}</b></span>
+            <span>시 <b style={{ color: up ? UP : DOWN }}>{fmt(legend.o)}</b></span>
+            <span>고 <b style={{ color: up ? UP : DOWN }}>{fmt(legend.h)}</b></span>
+            <span>저 <b style={{ color: up ? UP : DOWN }}>{fmt(legend.l)}</b></span>
+            <span>종 <b style={{ color: up ? UP : DOWN }}>{fmt(legend.c)}</b></span>
+            {legend.chg != null && <b style={{ color: tone(legend.chg) }}>{sign(legend.chg)}{legend.chg.toFixed(2)}%</b>}
+            <span>거래량 <b className="text-slate-800 dark:text-slate-100">{fmt(legend.v)}</b></span>
+            <span className="text-slate-400">{legend.t}</span>
           </div>
-          <div className="flex gap-x-3">
+          <div className="flex gap-x-3 font-medium">
             {MA_DEF.filter(m => maOn[m.k]).map(m => <span key={m.k} style={{ color: m.color }}>{m.label} {legend[m.k] != null ? fmt(legend[m.k]) : '-'}</span>)}
           </div>
         </div>
       )}
-      <div ref={boxRef} className="w-full h-[360px] md:h-[440px]" />
+      <div ref={boxRef} className="w-full h-[380px] md:h-[460px]" />
     </div>
   );
 }
 
-// ── 거래량 분석: 최근 60거래일 거래량 + 20일 평균, 오늘 거래량 / 평균
-function VolumePanel({ daily }) {
-  const data = useMemo(() => {
-    const out = daily.map((c, i) => {
-      const w = daily.slice(Math.max(0, i - 19), i + 1);
-      return { t: c.t.slice(5), v: c.v, avg: w.length === 20 ? w.reduce((a, b) => a + b.v, 0) / 20 : null, up: c.c >= c.o };
-    });
-    return out.slice(-60);
-  }, [daily]);
-  if (!data.length) return null;
+// ── 거래량: 최근 60거래일 막대 + 20일 평균선 (툴팁은 테마에 맞춰 직접 스타일링)
+function VolumePanel({ daily, dark }) {
+  const data = useMemo(() => daily.map((c, i) => {
+    const w = daily.slice(Math.max(0, i - 19), i + 1);
+    return { t: c.t.slice(5), v: c.v, avg: w.length === 20 ? Math.round(w.reduce((a, b) => a + b.v, 0) / 20) : null };
+  }).slice(-60), [daily]);
+  if (!data.length) return <div className="h-[170px] flex items-center justify-center text-[13px] text-slate-500">거래량 불러오는 중…</div>;
   const last = data[data.length - 1];
   const ratio = last.avg ? (last.v / last.avg - 1) * 100 : null;
+  const box = { background: dark ? '#0F1318' : '#FFFFFF', border: `1px solid ${dark ? '#2C323A' : '#E2E8F0'}`, borderRadius: 6, fontSize: 12, color: dark ? '#E2E8F0' : '#0F172A', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' };
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-2">
-        <h4 className="text-[14px] font-semibold text-slate-900 dark:text-white">거래량</h4>
-        <span className="text-[12px] text-slate-500 tabular-nums">최근 거래일 {fmt(last.v)}주{ratio != null && <> · 20일 평균 대비 <b style={{ color: tone(ratio) }}>{sign(ratio)}{ratio.toFixed(0)}%</b></>}</span>
-      </div>
-      <div className="h-[150px]">
+      <SectionTitle title="거래량" sub="최근 60거래일" right={<span className="text-[12.5px] text-slate-500 dark:text-slate-400 tabular-nums">최근 {fmt(last.v)}주{ratio != null && <> · 20일 평균 대비 <b style={{ color: tone(ratio) }}>{sign(ratio)}{ratio.toFixed(0)}%</b></>}</span>} />
+      <div className="h-[170px]">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-            <XAxis dataKey="t" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} interval={11} />
-            <YAxis tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} width={42} tickFormatter={fmtVol} />
-            <RTooltip formatter={(v, n) => [fmt(v), n === 'v' ? '거래량' : '20일 평균']} labelStyle={{ fontSize: 11 }} contentStyle={{ fontSize: 11 }} />
-            <Bar dataKey="v" fill="#94A3B8" fillOpacity={0.55} isAnimationActive={false} />
-            <Line dataKey="avg" stroke="#F59E0B" dot={false} strokeWidth={1.5} isAnimationActive={false} />
+            <XAxis dataKey="t" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} interval={11} />
+            <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} width={44} tickFormatter={fmtVol} />
+            <RTooltip cursor={{ fill: dark ? 'rgba(148,163,184,0.12)' : 'rgba(100,116,139,0.10)' }} contentStyle={box} labelStyle={{ color: dark ? '#CBD5E1' : '#475569', marginBottom: 2 }}
+              itemStyle={{ color: dark ? '#E2E8F0' : '#0F172A' }} formatter={(v, n) => [`${fmt(v)}주`, n === 'v' ? '거래량' : '20일 평균']} />
+            <Bar dataKey="v" name="v" fill="#94A3B8" fillOpacity={0.6} isAnimationActive={false} />
+            <Line dataKey="avg" name="avg" stroke="#F59E0B" dot={false} strokeWidth={2} isAnimationActive={false} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -123,46 +141,162 @@ function VolumePanel({ daily }) {
   );
 }
 
-// ── 애널리스트 목표가: 상단 중간값(최근 리포트) + 네이버 컨센서스 평균, 증권사별 목록
-function TargetPanel({ state, price }) {
-  const cls = 'border border-slate-200 dark:border-slate-800 rounded-md bg-white dark:bg-[#111827] p-4';
-  if (state.loading) return <div className={cls + ' text-[13px] text-slate-500'}>목표가 불러오는 중…</div>;
-  if (state.error || state.status !== 'success') return <div className={cls + ' text-[13px] text-slate-500'}>{state.message || '애널리스트 목표가 데이터가 없습니다.'}</div>;
-  const up = (g) => (price && g ? (g / price - 1) * 100 : null);
-  const upMed = up(state.median_recent), upMean = up(state.consensus?.mean);
+// ── 애널리스트 목표가: 의견 도넛 + 평균/현재가 + 범위 막대 + 증권사별 평가
+const OPN = { 매수: { c: '#10B981', bg: 'rgba(16,185,129,0.16)' }, 중립: { c: '#F59E0B', bg: 'rgba(245,158,11,0.16)' }, 매도: { c: '#F43F5E', bg: 'rgba(244,63,94,0.16)' } };
+function Donut({ counts, total }) {
+  const R = 34, C = 2 * Math.PI * R;
+  let off = 0;
   return (
-    <div className={cls}>
-      <div className="flex items-baseline justify-between mb-3">
-        <h4 className="text-[14px] font-semibold text-slate-900 dark:text-white">애널리스트 목표가</h4>
-        <span className="text-[11px] text-slate-500">출처 네이버 증권 · {state.consensus?.asof || '-'} 기준</span>
-      </div>
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div>
-          <div className="text-[11.5px] text-slate-500">최근 리포트 {state.n_recent}건 중간값</div>
-          <div className="text-[22px] font-semibold tabular-nums text-slate-900 dark:text-white">{state.median_recent ? `₩${fmt(state.median_recent)}` : '-'}</div>
-          {upMed != null && <div className="text-[12px] tabular-nums" style={{ color: tone(upMed) }}>현재가 대비 {sign(upMed)}{upMed.toFixed(1)}%</div>}
+    <svg viewBox="0 0 88 88" className="w-[88px] h-[88px] shrink-0 -rotate-90">
+      <circle cx="44" cy="44" r={R} fill="none" stroke="rgba(148,163,184,0.25)" strokeWidth="9" />
+      {['매수', '중립', '매도'].map(k => {
+        const n = counts[k]; if (!n) return null;
+        const len = (n / total) * C, el = <circle key={k} cx="44" cy="44" r={R} fill="none" stroke={OPN[k].c} strokeWidth="9" strokeDasharray={`${Math.max(0, len - 2)} ${C}`} strokeDashoffset={-off} />;
+        off += len; return el;
+      })}
+    </svg>
+  );
+}
+function TargetPanel({ state, price }) {
+  if (state.loading) return <div className={`${PANEL} p-5 text-[13px] text-slate-500`}>목표가 불러오는 중…</div>;
+  if (state.error || state.status !== 'success') return <div className={`${PANEL} p-5`}><SectionTitle title="목표가" sub="애널리스트 컨센서스" /><p className="text-[13px] text-slate-500">{state.message || '애널리스트 목표가 데이터가 없습니다.'}</p></div>;
+  const reps = state.reports || [];
+  const counts = { 매수: 0, 중립: 0, 매도: 0 };
+  reps.forEach(r => { if (counts[r.opinion] != null) counts[r.opinion] += 1; });
+  const total = counts.매수 + counts.중립 + counts.매도;
+  const verdict = total ? (counts.매수 / total >= 0.6 ? ['매수 우세', '매수'] : counts.매도 / total >= 0.6 ? ['매도 우세', '매도'] : ['의견 분분', '중립']) : null;
+  const mean = state.consensus?.mean, med = state.median_recent;
+  const goals = reps.map(r => r.goal).filter(Boolean);
+  const lo = Math.min(...goals, price || Infinity), hi = Math.max(...goals, price || 0, mean || 0);
+  const pos = (v) => (v && hi > lo ? Math.min(100, Math.max(0, ((v - lo) / (hi - lo)) * 100)) : 0);
+  const upMean = mean && price ? (mean / price - 1) * 100 : null, upMed = med && price ? (med / price - 1) * 100 : null;
+  return (
+    <div className={`${PANEL} p-5`}>
+      <SectionTitle title="목표가" sub="애널리스트 컨센서스" right={<span className="text-[12px] text-slate-500 dark:text-slate-400">최근 {reps.length}건</span>} />
+      <div className="flex items-center gap-5 mb-5 pb-5 border-b border-slate-100 dark:border-[#2C323A]">
+        <div className="relative">
+          <Donut counts={counts} total={total || 1} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-[22px] font-bold text-slate-900 dark:text-white leading-none">{total}</span><span className="text-[10.5px] text-slate-500 mt-0.5">투자의견</span></div>
         </div>
-        <div>
-          <div className="text-[11.5px] text-slate-500">컨센서스 평균{state.consensus?.recomm ? ` (의견 ${state.consensus.recomm}/5)` : ''}</div>
-          <div className="text-[22px] font-semibold tabular-nums text-slate-900 dark:text-white">{state.consensus?.mean ? `₩${fmt(state.consensus.mean)}` : '-'}</div>
-          {upMean != null && <div className="text-[12px] tabular-nums" style={{ color: tone(upMean) }}>현재가 대비 {sign(upMean)}{upMean.toFixed(1)}%</div>}
+        <div className="min-w-0">
+          {verdict && <div className="flex items-center gap-2 mb-2"><span className="text-[12px] text-slate-500 dark:text-slate-400">전체 의견</span><span className="px-2 py-0.5 rounded text-[12px] font-semibold" style={{ color: OPN[verdict[1]].c, background: OPN[verdict[1]].bg }}>{verdict[0]}</span></div>}
+          <div className="flex gap-3 text-[13px] text-slate-700 dark:text-slate-200">
+            {['매수', '중립', '매도'].map(k => <span key={k} className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: OPN[k].c }} />{k === '중립' ? '보유' : k} <b>{counts[k]}</b></span>)}
+          </div>
         </div>
       </div>
-      <div className="divide-y divide-slate-100 dark:divide-slate-800">
-        {state.reports.map((r, i) => (
-          <div key={i} className="flex items-center justify-between py-2 text-[12.5px]">
-            <div className="min-w-0">
-              <div className="font-medium text-slate-800 dark:text-slate-200">{r.broker}</div>
-              <div className="text-[11px] text-slate-500 truncate">{r.date} · {r.title}</div>
+      <div className="grid grid-cols-2 gap-4 mb-3">
+        <div>
+          <div className="text-[12px] text-slate-500 dark:text-slate-400 mb-0.5">{med ? '최근 중간 목표가' : '평균 목표가'}</div>
+          <div className="text-[26px] font-bold tabular-nums text-slate-900 dark:text-white leading-tight">₩{fmt(med || mean)}</div>
+          {(med ? upMed : upMean) != null && <div className="text-[13px] font-semibold tabular-nums" style={{ color: tone(med ? upMed : upMean) }}>{sign(med ? upMed : upMean)}{(med ? upMed : upMean).toFixed(1)}%</div>}
+        </div>
+        <div className="text-right">
+          <div className="text-[12px] text-slate-500 dark:text-slate-400 mb-0.5">현재가</div>
+          <div className="text-[26px] font-bold tabular-nums text-slate-900 dark:text-white leading-tight">₩{fmt(price)}</div>
+          {mean && med && <div className="text-[12px] text-slate-500 tabular-nums">컨센서스 평균 ₩{fmt(mean)}</div>}
+        </div>
+      </div>
+      {goals.length > 0 && (
+        <div className="mb-5">
+          <div className="relative h-2 rounded-full" style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0.15), #10B981)' }}>
+            {price && <span className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-slate-400 bg-white dark:bg-[#1E2329]" style={{ left: `calc(${pos(price)}% - 7px)` }} title="현재가" />}
+            {(med || mean) && <span className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-emerald-500 bg-white dark:bg-[#1E2329]" style={{ left: `calc(${pos(med || mean)}% - 7px)` }} title="목표가" />}
+          </div>
+          <div className="flex justify-between mt-1.5 text-[11.5px] text-slate-500 tabular-nums"><span>최저 ₩{fmt(Math.min(...goals))}</span><span>최고 ₩{fmt(Math.max(...goals))}</span></div>
+        </div>
+      )}
+      <div className="text-[14px] font-semibold text-slate-900 dark:text-white mb-1">최근 평가</div>
+      <div className="divide-y divide-slate-100 dark:divide-[#2C323A]">
+        {reps.map((r, i) => {
+          const o = OPN[r.opinion] || { c: '#94A3B8', bg: 'rgba(148,163,184,0.18)' }, u = r.goal && price ? (r.goal / price - 1) * 100 : null;
+          return (
+            <div key={i} className="py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[14.5px] font-semibold text-slate-900 dark:text-white">{r.broker}</div>
+                <div className="flex items-center gap-2 mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+                  <span className="px-1.5 py-0.5 rounded font-semibold" style={{ color: o.c, background: o.bg }}>{r.opinion}</span><span>{r.date}</span>
+                </div>
+                <div className="text-[11.5px] text-slate-500 truncate mt-0.5">{r.title}</div>
+              </div>
+              <div className="text-right tabular-nums shrink-0">
+                <div className="text-[15px] font-bold text-slate-900 dark:text-white">{r.goal ? `₩${fmt(r.goal)}` : '-'}</div>
+                {u != null && <div className="text-[12.5px] font-semibold" style={{ color: tone(u) }}>{sign(u)}{u.toFixed(1)}%</div>}
+              </div>
             </div>
-            <div className="text-right tabular-nums shrink-0 ml-3">
-              <div className="font-semibold text-slate-900 dark:text-white">{r.goal ? `₩${fmt(r.goal)}` : '-'}</div>
-              <div className="text-[11px] text-slate-500">{r.opinion}</div>
-            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-[11px] text-slate-400">출처 네이버 증권{state.consensus?.asof ? ` · 컨센서스 ${state.consensus.asof} 기준` : ''}. 리포트는 최근 5건만 제공되며, 컨센서스 평균은 더 많은 증권사를 반영해 다를 수 있습니다.</p>
+    </div>
+  );
+}
+
+// ── 재무: 연간 요약 타일 + 최근 8분기 표 (옵션 대신)
+function FinancialPanel({ state }) {
+  if (state.loading) return <div className={`${PANEL} p-5 text-[13px] text-slate-500`}>재무 불러오는 중…</div>;
+  if (state.status !== 'success') return <div className={`${PANEL} p-5`}><SectionTitle title="재무" /><p className="text-[13px] text-slate-500">{state.message || '재무 데이터가 없습니다.'}</p></div>;
+  const a = state.annual || {};
+  const tiles = [
+    ['매출액', fmtEok(a.revenue_cur), yoy(a.revenue_cur, a.revenue_prev)], ['영업이익', fmtEok(a.op_profit_cur), yoy(a.op_profit_cur, a.op_profit_prev)], ['순이익', fmtEok(a.net_income_cur), yoy(a.net_income_cur, a.net_income_prev)],
+    ['영업이익률', a.op_margin != null ? `${a.op_margin.toFixed(1)}%` : '-'], ['순이익률', a.net_margin != null ? `${a.net_margin.toFixed(1)}%` : '-'], ['ROE', a.roe != null ? `${a.roe.toFixed(1)}%` : '-'],
+    ['부채비율', a.debt_ratio != null ? `${a.debt_ratio.toFixed(1)}%` : '-'], ['PER', a.per != null ? `${a.per.toFixed(1)}배` : '-'], ['PBR', a.pbr != null ? `${a.pbr.toFixed(2)}배` : '-'],
+    ['EPS', a.eps_cur != null ? `₩${fmt(a.eps_cur)}` : '-', yoy(a.eps_cur, a.eps_prev)], ['시가총액', fmtEok(a['marcap_억'])], ['배당수익률', a.dividend_yield != null ? `${a.dividend_yield.toFixed(2)}%` : '-'],
+  ];
+  return (
+    <div className={`${PANEL} p-5`}>
+      <SectionTitle title="재무" sub="DART 공시 기준 · 최근 사업연도 대비 증감" />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-px rounded-md overflow-hidden bg-slate-100 dark:bg-[#2C323A] mb-6">
+        {tiles.map(([l, v, g]) => (
+          <div key={l} className="bg-white dark:bg-[#1E2329] p-3.5">
+            <div className="text-[12px] text-slate-500 dark:text-slate-400">{l}</div>
+            <div className="text-[17px] font-semibold tabular-nums text-slate-900 dark:text-white mt-0.5">{v}</div>
+            {g != null && <div className="text-[12px] font-medium tabular-nums" style={{ color: tone(g) }}>{sign(g)}{g.toFixed(1)}% YoY</div>}
           </div>
         ))}
       </div>
-      <p className="mt-3 text-[11px] text-slate-400">최근 5건만 제공됩니다. 컨센서스 평균은 더 많은 증권사와 기간을 반영하므로 중간값과 다를 수 있습니다.</p>
+      <div className="text-[14px] font-semibold text-slate-900 dark:text-white mb-2">분기 실적 <span className="text-[12px] font-normal text-slate-500">(최근 {state.quarters.length}분기)</span></div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] text-[13px] tabular-nums">
+          <thead><tr className="text-[11.5px] text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-[#2C323A]">
+            <th className="text-left font-medium py-2">분기</th><th className="text-right font-medium">매출</th><th className="text-right font-medium">영업이익</th><th className="text-right font-medium">순이익</th><th className="text-right font-medium">EPS</th><th className="text-right font-medium">ROE</th></tr></thead>
+          <tbody>
+            {state.quarters.map(q => (
+              <tr key={`${q.bsns_year}-${q.quarter}`} className="border-b border-slate-50 dark:border-[#2C323A]/60 text-slate-800 dark:text-slate-200">
+                <td className="py-2 font-medium">{q.bsns_year} {q.quarter}Q</td><td className="text-right">{fmtEok(q.revenue_q)}</td>
+                <td className="text-right" style={{ color: tone(q.op_profit_q) }}>{fmtEok(q.op_profit_q)}</td><td className="text-right" style={{ color: tone(q.net_income_q) }}>{fmtEok(q.net_income_q)}</td>
+                <td className="text-right">{q.eps_q != null ? fmt(q.eps_q) : '-'}</td><td className="text-right">{q.roe != null ? `${q.roe.toFixed(1)}%` : '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── 관련 뉴스: market_news 중 제목/관련 자산에 종목명이 들어간 기사
+function NewsPanel({ state, name }) {
+  return (
+    <div className={`${PANEL} p-5`}>
+      <SectionTitle title="뉴스" sub={`${name} 관련`} />
+      {state.loading && <p className="text-[13px] text-slate-500">불러오는 중…</p>}
+      {!state.loading && (!state.data || !state.data.length) && <p className="text-[13px] text-slate-500">관련 뉴스가 없습니다.</p>}
+      <div className="space-y-2.5">
+        {(state.data || []).map(n => (
+          <div key={n.id} className="rounded-md border border-slate-200 dark:border-[#2C323A] p-3.5">
+            <div className="flex items-center justify-between gap-2 mb-1.5 text-[11.5px]">
+              <div className="flex items-center gap-1.5 min-w-0">
+                {n.major && <span className="px-1.5 py-0.5 rounded font-semibold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-500/15">주요</span>}
+                {n.region && <span className="px-1.5 py-0.5 rounded font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/60 truncate">{n.region}</span>}
+              </div>
+              <span className="text-slate-400 tabular-nums shrink-0">{n.time}</span>
+            </div>
+            <div className="text-[14.5px] font-semibold text-slate-900 dark:text-white leading-snug">{n.title}</div>
+            {n.summary && <div className="text-[12.5px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{n.summary}</div>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -178,12 +312,20 @@ export default function StockMarket() {
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(null);                 // { symbol, name, market }
   const [tf, setTf] = useState('D');
+  const [range, setRange] = useState('6M');
   const [maOn, setMaOn] = useState({ ma20: true, ma60: true, ma120: false });
   const [chart, setChart] = useState({ loading: false, candles: [], last: null, error: null });
   const [daily, setDaily] = useState([]);
   const [target, setTarget] = useState({ loading: false });
+  const [fin, setFin] = useState({ loading: false });
+  const [news, setNews] = useState({ loading: false, data: [] });
   const boxRef = useRef(null);
   const symRef = useRef(null);
+
+  useEffect(() => {      // deep link: /market?s=000660&n=SK하이닉스
+    const q = new URLSearchParams(window.location.search), s0 = q.get('s');
+    if (s0 && /^\d{6}$/.test(s0)) setSel({ symbol: s0, name: q.get('n') || s0, market: q.get('m') || '' });
+  }, []);
 
   useEffect(() => {
     setList(p => ({ ...p, loading: true }));
@@ -218,13 +360,16 @@ export default function StockMarket() {
     if (!sel || tf === 'D') return;
     callApi(`/api/market/chart/${sel.symbol}?tf=D`).then(r => { if (r.status === 'success') setDaily(r.candles); }).catch(() => {});
   }, [sel, callApi]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {      // 목표가: 종목을 열 때 한 번 (서버가 24시간 캐시)
+  useEffect(() => {      // 목표가 / 재무 / 뉴스: 종목을 열 때 한 번 (목표가는 서버가 24시간 캐시)
     if (!sel) return;
-    setTarget({ loading: true });
+    setTarget({ loading: true }); setFin({ loading: true }); setNews({ loading: true, data: [] });
     callApi(`/api/market/targets/${sel.symbol}`).then(r => setTarget({ loading: false, ...r })).catch(() => setTarget({ loading: false, error: true }));
+    callApi(`/api/market/financials/${sel.symbol}`).then(r => setFin({ loading: false, ...r })).catch(() => setFin({ loading: false, message: '재무를 불러오지 못했습니다.' }));
+    callApi(`/api/market/news/${sel.symbol}?name=${encodeURIComponent(sel.name)}`).then(r => setNews({ loading: false, data: r.data || [] })).catch(() => setNews({ loading: false, data: [] }));
   }, [sel, callApi]);
 
-  const choose = (symbol, name, mk) => { setSel({ symbol, name, market: mk }); setTf('D'); setDaily([]); setTerm(''); setOpen(false); window.scrollTo?.(0, 0); };
+  const choose = (symbol, name, mk) => { setSel({ symbol, name, market: mk }); setTf('D'); setRange('6M'); setDaily([]); setTerm(''); setOpen(false); window.scrollTo?.(0, 0); };
+  const changeTf = (k) => { setTf(k); setRange(DEFAULT_RANGE[k]); };
   const matches = term ? options.filter(o => o.SearchStr.toLowerCase().includes(term.toLowerCase())).slice(0, 8) : [];
   const price = chart.last?.close;
 
@@ -232,11 +377,11 @@ export default function StockMarket() {
     <div ref={boxRef} className="relative w-full md:w-[340px]">
       <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
       <input value={term} onChange={e => { setTerm(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="종목명 또는 코드 검색"
-        className="w-full pl-9 pr-3 py-2 text-[13.5px] rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111827] text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400" />
+        className="w-full pl-9 pr-3 py-2 text-[13.5px] rounded-md border border-slate-200 dark:border-[#2C323A] bg-white dark:bg-[#1E2329] text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400" />
       {open && matches.length > 0 && (
-        <div className="absolute z-30 mt-1 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111827] shadow-lg overflow-hidden">
+        <div className="absolute z-30 mt-1 w-full rounded-md border border-slate-200 dark:border-[#2C323A] bg-white dark:bg-[#1E2329] shadow-lg overflow-hidden">
           {matches.map(o => (
-            <button key={o.Symbol} onClick={() => choose(o.Symbol, o.Name, o.Market)} className="w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-800/60 flex justify-between">
+            <button key={o.Symbol} onClick={() => choose(o.Symbol, o.Name, o.Market)} className="w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-700/40 flex justify-between">
               <span className="text-slate-900 dark:text-slate-100">{o.Name}</span><span className="text-slate-400 tabular-nums">{o.Symbol} · {o.Market}</span>
             </button>
           ))}
@@ -246,9 +391,10 @@ export default function StockMarket() {
   );
 
   const pill = (active) => `px-3 py-1.5 rounded-md text-[12.5px] font-medium transition-colors ${active ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800/70'}`;
+  const tab = (active) => `px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors ${active ? 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`;
 
   return (
-    <div className="max-w-[1200px] mx-auto px-4 md:px-8 py-6 pb-24">
+    <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-6 pb-24">
       <ServerWakeupOverlay />
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
         <div className="flex items-center gap-3">
@@ -266,8 +412,8 @@ export default function StockMarket() {
             <span className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1" />
             <div className="flex gap-1.5">{SORTS.map(([k, l]) => <button key={k} onClick={() => setSort(k)} className={pill(sort === k)}>{l}</button>)}</div>
           </div>
-          <div className="border border-slate-200 dark:border-slate-800 rounded-md bg-white dark:bg-[#111827] overflow-hidden">
-            <div className="grid grid-cols-[28px_1fr_90px_70px] md:grid-cols-[36px_1fr_110px_90px_120px_150px] gap-2 px-4 py-2.5 text-[11.5px] font-medium text-slate-500 border-b border-slate-100 dark:border-slate-800">
+          <div className={`${PANEL} overflow-hidden`}>
+            <div className="grid grid-cols-[28px_1fr_90px_70px] md:grid-cols-[36px_1fr_110px_90px_120px_150px] gap-2 px-4 py-2.5 text-[11.5px] font-medium text-slate-500 border-b border-slate-100 dark:border-[#2C323A]">
               <div>#</div><div>종목</div><div className="text-right">현재가</div><div className="text-right">등락률</div>
               <div className="hidden md:block text-right">거래량</div><div className="hidden md:block text-right">시가총액</div>
             </div>
@@ -275,7 +421,7 @@ export default function StockMarket() {
             {list.error && <div className="p-8 text-center text-[13px] text-slate-500">{list.error}</div>}
             {!list.loading && list.rows.map((r, i) => (
               <button key={r.symbol} onClick={() => choose(r.symbol, r.name, r.market)}
-                className="w-full text-left grid grid-cols-[28px_1fr_90px_70px] md:grid-cols-[36px_1fr_110px_90px_120px_150px] gap-2 px-4 py-2.5 items-center border-b border-slate-50 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-[13px] tabular-nums">
+                className="w-full text-left grid grid-cols-[28px_1fr_90px_70px] md:grid-cols-[36px_1fr_110px_90px_120px_150px] gap-2 px-4 py-2.5 items-center border-b border-slate-50 dark:border-[#2C323A]/60 hover:bg-slate-50 dark:hover:bg-slate-700/30 text-[13px] tabular-nums">
                 <div className="text-[11px] text-slate-400">{i + 1}</div>
                 <div className="min-w-0"><div className="font-medium text-slate-900 dark:text-slate-100 truncate">{r.name}</div><div className="text-[11px] text-slate-400">{r.symbol} · {r.market}</div></div>
                 <div className="text-right text-slate-900 dark:text-slate-100">{fmt(r.close)}</div>
@@ -290,37 +436,49 @@ export default function StockMarket() {
 
       {sel && (
         <div>
-          <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+          <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
             <div>
-              <div className="text-[12px] text-slate-500">{sel.market} · {sel.symbol}</div>
-              <div className="text-[22px] font-semibold text-slate-900 dark:text-white">{sel.name}</div>
+              <div className="text-[12px] text-slate-500 dark:text-slate-400 mb-0.5">{sel.market === 'KOSDAQ' ? 'KOSDAQ' : 'KOSPI'} · {sel.symbol}</div>
+              <div className="text-[26px] font-bold text-slate-900 dark:text-white leading-tight">{sel.name}</div>
+              {chart.last && (
+                <div className="flex items-baseline gap-2 mt-1.5 tabular-nums">
+                  <span className="text-[30px] font-bold text-slate-900 dark:text-white leading-none">₩{fmt(chart.last.close)}</span>
+                  <span className="px-1.5 py-0.5 rounded text-[13px] font-semibold" style={{ color: tone(chart.last.chg_pct), background: chart.last.chg_pct > 0 ? 'rgba(220,38,38,0.14)' : chart.last.chg_pct < 0 ? 'rgba(37,99,235,0.16)' : 'transparent' }}>{sign(chart.last.chg_pct)}{chart.last.chg_pct?.toFixed(2)}%</span>
+                </div>
+              )}
             </div>
-            {chart.last && (
-              <div className="text-right tabular-nums">
-                <div className="text-[26px] font-semibold text-slate-900 dark:text-white">₩{fmt(chart.last.close)}</div>
-                <div className="text-[13px] font-medium" style={{ color: tone(chart.last.chg_pct) }}>전일대비 {sign(chart.last.chg_pct)}{chart.last.chg_pct?.toFixed(2)}%</div>
-              </div>
-            )}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5">
+
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-5 items-start">
             <div className="space-y-5 min-w-0">
-              <div className="border border-slate-200 dark:border-slate-800 rounded-md bg-white dark:bg-[#111827] p-3 md:p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <div className="flex gap-1.5">{TFS.map(([k, l]) => <button key={k} onClick={() => setTf(k)} className={pill(tf === k)}>{l}</button>)}</div>
+              <div className={`${PANEL} p-4 md:p-5`}>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="flex gap-1">{TFS.map(([k, l]) => <button key={k} onClick={() => changeTf(k)} className={tab(tf === k)}>{l}</button>)}</div>
                   <div className="flex gap-1.5">
                     {MA_DEF.map(m => (
-                      <button key={m.k} onClick={() => setMaOn(p => ({ ...p, [m.k]: !p[m.k] }))} className={`px-2.5 py-1 rounded-full text-[11.5px] font-medium border transition-colors ${maOn[m.k] ? 'text-white border-transparent' : 'text-slate-400 border-slate-200 dark:border-slate-700 bg-transparent'}`} style={maOn[m.k] ? { background: m.color } : undefined}>{m.label}</button>
+                      <button key={m.k} onClick={() => setMaOn(p => ({ ...p, [m.k]: !p[m.k] }))}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-semibold transition-colors ${maOn[m.k] ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'}`}>
+                        <span className="w-2 h-2 rounded-full" style={{ background: m.color }} />{m.label}
+                      </button>
                     ))}
                   </div>
                 </div>
-                {chart.loading && !chart.candles.length && <div className="h-[360px] flex items-center justify-center text-[13px] text-slate-500">차트 불러오는 중…</div>}
+                {chart.loading && !chart.candles.length && <div className="h-[380px] flex items-center justify-center text-[13px] text-slate-500">차트 불러오는 중…</div>}
                 {chart.error && <div className="h-[200px] flex items-center justify-center text-[13px] text-slate-500">{chart.error}</div>}
-                {chart.candles.length > 0 && <PriceChart candles={chart.candles} tf={tf} maOn={maOn} dark={dark} />}
-                <p className="text-[11px] text-slate-400 mt-1">일봉 최근 약 3년(720일) 데이터에서 주·월·년을 계산합니다. 년봉은 보유 기간만큼만 표시됩니다.</p>
+                {chart.candles.length > 0 && <PriceChart candles={chart.candles} tf={tf} range={range} maOn={maOn} dark={dark} />}
+                <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
+                  <div className="flex gap-1">{RANGES.map(([k, l]) => <button key={k} onClick={() => setRange(k)} className={tab(range === k)}>{l}</button>)}</div>
+                  <p className="text-[11px] text-slate-400">일봉 약 3년(720일)에서 주·월·년 계산</p>
+                </div>
               </div>
-              <div className="border border-slate-200 dark:border-slate-800 rounded-md bg-white dark:bg-[#111827] p-4"><VolumePanel daily={daily} /></div>
+              <div className={`${PANEL} p-5`}><VolumePanel daily={daily} dark={dark} /></div>
             </div>
             <TargetPanel state={target} price={price} />
+          </div>
+
+          <div className="mt-5 space-y-5">
+            <FinancialPanel state={fin} />
+            <NewsPanel state={news} name={sel.name} />
           </div>
         </div>
       )}
