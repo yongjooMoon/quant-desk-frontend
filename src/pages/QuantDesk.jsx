@@ -551,7 +551,8 @@ export default function QuantDesk() {
             setSelectedStock({
               ...basicData,
               ...fetchedData,
-              name: fetchedData.name || basicData.name,
+              name: (fetchedData.name && fetchedData.name !== symbol) ? fetchedData.name : (basicData.name || fetchedData.name),
+              sector: fetchedData.sector || basicData.sector,
               score: finalScore,
               gates: finalGates,
               total_pass: finalPass,
