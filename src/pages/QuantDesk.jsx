@@ -1799,7 +1799,7 @@ export default function QuantDesk() {
                     <Metric size="sm" label="포트폴리오 비중" value={`${(riskStock.weight_pct || 0).toFixed(1)}%`} />
                     <Metric size="sm" label="손절 시 추가 손실" value={`₩${Math.round(riskStock.risk_krw || 0).toLocaleString()}`} sub={`포트폴리오의 ${(riskStock.risk_pct_equity || 0).toFixed(2)}%`} />
                     <Metric size="sm" label="진입 시 최대 손실(-5%)" value={`₩${Math.round(riskStock.initial_risk_krw || 0).toLocaleString()}`} />
-                    <Metric size="sm" label="슬롯당 금액 (4슬롯 동일비중)" value={`₩${Math.round(riskStock.slot_amount || 0).toLocaleString()}`} />
+                    <Metric size="sm" label="슬롯당 금액 (동일비중)" value={`₩${Math.round(riskStock.slot_amount || 0).toLocaleString()}`} />
                 </div>
 
                 <div className="space-y-3">
