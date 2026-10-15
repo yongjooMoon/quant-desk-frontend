@@ -1005,6 +1005,9 @@ export default function QuantDesk() {
                                 ) : (
                                   <span className="text-[9.5px] font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 whitespace-nowrap">장마감</span>
                                 )}
+                                {data.regime && [["KOSPI", data.regime.KOSPI], ["KOSDAQ", data.regime.KOSDAQ]].map(([mk, on]) => (
+                                  <span key={mk} title="nA3 레짐 필터 (지수 > 200일선, MA50 핀 해제)" className={`text-[9.5px] font-medium px-1.5 py-0.5 rounded border whitespace-nowrap ${on ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50' : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800/50'}`}>레짐 {mk} {on ? 'ON' : 'OFF'}</span>
+                                ))}
                               </div>
                               <div className="text-[11px] font-medium text-slate-500 truncate">
                                 전일대비 <span style={{ color: (indices.kospi.ret_1d || 0) > 0 ? POS : NEG }}>{(indices.kospi.ret_1d > 0 ? '+' : '')}{indices.kospi.ret_1d?.toFixed(2)}%</span>
