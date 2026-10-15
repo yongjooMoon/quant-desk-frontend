@@ -1,9 +1,10 @@
 // src/pages/StockMarket.jsx — "증시": 국내 종목 목록(거래량/시총/거래대금/등락률) + MTS형 차트(일/주/월/년, 이동평균) + 거래량 + 애널리스트 목표가 + 재무 + 관련 뉴스
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Search, ArrowLeft, RefreshCcw } from 'lucide-react';
+import { Search, ArrowLeft, RefreshCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createChart, CandlestickSeries, HistogramSeries, LineSeries, CrosshairMode } from 'lightweight-charts';
 import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer } from 'recharts';
 import { useRenderApi } from '../hooks/useRenderApi';
+import { Modal } from '../components';
 
 const UP = '#DC2626';    // 상승 = 빨강 (프로젝트 공통 축)
 const DOWN = '#2563EB';  // 하락 = 파랑
@@ -275,16 +276,79 @@ function FinancialPanel({ state }) {
   );
 }
 
-// ── 관련 뉴스: market_news 중 제목/관련 자산에 종목명이 들어간 기사
+// ── 관련 뉴스: market_news 중 제목/관련 자산에 종목명이 들어간 기사. 5건씩 페이지, 클릭하면 뉴스탭과 같은 팝업
+const NEWS_PAGE = 5;
+const sentimentInfo = (score) => {
+  if (score <= 2) return { text: 'Bearish', label: '부정적', cls: 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20', bar: '#EF4444' };
+  if (score === 3) return { text: 'Neutral', label: '중립', cls: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20', bar: '#D97706' };
+  return { text: 'Bullish', label: '긍정적', cls: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20', bar: '#059669' };
+};
+
+function NewsModal({ item, idx, total, onClose, onMove }) {
+  const sc = Number(item.score) || 0, sm = sentimentInfo(sc);
+  const body = (item.summary || '').replace(/http[^\s]+/g, '').replace(/\n{3,}/g, '\n\n').trim();
+  return (
+    <Modal open onClose={onClose} size="xl" className="min-h-[60vh] md:min-h-[70vh]">
+      <Modal.Header>
+        <div className="flex items-center gap-2">
+          {item.major && <span className="text-[12px] font-semibold text-orange-600 dark:text-orange-400">주요</span>}
+          {item.region && <span className="text-[12px] md:text-[14px] font-medium text-slate-500 dark:text-slate-400">{item.region}</span>}
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-[13px] md:text-[14px] text-slate-400 dark:text-slate-500 tabular-nums">{item.time}</span>
+          <button onClick={onClose} className="shrink-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors text-[13px] md:text-[14px] font-medium">닫기</button>
+        </div>
+      </Modal.Header>
+      <Modal.Body>
+        <div className="p-6 md:p-10 flex flex-col lg:flex-row gap-8 lg:gap-12">
+          <div className="flex-1 min-w-0">
+            {item.assets && item.assets.trim() && (
+              <div className="mb-5"><span className="text-[12px] md:text-[13.5px] text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded px-2.5 py-1">#{item.assets}</span></div>
+            )}
+            <h2 className="text-[22px] md:text-[28px] font-semibold text-slate-900 dark:text-slate-100 mb-7 leading-[1.3]">{item.title}</h2>
+            <div className="border-l-2 border-slate-200 dark:border-slate-700 pl-5 md:pl-6">
+              <h4 className="text-slate-500 dark:text-slate-400 font-medium mb-3 text-[13px] md:text-[14.5px]">AI 핵심 요약</h4>
+              <p className="text-slate-700 dark:text-slate-300 leading-relaxed md:leading-loose whitespace-pre-line text-[15.5px] md:text-[17px]">{body}</p>
+            </div>
+          </div>
+          <div className="lg:w-[260px] shrink-0">
+            <div className="rounded-lg border border-slate-200 dark:border-[#2C323A] bg-slate-50 dark:bg-[#16233A] p-5 lg:sticky lg:top-0">
+              <span className="text-[12.5px] md:text-[13.5px] font-medium text-slate-500 dark:text-slate-400 block mb-4">AI Sentiment Score</span>
+              <div className="flex items-center gap-1.5 mb-4">
+                {[1, 2, 3, 4, 5].map(seg => <span key={seg} className="block flex-1 h-2.5 rounded-sm" style={{ background: seg <= sc ? sm.bar : 'rgba(148,163,184,0.25)' }} />)}
+              </div>
+              <span className={`inline-block font-medium px-3 py-1.5 rounded-md text-[13px] md:text-[14px] ${sm.cls}`}>{sc} / 5 · {sm.text} ({sm.label})</span>
+            </div>
+          </div>
+        </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={() => onMove(-1)} disabled={idx <= 0} className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-600 dark:text-slate-300 disabled:opacity-30 hover:text-slate-900 dark:hover:text-white"><ChevronLeft size={15} /> 이전 뉴스</button>
+        <span className="text-[12px] text-slate-400 tabular-nums">{idx + 1} / {total}</span>
+        <button onClick={() => onMove(1)} disabled={idx >= total - 1} className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-600 dark:text-slate-300 disabled:opacity-30 hover:text-slate-900 dark:hover:text-white">다음 뉴스 <ChevronRight size={15} /></button>
+      </Modal.Footer>
+    </Modal>
+  );
+}
+
 function NewsPanel({ state, name }) {
+  const [page, setPage] = useState(0);
+  const [openIdx, setOpenIdx] = useState(null);       // 전체 목록 기준 인덱스
+  const data = state.data || [];
+  const pages = Math.max(1, Math.ceil(data.length / NEWS_PAGE));
+  useEffect(() => { setPage(0); setOpenIdx(null); }, [name]);
+  const cur = Math.min(page, pages - 1);
+  const slice = data.slice(cur * NEWS_PAGE, cur * NEWS_PAGE + NEWS_PAGE);
+  const move = (d) => setOpenIdx(i => { const n = i + d; if (n < 0 || n >= data.length) return i; setPage(Math.floor(n / NEWS_PAGE)); return n; });
+  const pg = (active) => `min-w-[30px] h-[30px] px-2 rounded-md text-[12.5px] font-medium tabular-nums transition-colors ${active ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`;
   return (
     <div className={`${PANEL} p-5`}>
-      <SectionTitle title="뉴스" sub={`${name} 관련`} />
+      <SectionTitle title="뉴스" sub={`${name} 관련${data.length ? ` · ${data.length}건` : ''}`} />
       {state.loading && <p className="text-[13px] text-slate-500">불러오는 중…</p>}
-      {!state.loading && (!state.data || !state.data.length) && <p className="text-[13px] text-slate-500">관련 뉴스가 없습니다.</p>}
+      {!state.loading && !data.length && <p className="text-[13px] text-slate-500">관련 뉴스가 없습니다.</p>}
       <div className="space-y-2.5">
-        {(state.data || []).map(n => (
-          <div key={n.id} className="rounded-md border border-slate-200 dark:border-[#2C323A] p-3.5">
+        {slice.map((n, k) => (
+          <button key={n.id} onClick={() => setOpenIdx(cur * NEWS_PAGE + k)} className="w-full text-left rounded-md border border-slate-200 dark:border-[#2C323A] p-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
             <div className="flex items-center justify-between gap-2 mb-1.5 text-[11.5px]">
               <div className="flex items-center gap-1.5 min-w-0">
                 {n.major && <span className="px-1.5 py-0.5 rounded font-semibold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-500/15">주요</span>}
@@ -293,10 +357,18 @@ function NewsPanel({ state, name }) {
               <span className="text-slate-400 tabular-nums shrink-0">{n.time}</span>
             </div>
             <div className="text-[14.5px] font-semibold text-slate-900 dark:text-white leading-snug">{n.title}</div>
-            {n.summary && <div className="text-[12.5px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{n.summary}</div>}
-          </div>
+            {n.summary && <div className="text-[12.5px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{n.summary.replace(/\s+/g, ' ')}</div>}
+          </button>
         ))}
       </div>
+      {pages > 1 && (
+        <div className="flex items-center justify-center gap-1 mt-4">
+          <button onClick={() => setPage(Math.max(0, cur - 1))} disabled={cur === 0} className={`${pg(false)} disabled:opacity-30`} aria-label="이전 페이지"><ChevronLeft size={15} className="mx-auto" /></button>
+          {Array.from({ length: pages }, (_, i) => <button key={i} onClick={() => setPage(i)} className={pg(i === cur)}>{i + 1}</button>)}
+          <button onClick={() => setPage(Math.min(pages - 1, cur + 1))} disabled={cur === pages - 1} className={`${pg(false)} disabled:opacity-30`} aria-label="다음 페이지"><ChevronRight size={15} className="mx-auto" /></button>
+        </div>
+      )}
+      {openIdx != null && data[openIdx] && <NewsModal item={data[openIdx]} idx={openIdx} total={data.length} onClose={() => setOpenIdx(null)} onMove={move} />}
     </div>
   );
 }
