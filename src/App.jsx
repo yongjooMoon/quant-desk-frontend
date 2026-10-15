@@ -104,7 +104,7 @@ function App() {
     { path: '/quant', icon: TrendingUp, label: '퀀트투자' },
     { path: '/market', icon: ChartCandlestick, label: '증시' },
     { path: '/calendar', icon: CalendarDays, label: '캘린더' },
-    { path: '/realestate', icon: Building2, label: '부동산' },
+    // { path: '/realestate', icon: Building2, label: '부동산' },   // hidden from the nav (user order 2026-10-15: the bar was too long on mobile); route stays
     { path: '/search', icon: Search, label: '종목검색' },
   ];
 
