@@ -198,6 +198,3 @@
     h2 { font-size: 20px; }
   }
 }
-/* page background behind the safe areas / browser bars (mobile bottom strip) */
-html, body { background-color: #F8FAFC; }
-html.dark, html.dark body { background-color: #0B1120; }
