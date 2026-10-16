@@ -276,7 +276,7 @@ function FinancialPanel({ state }) {
   );
 }
 
-// ── 관련 뉴스: market_news 중 제목/관련 자산에 종목명이 들어간 기사. 5건씩 페이지, 클릭하면 뉴스탭과 같은 팝업
+// ── 관련 뉴스: market_news 중 제목/관련 자산에 종목명이 들어간 기사 + 업종명 키워드가 들어간 기사(via='sector'). 5건씩 페이지, 클릭하면 뉴스탭과 같은 팝업
 const NEWS_PAGE = 5;
 const sentimentInfo = (score) => {
   if (score <= 2) return { text: 'Bearish', label: '부정적', cls: 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20', bar: '#EF4444' };
@@ -352,6 +352,7 @@ function NewsPanel({ state, name }) {
             <div className="flex items-center justify-between gap-2 mb-1.5 text-[11.5px]">
               <div className="flex items-center gap-1.5 min-w-0">
                 {n.major && <span className="px-1.5 py-0.5 rounded font-semibold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-500/15">주요</span>}
+                {n.via === 'sector' && <span className="px-1.5 py-0.5 rounded font-medium text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">업종</span>}
                 {n.region && <span className="px-1.5 py-0.5 rounded font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/60 truncate">{n.region}</span>}
               </div>
               <span className="text-slate-400 tabular-nums shrink-0">{n.time}</span>
@@ -510,7 +511,7 @@ export default function StockMarket() {
         <div>
           <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
             <div>
-              <div className="text-[12px] text-slate-500 dark:text-slate-400 mb-0.5">{sel.market === 'KOSDAQ' ? 'KOSDAQ' : 'KOSPI'} · {sel.symbol}</div>
+              <div className="text-[12px] text-slate-500 dark:text-slate-400 mb-0.5">{sel.market === 'KOSDAQ' ? 'KOSDAQ' : 'KOSPI'} · {sel.symbol}{fin.sector ? ` · ${fin.sector}` : ''}</div>
               <div className="text-[26px] font-bold text-slate-900 dark:text-white leading-tight">{sel.name}</div>
               {chart.last && (
                 <div className="flex items-baseline gap-2 mt-1.5 tabular-nums">
