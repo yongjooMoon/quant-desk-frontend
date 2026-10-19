@@ -419,8 +419,9 @@ export default function StockMarket() {
   }, []);
 
   const loadChart = useCallback((symbol, tfv) => {
+    const sameSym = symRef.current === symbol;     // a different symbol must not show the previous symbol's candles while loading
     symRef.current = symbol;
-    setChart(p => ({ ...p, loading: true, error: null }));
+    setChart(p => sameSym ? { ...p, loading: true, error: null } : { loading: true, candles: [], last: null, error: null });
     callApi(`/api/market/chart/${symbol}?tf=${tfv}`).then(r => {
       if (symRef.current !== symbol) return;
       if (r.status === 'success') { setChart({ loading: false, candles: r.candles, last: r.last, error: null }); if (tfv === 'D') setDaily(r.candles); }
@@ -435,13 +436,17 @@ export default function StockMarket() {
   }, [sel, callApi]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {      // 목표가 / 재무 / 뉴스: 종목을 열 때 한 번 (목표가는 서버가 24시간 캐시)
     if (!sel) return;
+    let alive = true;      // a slow answer of the previous symbol must not overwrite the current symbol's panels
     setTarget({ loading: true }); setFin({ loading: true }); setNews({ loading: true, data: [] });
-    callApi(`/api/market/targets/${sel.symbol}`).then(r => setTarget({ loading: false, ...r })).catch(() => setTarget({ loading: false, error: true }));
-    callApi(`/api/market/financials/${sel.symbol}`).then(r => setFin({ loading: false, ...r })).catch(() => setFin({ loading: false, message: '재무를 불러오지 못했습니다.' }));
-    callApi(`/api/market/news/${sel.symbol}?name=${encodeURIComponent(sel.name)}`).then(r => setNews({ loading: false, data: r.data || [] })).catch(() => setNews({ loading: false, data: [] }));
+    callApi(`/api/market/targets/${sel.symbol}`).then(r => { if (alive) setTarget({ loading: false, ...r }); }).catch(() => { if (alive) setTarget({ loading: false, error: true }); });
+    callApi(`/api/market/financials/${sel.symbol}`).then(r => { if (alive) setFin({ loading: false, ...r }); }).catch(() => { if (alive) setFin({ loading: false, message: '재무를 불러오지 못했습니다.' }); });
+    callApi(`/api/market/news/${sel.symbol}?name=${encodeURIComponent(sel.name)}`).then(r => { if (alive) setNews({ loading: false, data: r.data || [] }); }).catch(() => { if (alive) setNews({ loading: false, data: [] }); });
+    return () => { alive = false; };
   }, [sel, callApi]);
 
-  const choose = (symbol, name, mk) => { setSel({ symbol, name, market: mk }); setTf('D'); setRange('6M'); setDaily([]); setTerm(''); setOpen(false); window.scrollTo?.(0, 0); };
+  const clearDetail = () => { symRef.current = null; setChart({ loading: false, candles: [], last: null, error: null }); setDaily([]); setTarget({ loading: false }); setFin({ loading: false }); setNews({ loading: false, data: [] }); };
+
+  const choose = (symbol, name, mk) => { clearDetail(); setChart({ loading: true, candles: [], last: null, error: null }); setSel({ symbol, name, market: mk }); setTf('D'); setRange('6M'); setTerm(''); setOpen(false); window.scrollTo?.(0, 0); };      // clear the previous symbol's data first
   const changeTf = (k) => { setTf(k); setRange(DEFAULT_RANGE[k]); };
   const matches = term ? options.filter(o => o.SearchStr.toLowerCase().includes(term.toLowerCase())).slice(0, 8) : [];
   const price = chart.last?.close;
@@ -471,7 +476,7 @@ export default function StockMarket() {
       <ServerWakeupOverlay />
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
         <div className="flex items-center gap-3">
-          {sel && <button onClick={() => setSel(null)} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500" title="목록으로"><ArrowLeft size={18} /></button>}
+          {sel && <button onClick={() => { clearDetail(); setSel(null); }} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500" title="목록으로"><ArrowLeft size={18} /></button>}
           <h1 className="text-[20px] font-semibold text-slate-900 dark:text-white">증시</h1>
           <span className="text-[12px] text-slate-500">국내 (코스피 · 코스닥){list.asof && !sel ? ` · ${list.asof} 종가 기준` : ''}</span>
         </div>
