@@ -93,6 +93,7 @@ function App() {
   const mainRef = useRef(null);
 
   useEffect(() => {
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDarkMode ? '#111827' : '#ffffff');   // browser / system bar colour follows the theme
     if (isDarkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
@@ -126,7 +127,7 @@ function App() {
       {/* 다크모드 호환 레이어와 모션(페이지 전환)은 각각 index.css / framer-motion(PageFade)으로 이동했다. */}
 
       {/* 최상위 래퍼 (Full Width & Height) */}
-      <div className="flex w-full h-screen bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-hidden">
+      <div className="flex w-full h-dvh bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-hidden">
 
         {}
         {/* PC 좌측 슬림 메뉴바 */}
@@ -219,8 +220,8 @@ function App() {
         </aside>
 
         {}
-        {/* 모바일 하단 탭 */}
-        <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/80 dark:bg-[#111827]/80 backdrop-blur-xl border-t border-slate-200/70 dark:border-slate-800/60 flex justify-around items-center h-16 z-50 pb-safe">
+        {/* 모바일 하단 탭. DO NOT change h-dvh / safe-area padding / viewport-fit / theme-color / html background: they remove the white strip under this bar (DESIGN_GUIDELINES.md "Mobile bottom strip"). */}
+        <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/80 dark:bg-[#111827]/80 backdrop-blur-xl border-t border-slate-200/70 dark:border-slate-800/60 flex justify-around items-center h-[calc(4rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] z-50">
             {navItems.map((item) => (
               <NavLink key={item.path} to={item.path} className={({isActive}) => `flex flex-col items-center justify-center w-full h-full transition-colors ${isActive ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}`}>
                 {({ isActive }) => (
