@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Newspaper, TrendingUp, Building2, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays, ArrowUp, ChartCandlestick } from 'lucide-react';
+import { Newspaper, TrendingUp, FileText, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays, ArrowUp, ChartCandlestick } from 'lucide-react';
 
 // 라우트별 코드 스플리팅 — 첫 진입 시 방문한 페이지의 번들만 내려받는다.
 // (예: /news 진입 시 QuantDesk의 recharts 포함 번들은 받지 않음)
 const NewsDesk = lazy(() => import('./pages/NewsDesk'));
 const QuantDesk = lazy(() => import('./pages/QuantDesk'));
 const HousingCalendar = lazy(() => import('./pages/HousingCalendar'));
-const RealEstate = lazy(() => import('./pages/RealEstate'));
+// Real-estate page disabled from nav/routes (page file kept): const RealEstate = lazy(() => import('./pages/RealEstate'));
+const Reports = lazy(() => import('./pages/Reports'));
 const StockSearch = lazy(() => import('./pages/StockSearch'));
 const StockMarket = lazy(() => import('./pages/StockMarket'));
 
@@ -104,8 +105,9 @@ function App() {
     { path: '/news', icon: Newspaper, label: '마켓뉴스' },
     { path: '/quant', icon: TrendingUp, label: '퀀트투자' },
     { path: '/market', icon: ChartCandlestick, label: '증시' },
+    { path: '/reports', icon: FileText, label: '리포트' },
     { path: '/calendar', icon: CalendarDays, label: '캘린더' },
-    { path: '/realestate', icon: Building2, label: '부동산' },
+    // { path: '/realestate', icon: Building2, label: '부동산' },  // disabled (also drop Building2 from the lucide import to re-enable)
     { path: '/search', icon: Search, label: '종목검색' },
   ];
 
@@ -251,8 +253,9 @@ function App() {
                   <Route path="/news" element={<NewsDesk />} />
                   <Route path="/quant" element={<QuantDesk />} />
                   <Route path="/market" element={<StockMarket />} />
+                  <Route path="/reports" element={<Reports />} />
                   <Route path="/calendar" element={<HousingCalendar />} />
-                  <Route path="/realestate" element={<RealEstate />} />
+                  {/* <Route path="/realestate" element={<RealEstate />} /> */}
                   <Route path="/search" element={<StockSearch />} />
                 </Routes>
               </Suspense>
