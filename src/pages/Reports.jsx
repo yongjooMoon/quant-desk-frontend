@@ -1,5 +1,5 @@
 // src/pages/Reports.jsx - "리포트": dated reports (HTML authored by the backend) listed by category and shown in a sandboxed iframe
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { RefreshCcw } from 'lucide-react';
 import { useRenderApi } from '../hooks/useRenderApi';
@@ -7,7 +7,9 @@ import { useRenderApi } from '../hooks/useRenderApi';
 // Add a category here (e.g. { key: 'stock', label: '종목 리포트' }) and it gets a tab automatically.
 const CATEGORIES = [{ key: 'morning', label: '모닝 증시' }];
 
-const PANEL = 'rounded-lg border border-slate-200 dark:border-[#2C323A] bg-white dark:bg-[#1E2329]';
+const HEIGHT_PROBE = '<script>(function(){function s(){parent.postMessage({type:"report-height",h:document.documentElement.scrollHeight},"*")}addEventListener("load",s);addEventListener("resize",s);if(window.ResizeObserver)new ResizeObserver(s).observe(document.documentElement)})()</script>';
+
+const PANEL ='rounded-lg border border-slate-200 dark:border-[#2C323A] bg-white dark:bg-[#1E2329]';
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 
 // report_date is a plain 'YYYY-MM-DD'; parse as local date parts to avoid timezone shifts.
@@ -64,6 +66,21 @@ export default function Reports() {
     return () => { alive = false; };
   }, [callApi, selId, reload]);
 
+  // Mobile: size the iframe to its content (the page scrolls, not the iframe). The sandboxed doc reports its own height.
+  const frameRef = useRef(null);
+  const [frameH, setFrameH] = useState(0);
+  useEffect(() => {
+    const onMsg = (e) => {
+      if (e.source !== frameRef.current?.contentWindow || e.data?.type !== 'report-height') return;
+      const h = Number(e.data.h);
+      if (h > 0 && h < 100000) setFrameH(Math.ceil(h));
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+  useEffect(() => { setFrameH(0); }, [selId]);
+  const srcDoc = doc.html + HEIGHT_PROBE;
+
   const retry = () => setReload(n => n + 1);
   const empty = !list.loading && !list.error && list.data.length === 0;
 
@@ -108,7 +125,7 @@ export default function Reports() {
           </div>
 
           {/* viewer: untrusted HTML, so no allow-same-origin */}
-          <div className={`${PANEL} flex-1 min-w-0 overflow-hidden relative h-[75dvh] md:h-[calc(100dvh-9rem)]`}>
+          <div className={`${PANEL} flex-1 min-w-0 overflow-hidden relative ${frameH ? 'h-[var(--fh)]' : 'h-[75dvh]'} md:h-[calc(100dvh-9rem)]`} style={frameH ? { '--fh': `${frameH}px` } : undefined}>
             {doc.error ? (
               <div className="h-full flex flex-col items-center justify-center gap-3 text-[13.5px] text-slate-500 dark:text-slate-400">
                 <p>리포트 본문을 불러오지 못했습니다.</p>
@@ -116,7 +133,7 @@ export default function Reports() {
               </div>
             ) : (
               <>
-                {doc.html && <iframe title={doc.title || '리포트'} sandbox="allow-scripts allow-popups" srcDoc={doc.html} className="w-full h-full border-0 bg-white" />}
+                {doc.html && <iframe ref={frameRef} title={doc.title || '리포트'} sandbox="allow-scripts allow-popups" srcDoc={srcDoc}className="w-full h-full border-0 bg-white" />}
                 {(doc.loading || list.loading) && (
                   <div className="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-[#1E2329]/60 text-[13px] text-slate-500">불러오는 중…</div>
                 )}
