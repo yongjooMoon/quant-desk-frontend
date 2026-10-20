@@ -7,7 +7,7 @@ import { useRenderApi } from '../hooks/useRenderApi';
 // Add a category here (e.g. { key: 'stock', label: '종목 리포트' }) and it gets a tab automatically.
 const CATEGORIES = [{ key: 'morning', label: '모닝 증시' }];
 
-const HEIGHT_PROBE = '<script>(function(){function s(){parent.postMessage({type:"report-height",h:document.documentElement.scrollHeight},"*")}addEventListener("load",s);addEventListener("resize",s);if(window.ResizeObserver)new ResizeObserver(s).observe(document.documentElement)})()</script>';
+const HEIGHT_PROBE = '<script>(function(){function s(){var m=0,c=document.body?document.body.children:[];for(var i=0;i<c.length;i++){if(c[i].tagName!=="SCRIPT"){m=Math.max(m,c[i].getBoundingClientRect().bottom+(window.pageYOffset||0))}}if(m)parent.postMessage({type:"report-height",h:m},"*")}addEventListener("load",s);addEventListener("resize",s);if(window.ResizeObserver){var o=new ResizeObserver(s);addEventListener("load",function(){for(var i=0;i<document.body.children.length;i++)o.observe(document.body.children[i])})}})()</script>';
 
 const PANEL ='rounded-lg border border-slate-200 dark:border-[#2C323A] bg-white dark:bg-[#1E2329]';
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
