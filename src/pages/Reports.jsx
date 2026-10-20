@@ -125,7 +125,7 @@ export default function Reports() {
           </div>
 
           {/* viewer: untrusted HTML, so no allow-same-origin */}
-          <div className={`${PANEL} flex-1 min-w-0 overflow-hidden relative ${frameH ? 'h-[var(--fh)]' : 'h-[75dvh]'} md:h-[calc(100dvh-9rem)]`} style={frameH ? { '--fh': `${frameH}px` } : undefined}>
+          <div className={`${PANEL} flex-none md:flex-1 min-w-0 overflow-hidden relative ${frameH ? 'h-[var(--fh)]' : 'h-[75dvh]'} md:h-[calc(100dvh-9rem)]`} style={frameH ? { '--fh': `${frameH}px` } : undefined}>
             {doc.error ? (
               <div className="h-full flex flex-col items-center justify-center gap-3 text-[13.5px] text-slate-500 dark:text-slate-400">
                 <p>리포트 본문을 불러오지 못했습니다.</p>
