@@ -1730,10 +1730,10 @@ export default function QuantDesk() {
                             <div className="md:hidden w-full text-[11.5px] text-slate-500 tabular-nums">{t.entry_date} → {t.exit_date}</div>
                             <div className="hidden md:block w-[11%] text-[11.5px] text-slate-500 tabular-nums">{t.exit_date}</div>
                             <div className="w-1/2 md:w-[10%] text-[11.5px] text-slate-600 dark:text-slate-400 text-left md:text-right tabular-nums">
-                              <span className="md:hidden text-slate-400 mr-1">매수</span>₩{formatNumber(t.entry_price)}
+                              <span className="md:hidden text-slate-400 mr-1">매수</span>₩{formatNumber(Math.round(t.entry_price || 0))}
                             </div>
                             <div className="w-1/2 md:w-[10%] text-[11.5px] text-slate-600 dark:text-slate-400 text-right tabular-nums">
-                              <span className="md:hidden text-slate-400 mr-1">매도</span>₩{formatNumber(t.exit_price)}
+                              <span className="md:hidden text-slate-400 mr-1">매도</span>₩{formatNumber(Math.round(t.exit_price || 0))}
                             </div>
                             <div className="w-1/2 md:w-[7%] text-[11.5px] text-slate-600 dark:text-slate-400 text-left md:text-right tabular-nums">
                               <span className="md:hidden text-slate-400 mr-1">수량</span>{formatNumber(t.quantity)}주
