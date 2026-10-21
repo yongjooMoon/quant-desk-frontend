@@ -30,6 +30,14 @@ export default function Admin() {
     setBusy('');
   };
 
+  const act = async (u, path, method, ask) => {
+    if (!window.confirm(ask)) return;
+    setBusy(u);
+    try { await callApi(`/api/auth/admin/users/${u}${path}`, { method, headers }); load(); }
+    catch (e) { window.alert(`처리 실패: ${e.message}`); }
+    setBusy('');
+  };
+
   if (user?.role !== 'admin') return <Card className="text-center text-[13.5px] text-slate-500">관리자만 볼 수 있습니다.</Card>;
   return (
     <div className="space-y-4 min-w-0">
@@ -51,6 +59,12 @@ export default function Admin() {
               <div className="flex gap-2 pt-1">
                 <Button size="sm" variant="primary" disabled={busy === r.username} onClick={() => decide(r.username, 'approve')}>승인</Button>
                 <Button size="sm" disabled={busy === r.username} onClick={() => decide(r.username, 'reject')}>거부</Button>
+              </div>
+            )}
+            {r.status !== 'pending' && r.role !== 'admin' && (
+              <div className="flex gap-2 pt-1">
+                <Button size="sm" disabled={busy === r.username} onClick={() => act(r.username, '/reset-password', 'POST', `${r.username} 비밀번호를 11111111 (1 여덟 개)로 초기화할까요?`)}>비밀번호 초기화</Button>
+                <Button size="sm" disabled={busy === r.username} onClick={() => act(r.username, '', 'DELETE', `${r.username} 계정을 탈퇴 처리할까요? 이 계정의 무한매수 사이클은 중지되고 자동주문이 꺼집니다.`)}>탈퇴</Button>
               </div>
             )}
           </Card>
