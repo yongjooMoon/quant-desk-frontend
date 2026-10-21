@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Newspaper, TrendingUp, FileText, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays, ArrowUp, ChartCandlestick } from 'lucide-react';
+import { Newspaper, TrendingUp, FileText, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays, ArrowUp, ChartCandlestick, Infinity as InfinityIcon } from 'lucide-react';
 
 // 라우트별 코드 스플리팅 — 첫 진입 시 방문한 페이지의 번들만 내려받는다.
 // (예: /news 진입 시 QuantDesk의 recharts 포함 번들은 받지 않음)
@@ -12,6 +12,7 @@ const HousingCalendar = lazy(() => import('./pages/HousingCalendar'));
 const Reports = lazy(() => import('./pages/Reports'));
 const StockSearch = lazy(() => import('./pages/StockSearch'));
 const StockMarket = lazy(() => import('./pages/StockMarket'));
+const InfiniteBuy = lazy(() => import('./pages/InfiniteBuy'));
 
 // 메뉴(경로) 전환 시 스크롤을 맨 위로 리셋하는 컴포넌트.
 //    이 앱은 window가 아니라 <main>(overflow-y-auto)이 실제 스크롤 컨테이너이므로
@@ -107,6 +108,7 @@ function App() {
     { path: '/market', icon: ChartCandlestick, label: '증시' },
     { path: '/reports', icon: FileText, label: '리포트' },
     { path: '/calendar', icon: CalendarDays, label: '캘린더' },
+    { path: '/infinite', icon: InfinityIcon, label: '무한매수' },
     // { path: '/realestate', icon: Building2, label: '부동산' },  // disabled (also drop Building2 from the lucide import to re-enable)
     { path: '/search', icon: Search, label: '종목검색' },
   ];
@@ -255,6 +257,7 @@ function App() {
                   <Route path="/market" element={<StockMarket />} />
                   <Route path="/reports" element={<Reports />} />
                   <Route path="/calendar" element={<HousingCalendar />} />
+                  <Route path="/infinite" element={<InfiniteBuy />} />
                   {/* <Route path="/realestate" element={<RealEstate />} /> */}
                   <Route path="/search" element={<StockSearch />} />
                 </Routes>
