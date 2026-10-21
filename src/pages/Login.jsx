@@ -8,7 +8,7 @@ import { useAuth } from '../auth';
 import bedImg from '../assets/room-bed.png';   // Kenney Furniture Kit (CC0, kenney.nl): bedSingle + cabinetBed, rendered to a transparent isometric PNG
 
 const CSS = `
-.lr { --lx: calc(100vw - 3vw - 380px - 12vw); --bw: min(27vw, 470px); --fh: 22vh; --lw: min(360px, 38vw, 44vh); --lb: calc(var(--fh) - 6vh - var(--lw) * .087); --lt: 9vh; position: fixed; inset: 0; z-index: 60; overflow: hidden auto; color: #eef2f7; background: radial-gradient(ellipse at 28% 35%, #0d0f16 0%, #06070b 70%); display: grid; grid-template-columns: 1fr; align-items: center; align-content: center; }
+.lr { --pr: 8vw; --lx: calc(100vw - var(--pr) - 380px - 12vw); --bw: min(27vw, 470px); --fh: 22vh; --lw: min(360px, 38vw, 44vh); --lb: calc(var(--fh) - 6vh - var(--lw) * .087); --lt: 9vh; position: fixed; inset: 0; z-index: 60; overflow: hidden auto; color: #eef2f7; background: radial-gradient(ellipse at 28% 35%, #0d0f16 0%, #06070b 70%); display: grid; grid-template-columns: 1fr; align-items: center; align-content: center; }
 .lr::before { content: ""; position: fixed; inset: 0; background: radial-gradient(ellipse 60% 70% at 28% 40%, rgba(255,190,90,.22), transparent 70%); opacity: 0; transition: opacity .6s ease; pointer-events: none; }
 .lr.on::before { opacity: 1; }
 .lr-wall { position: fixed; left: 0; right: 0; bottom: var(--fh); height: 2.6vh; background: linear-gradient(#0b0d13, #10131b); border-top: 1px solid rgba(255,255,255,.05); pointer-events: none; }
@@ -41,7 +41,7 @@ const CSS = `
 .lr-hint { position: absolute; left: var(--lx); transform: translateX(-50%); bottom: calc(var(--fh) * .32); font-size: 12px; letter-spacing: .18em; color: #8b94a6; transition: opacity .4s; white-space: nowrap; animation: lr-hint 2.4s ease-in-out infinite; }
 .lr.on .lr-hint { opacity: 0; animation: none; }
 @keyframes lr-hint { 50% { color: #ffd98a; } }
-.lr-panel { position: relative; z-index: 2; pointer-events: none; padding: 4vh 3vw 4vh 2vw; display: flex; justify-content: flex-end; }
+.lr-panel { position: relative; z-index: 2; pointer-events: none; padding: 4vh var(--pr) 4vh 2vw; display: flex; justify-content: flex-end; }
 .lr-card { width: min(380px, 100%); padding: 38px 34px 30px; border-radius: 22px; background: rgba(18,20,28,.55); border: 1px solid rgba(255,255,255,.06); backdrop-filter: blur(14px); box-shadow: 0 30px 70px rgba(0,0,0,.55); transition: opacity .6s ease, filter .6s ease, box-shadow .6s ease, border-color .6s; opacity: .18; filter: blur(3px); pointer-events: none; }
 .lr.on .lr-card { opacity: 1; filter: none; pointer-events: auto; border-color: rgba(255,205,120,.22); box-shadow: 0 30px 70px rgba(0,0,0,.55), 0 0 80px rgba(255,170,70,.12); }
 .lr-card fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
@@ -110,11 +110,11 @@ export default function Login() {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const loop = (t) => {
       const p = phys.current;
-      if (!reduce && !onRef.current && !p.drag) p.av += Math.sin(t / 1100) * 0.0006;     // slow idle sway while dark: the cord looks alive
-      p.av += -p.a * 0.05; p.av *= 0.968; p.a = Math.max(-0.6, Math.min(0.6, p.a + p.av));
+      if (!reduce && !onRef.current && !p.drag) p.av += Math.sin(t / 1100) * 0.00022;     // slow idle sway while dark: the cord looks alive
+      p.av += -p.a * 0.05; p.av *= 0.955; p.a = Math.max(-0.3, Math.min(0.3, p.a + p.av));
       if (!p.drag) { p.ov += -p.off * 0.18; p.ov *= 0.78; p.off += p.ov; if (Math.abs(p.off) < 0.05 && Math.abs(p.ov) < 0.05) p.off = 0; }
       const len = LEN + p.off, x2 = AX + Math.sin(p.a) * len, y2 = AY + Math.cos(p.a) * len;
-      const bend = -p.av * 34;                                                               // the cord bows against its own motion
+      const bend = -p.av * 18;                                                               // the cord bows against its own motion
       cordRef.current?.setAttribute('d', `M${AX} ${AY} Q${AX + Math.sin(p.a) * len * 0.5 + bend} ${AY + len * 0.5} ${x2} ${y2}`);
       beadRef.current?.setAttribute('transform', `translate(${x2 - AX} ${y2 - AY - LEN})`);
       raf = requestAnimationFrame(loop);
@@ -132,7 +132,7 @@ export default function Login() {
   const down = (e) => { const p = phys.current; p.drag = true; p.pulled = false; p.sy = svgY(e); e.currentTarget.setPointerCapture(e.pointerId); };
   const move = (e) => {
     const p = phys.current;
-    if (!p.drag) { p.av += Math.max(-0.05, Math.min(0.05, e.movementX * 0.004)); return; }   // sweeping the mouse over the cord makes it swing
+    if (!p.drag) { p.av += Math.max(-0.014, Math.min(0.014, e.movementX * 0.0012)); return; }   // sweeping the mouse over the cord makes it swing
     p.off = Math.max(0, Math.min(46, svgY(e) - p.sy)); if (p.off > 26) p.pulled = true;
   };
   const up = () => {
@@ -141,7 +141,7 @@ export default function Login() {
     p.drag = false; p.ov = 0;
     if (p.pulled || p.off < 6) { toggle(); if (!p.pulled) p.off = 22; }
   };
-  const enter = (e) => { const r = e.currentTarget.getBoundingClientRect(); phys.current.av += (e.clientX < r.left + r.width / 2 ? 1 : -1) * 0.07; };   // first touch: a visible swing says "grab me"
+  const enter = (e) => { const r = e.currentTarget.getBoundingClientRect(); phys.current.av += (e.clientX < r.left + r.width / 2 ? 1 : -1) * 0.025; };   // first touch: a visible swing says "grab me"
   const key = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); phys.current.off = 30; toggle(); } };
 
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
