@@ -7,16 +7,21 @@ import { useRenderApi } from '../hooks/useRenderApi';
 import { useAuth } from '../auth';
 
 const CSS = `
-.lr { --lw: min(300px, 38vw); --lt: 9vh; position: fixed; inset: 0; z-index: 60; overflow: hidden auto; color: #eef2f7; background: radial-gradient(ellipse at 28% 35%, #0d0f16 0%, #06070b 70%); display: grid; grid-template-columns: 1fr 1fr; align-items: center; }
+.lr { --fh: 22vh; --lw: min(360px, 38vw, 44vh); --lb: calc(var(--fh) - 6vh - var(--lw) * .087); --lt: 9vh; position: fixed; inset: 0; z-index: 60; overflow: hidden auto; color: #eef2f7; background: radial-gradient(ellipse at 28% 35%, #0d0f16 0%, #06070b 70%); display: grid; grid-template-columns: 1fr 1fr; align-items: center; }
 .lr::before { content: ""; position: fixed; inset: 0; background: radial-gradient(ellipse 60% 70% at 28% 40%, rgba(255,190,90,.22), transparent 70%); opacity: 0; transition: opacity .6s ease; pointer-events: none; }
 .lr.on::before { opacity: 1; }
-.lr-floor { position: fixed; left: 0; right: 0; bottom: 0; height: 16vh; background: linear-gradient(#0a0b10, #050507); border-top: 1px solid rgba(255,255,255,.04); pointer-events: none; }
-.lr-floor::after { content: ""; position: absolute; left: 8%; width: 40%; top: 0; height: 100%; background: radial-gradient(ellipse at 50% 0, rgba(255,190,90,.22), transparent 70%); opacity: 0; transition: opacity .6s; }
-.lr.on .lr-floor::after { opacity: 1; }
+.lr-wall { position: fixed; left: 0; right: 0; bottom: var(--fh); height: 2.6vh; background: linear-gradient(#0b0d13, #10131b); border-top: 1px solid rgba(255,255,255,.05); pointer-events: none; }
+.lr-floor { position: fixed; left: 0; right: 0; bottom: 0; height: var(--fh); background: repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 1px, transparent 1px 120px), linear-gradient(#0e1017, #050507); border-top: 1px solid rgba(255,255,255,.06); pointer-events: none; }
+.lr-pool { position: absolute; left: 50%; bottom: calc(var(--fh) - 9vh); width: calc(var(--lw) * 1.7); height: 11vh; transform: translateX(-50%); background: radial-gradient(ellipse at 50% 50%, rgba(255,200,110,.55), rgba(255,170,70,.16) 55%, transparent 72%); opacity: 0; transition: opacity .6s; filter: blur(4px); pointer-events: none; }
+.lr.on .lr-pool { opacity: 1; }
+.lr-window { position: fixed; right: 7vw; top: 6vh; width: min(150px, 12vw); height: 15vh; border: 2px solid rgba(140,170,230,.12); border-radius: 4px; background: linear-gradient(160deg, rgba(110,150,230,.12), rgba(40,60,110,.04)); pointer-events: none; }
+.lr-window::before, .lr-window::after { content: ""; position: absolute; background: rgba(140,170,230,.12); }
+.lr-window::before { left: 50%; top: 0; bottom: 0; width: 2px; }
+.lr-window::after { top: 50%; left: 0; right: 0; height: 2px; }
 .lr-lampwrap { position: relative; height: 100vh; display: flex; justify-content: center; }
-.lr-lamp { position: absolute; top: var(--lt); width: var(--lw); left: 50%; transform: translateX(-50%); }
+.lr-lamp { position: absolute; bottom: var(--lb); width: var(--lw); left: 50%; transform: translateX(-50%); }
 .lr-lamp svg { width: 100%; height: auto; overflow: visible; display: block; }
-.lr-cone { position: absolute; top: calc(var(--lt) + var(--lw) * .49); left: 50%; width: min(620px, 78vw); height: 70vh; transform: translateX(-50%); clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%); background: linear-gradient(rgba(255,205,120,.5), rgba(255,190,90,.08) 70%, transparent); opacity: 0; transition: opacity .5s ease; filter: blur(6px); pointer-events: none; }
+.lr-cone { position: absolute; top: calc(100vh - var(--lb) - var(--lw) * 1.867 + var(--lw) * .49); bottom: calc(var(--fh) - 7vh); left: 50%; width: calc(var(--lw) * 2.1); transform: translateX(-50%); clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%); background: linear-gradient(rgba(255,205,120,.5), rgba(255,190,90,.08) 70%, transparent); opacity: 0; transition: opacity .5s ease; filter: blur(6px); pointer-events: none; }
 .lr.on .lr-cone { opacity: 1; }
 .lr-bulb { transition: opacity .4s, filter .4s; opacity: .15; }
 .lr.on .lr-bulb { opacity: 1; filter: drop-shadow(0 0 14px #ffd27a) drop-shadow(0 0 34px #ff9d3c); }
@@ -27,7 +32,7 @@ const CSS = `
 .lr:not(.on) .lr-bead { animation: lr-bead 2.4s ease-in-out infinite; }
 .lr-cord:hover .lr-bead { animation: none; filter: drop-shadow(0 0 10px #ffcf70); }
 @keyframes lr-bead { 50% { filter: drop-shadow(0 0 9px rgba(255,207,112,.85)); } }
-.lr-hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(16vh + 14px); font-size: 12px; letter-spacing: .18em; color: #8b94a6; transition: opacity .4s; white-space: nowrap; animation: lr-hint 2.4s ease-in-out infinite; }
+.lr-hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--fh) * .32); font-size: 12px; letter-spacing: .18em; color: #8b94a6; transition: opacity .4s; white-space: nowrap; animation: lr-hint 2.4s ease-in-out infinite; }
 .lr.on .lr-hint { opacity: 0; animation: none; }
 @keyframes lr-hint { 50% { color: #ffd98a; } }
 .lr-panel { position: relative; z-index: 2; padding: 4vh 8vw 4vh 2vw; display: flex; justify-content: flex-start; }
@@ -46,9 +51,11 @@ const CSS = `
 .lr-back { position: fixed; top: 16px; left: 16px; z-index: 5; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #8b94a6; text-decoration: none; }
 .lr-back:hover { color: #fff; }
 @media (max-width: 820px) {
-  .lr { --lw: min(190px, 48vw); --lt: 5vh; grid-template-columns: 1fr; grid-template-rows: auto auto; align-items: start; }
+  .lr { --lw: min(190px, 48vw); --lt: 5vh; --fh: 0px; grid-template-columns: 1fr; grid-template-rows: auto auto; align-items: start; }
   .lr-lampwrap { height: 46vh; }
-  .lr-cone { height: 60vh; width: 92vw; }
+  .lr-lamp { bottom: auto; top: var(--lt); }
+  .lr-cone { top: calc(var(--lt) + var(--lw) * .49); bottom: auto; height: 60vh; width: 92vw; }
+  .lr-pool, .lr-wall, .lr-window { display: none; }
   .lr-panel { padding: 0 18px 40px; justify-content: center; }
   .lr-card { padding: 26px 22px 22px; }
   .lr-hint { bottom: 6px; }
@@ -160,17 +167,21 @@ export default function Login() {
       <style>{CSS}</style>
       <ServerWakeupOverlay />
       <Link to="/news" className="lr-back"><ArrowLeft size={15} />돌아가기</Link>
+      <div className="lr-wall" />
       <div className="lr-floor" />
+      <div className="lr-window" />
       {flies.map((s, i) => <span key={i} className="lr-ff" style={s} aria-hidden="true" />)}
 
       <div className="lr-lampwrap">
         <div className="lr-cone" />
+        <div className="lr-pool" />
         <div className="lr-lamp">
           <svg ref={svgRef} viewBox="0 0 300 560">
             <defs>
               <linearGradient id="lr-shade" x1="0" x2="1"><stop offset="0" stopColor="#2a2d38" /><stop offset=".5" stopColor="#3a3e4c" /><stop offset="1" stopColor="#20232d" /></linearGradient>
               <linearGradient id="lr-pole" x1="0" x2="1"><stop offset="0" stopColor="#1c1f27" /><stop offset=".5" stopColor="#363a47" /><stop offset="1" stopColor="#171a21" /></linearGradient>
             </defs>
+            <ellipse cx="150" cy="536" rx="92" ry="10" fill="rgba(0,0,0,.65)" style={{ filter: 'blur(5px)' }} />
             <rect x="146" y="150" width="8" height="368" rx="4" fill="url(#lr-pole)" />
             <ellipse cx="150" cy="528" rx="62" ry="12" fill="#14161c" /><ellipse cx="150" cy="522" rx="62" ry="12" fill="#262a35" />
             <path d="M78 140 Q150 40 222 140 Z" fill="url(#lr-shade)" />
