@@ -1,14 +1,14 @@
 // src/pages/Login.jsx - login / account request page (aurora glass style and yeti mascot of the old Streamlit dashboard). Backend: quant-desk-backend/auth_api.py
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
+import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useRenderApi } from '../hooks/useRenderApi';
 import { useAuth } from '../auth';
 import YetiSvg from '../components/YetiSvg';
 
 const CSS = `
 @keyframes qd-float { 0% { transform: translate(0,0) scale(1) rotate(0deg); } 33% { transform: translate(5vw,-5vh) scale(1.1) rotate(10deg); } 66% { transform: translate(-5vw,5vh) scale(.9) rotate(-10deg); } 100% { transform: translate(0,0) scale(1) rotate(0deg); } }
-.qd-orb { position: absolute; border-radius: 50%; filter: blur(100px); opacity: .6; animation: qd-float 20s infinite ease-in-out alternate; }
+.qd-orb { position: absolute; border-radius: 50%; filter: blur(100px); opacity: .35; animation: qd-float 20s infinite ease-in-out alternate; }
 #yeti-wrap .armL, #yeti-wrap .armR { transition: transform .45s cubic-bezier(.25,.46,.45,.94); transform-box: fill-box; }
 #yeti-wrap .armL { transform-origin: top left; transform: translate(-93px,180px) rotate(105deg); }
 #yeti-wrap .armR { transform-origin: top right; transform: translate(-93px,180px) rotate(-105deg); }
@@ -17,8 +17,8 @@ const CSS = `
 #yeti-wrap .twoFingers { transform-origin: bottom left; transform-box: fill-box; transition: transform .3s ease-in-out; }
 #yeti-wrap.yeti-peek .twoFingers { transform: translate(-9px,-2px) rotate(30deg); }
 `;
-const FIELD = 'w-full rounded-xl px-4 py-3 text-[14px] text-white bg-black/25 border border-white/10 placeholder:text-slate-500 focus:outline-none focus:border-[#20C997] focus:bg-black/40 transition-colors';
-const LABEL = 'block text-[11px] font-bold tracking-[2px] uppercase text-slate-400 mb-1.5';
+const FIELD = 'w-full rounded-xl px-4 py-3 text-[14px] text-slate-900 dark:text-white bg-white/80 dark:bg-black/25 border border-slate-300 dark:border-white/10 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#20C997] transition-colors';
+const LABEL = 'block text-[11px] font-bold tracking-[2px] uppercase text-slate-500 dark:text-slate-400 mb-1.5';
 
 const code = (e) => Number(/API Error: ([0-9]+)/.exec(e?.message || '')?.[1] || 0);
 
@@ -76,17 +76,18 @@ export default function Login() {
   };
 
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-[#030712] min-h-[calc(100dvh-6rem)] md:min-h-[calc(100dvh-5rem)] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] overflow-auto bg-slate-50 dark:bg-[#0B1120] flex items-center justify-center p-4 transition-colors duration-300">
       <style>{CSS}</style>
       <ServerWakeupOverlay />
+      <Link to="/news" className="absolute top-4 left-4 z-20 flex items-center gap-1.5 text-[13px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"><ArrowLeft size={15} />돌아가기</Link>
       <div className="qd-orb" style={{ width: '50%', aspectRatio: '1', background: '#20C997', top: '-20%', left: '-10%' }} />
       <div className="qd-orb" style={{ width: '40%', aspectRatio: '1', background: '#3B82F6', bottom: '-20%', right: '-10%', animationDelay: '-5s' }} />
       <div className="qd-orb" style={{ width: '40%', aspectRatio: '1', background: '#8B5CF6', top: '30%', left: '40%', animationDelay: '-10s' }} />
 
-      <form onSubmit={submit} className="relative z-10 w-[360px] max-w-full rounded-3xl border border-white/10 bg-slate-900/40 backdrop-blur-2xl px-7 sm:px-10 pt-8 pb-7 shadow-[0_30px_60px_rgba(0,0,0,.5)]">
+      <form onSubmit={submit} className="relative z-10 w-[360px] max-w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-white/70 dark:bg-slate-900/40 backdrop-blur-2xl px-7 sm:px-10 pt-8 pb-7 shadow-[0_30px_60px_rgba(15,23,42,.15)] dark:shadow-[0_30px_60px_rgba(0,0,0,.5)]">
         <div id="yeti-wrap" className={`text-center mb-6 ${hide ? 'yeti-hide' : ''} ${peek ? 'yeti-peek' : ''}`}>
           <div className="flex justify-center"><YetiSvg eyesX={eyesX} /></div>
-          <h2 className="mt-4 mb-1 text-[28px] font-black tracking-[5px] text-white" style={{ textShadow: '0 0 15px rgba(255,255,255,.8), 0 0 30px rgba(32,201,151,.4)' }}>QUANT DESK</h2>
+          <h2 className="mt-4 mb-1 text-[28px] font-black tracking-[5px] text-slate-900 dark:text-white">QUANT DESK</h2>
           <p className="text-[11px] font-bold tracking-[4px] text-[#20C997]">{mode === 'login' ? 'SECURE INVESTMENT PLATFORM' : 'REQUEST AN ACCOUNT'}</p>
         </div>
 
@@ -99,7 +100,7 @@ export default function Login() {
             <label className={LABEL} htmlFor="lg-pw">Password</label>
             <div className="relative">
               <input id="lg-pw" className={`${FIELD} pr-11`} type={showPw ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={f.password} onChange={set('password')} onFocus={() => setFocus('password')} onBlur={() => setFocus('')} />
-              <button type="button" tabIndex={-1} aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'} onMouseDown={(e) => e.preventDefault()} onClick={() => setShowPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer">
+              <button type="button" tabIndex={-1} aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'} onMouseDown={(e) => e.preventDefault()} onClick={() => setShowPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer">
                 {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
             </div>
@@ -112,12 +113,12 @@ export default function Login() {
           )}
         </div>
 
-        {msg.text && <p className={`mt-4 rounded-xl px-3 py-2 text-[12.5px] font-semibold border ${msg.tone === 'ok' ? 'text-emerald-200 bg-emerald-500/10 border-emerald-400/40' : 'text-red-200 bg-red-500/10 border-red-400/40'}`}>{msg.text}</p>}
+        {msg.text && <p className={`mt-4 rounded-xl px-3 py-2 text-[12.5px] font-semibold border ${msg.tone === 'ok' ? 'text-emerald-700 dark:text-emerald-200 bg-emerald-500/10 border-emerald-500/40' : 'text-red-700 dark:text-red-200 bg-red-500/10 border-red-500/40'}`}>{msg.text}</p>}
 
         <button type="submit" disabled={busy} className="mt-6 w-full rounded-xl py-3 text-[14px] font-extrabold tracking-[3px] text-white cursor-pointer disabled:opacity-60 transition-transform hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg,#20C997 0%,#007BFF 100%)', boxShadow: '0 10px 20px rgba(32,201,151,.25)' }}>
           {busy ? '...' : mode === 'login' ? 'ENTER SYSTEM' : '계정 신청'}
         </button>
-        <button type="button" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setMsg({ tone: '', text: '' }); }} className="mt-4 w-full text-center text-[12.5px] text-slate-400 hover:text-white cursor-pointer">
+        <button type="button" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setMsg({ tone: '', text: '' }); }} className="mt-4 w-full text-center text-[12.5px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer">
           {mode === 'login' ? '계정이 없나요? 계정 신청' : '로그인으로 돌아가기'}
         </button>
       </form>
