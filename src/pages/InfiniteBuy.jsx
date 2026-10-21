@@ -120,7 +120,7 @@ function OrderSheet({ acc }) {
 // ── Trades list + manual fill form ────────────────────────────
 function Trades({ acc, api, onTrade, readOnly }) {
   const [state, setState] = useState({ loading: true, error: '', data: [] });
-  const [f, setF] = useState({ trade_date: today(), side: 'buy', qty: '', price: '', tag: '' });
+  const [f, setF] = useState({ trade_date: today(), side: 'buy', qty: '', price: '', tag: '', tstep: 'auto', tcustom: '' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -136,7 +136,10 @@ function Trades({ acc, api, onTrade, readOnly }) {
     e.preventDefault();
     setBusy(true); setErr('');
     try {
-      const r = await api(`/cycles/${acc.id}/trades`, 'POST', { trade_date: f.trade_date, side: f.side, qty: Number(f.qty), price: Number(f.price), tag: f.tag });
+      const body = { trade_date: f.trade_date, side: f.side, qty: Number(f.qty), price: Number(f.price), tag: f.tag };
+      const step = f.tstep === 'custom' ? f.tcustom : f.tstep;
+      if (step !== 'auto' && step !== '') body.t_step = Number(step);
+      const r = await api(`/cycles/${acc.id}/trades`, 'POST', body);
       onTrade(r);
       setF({ ...f, qty: '', price: '' });
       load();
@@ -146,17 +149,24 @@ function Trades({ acc, api, onTrade, readOnly }) {
 
   return (
     <div className="space-y-3">
-      {!readOnly && <form onSubmit={submit} className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">
+      {!readOnly && <form onSubmit={submit} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
         <Field label="체결일"><input type="date" className={INPUT} required value={f.trade_date} onChange={(e) => setF({ ...f, trade_date: e.target.value })} /></Field>
         <Field label="구분"><Select value={f.side} onChange={(v) => setF({ ...f, side: v })} options={[{ v: 'buy', l: '매수' }, { v: 'sell', l: '매도' }]} /></Field>
         <Field label="수량"><input type="number" min="1" step="1" required className={INPUT} value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} /></Field>
         <Field label="체결가 ($)"><input type="number" min="0" step="0.01" required className={INPUT} value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} /></Field>
         <Field label="태그"><Select value={f.tag} onChange={(v) => setF({ ...f, tag: v })} options={[{ v: '', l: '(없음)' }, ...Object.entries(TAG_LABEL).map(([v, l]) => ({ v, l }))]} /></Field>
-        <div className="col-span-2 sm:col-span-5 flex items-center gap-3">
+        <div className="col-span-2 sm:col-span-1 min-w-0">
+          <Field label="T 증가">
+            <Select value={f.tstep} onChange={(v) => setF({ ...f, tstep: v })} options={[{ v: 'auto', l: '자동' }, { v: '0.5', l: '+0.5 (절반 매수)' }, { v: '1', l: '+1 (1회 매수)' }, { v: 'custom', l: '직접 입력' }]} />
+          </Field>
+          {f.tstep === 'custom' && <input type="number" min="0" max="2" step="0.25" className={`${INPUT} mt-1`} value={f.tcustom} onChange={(e) => setF({ ...f, tcustom: e.target.value })} />}
+        </div>
+        <p className="col-span-2 sm:col-span-6 text-[11px] text-slate-400 -mt-1">두 주문 중 하나만 체결되면 +0.5 (매도 시 T 증가는 무시됩니다)</p>
+        <div className="col-span-2 sm:col-span-6 flex items-center gap-3">
           <Button type="submit" variant="primary" size="sm" disabled={busy}>수동 체결 반영</Button>
           <span className="text-[11px] text-slate-400">T/잔금/수량/평단이 규칙 엔진으로 갱신됩니다.</span>
         </div>
-        {err && <p className="col-span-2 sm:col-span-5 text-[12px] text-negative">{err}</p>}
+        {err && <p className="col-span-2 sm:col-span-6 text-[12px] text-negative">{err}</p>}
       </form>}
       {state.loading ? <p className="text-[12.5px] text-slate-500">불러오는 중...</p>
         : state.error ? <p className="text-[12.5px] text-negative">체결내역 오류: {state.error}</p>
@@ -190,16 +200,26 @@ function Trades({ acc, api, onTrade, readOnly }) {
 }
 
 // ── Account card ──────────────────────────────────────────────
-function CycleCard({ acc, api, onTrade, onEdit, onDelete, onBacksolve }) {
+function CycleCard({ acc, api, onTrade, onEdit, onDelete, onBacksolve, onSaved }) {
   const [tab, setTab] = useState('orders');
+  const [autoBusy, setAutoBusy] = useState(false);
+  const toggleAuto = async () => {
+    const on = !acc.auto_order;
+    if (on && !window.confirm('실계좌로 매일 17:01에 LOC 매수·매도 주문이 자동 전송됩니다. 켜시겠습니까?')) return;
+    setAutoBusy(true);
+    try { onSaved((await api(`/cycles/${acc.id}`, 'PUT', { auto_order: on })).data); }
+    catch (e) { window.alert(`변경 실패: ${errMsg(e)}`); }
+    setAutoBusy(false);
+  };
   const t = Number(acc.t_value) || 0;
   const pct = Math.min(100, Math.max(0, (t / acc.splits) * 100));
+  const prog = Number(acc.progress_pct) || 0;
   const dist = acc.prev_close && acc.star_price ? (Number(acc.prev_close) / acc.star_price - 1) * 100 : null;
   return (
     <Card className="min-w-0 space-y-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white truncate">{acc.name}</h3>
+          <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white truncate">{acc.name}{acc.start_date && <span className="ml-2 text-[12px] font-normal text-slate-400 font-mono">{ymd(acc.start_date).replace(/-/g, '. ')} ~</span>}</h3>
           <div className="flex flex-wrap gap-1.5 mt-1.5">
             <Badge tone="info" size="sm">{acc.version}</Badge>
             <Badge size="sm">{acc.ticker}</Badge>
@@ -207,6 +227,7 @@ function CycleCard({ acc, api, onTrade, onEdit, onDelete, onBacksolve }) {
             <Badge size="sm" tone="info">{acc.cycle_no || 1}번째 사이클</Badge>
             <Badge size="sm" tone={acc.mode === 'normal' ? 'neutral' : 'warning'}>{MODE_LABEL[acc.mode] || acc.mode}</Badge>
             <Badge size="sm" tone={STATUS_TONE[acc.status] || 'neutral'} dot>{STATUS_LABEL[acc.status] || acc.status}</Badge>
+            <Badge size="sm" tone={acc.auto_order ? 'warning' : 'neutral'}>{acc.auto_order ? '자동 ON' : '자동 OFF'}</Badge>
           </div>
           <p className="text-[11px] text-slate-400 font-mono mt-1 truncate">{acc.cycle_key}</p>
         </div>
@@ -217,27 +238,45 @@ function CycleCard({ acc, api, onTrade, onEdit, onDelete, onBacksolve }) {
         </div>
       </div>
 
-      <div>
-        <div className="flex items-end justify-between">
-          <Metric label="T" value={<span className="font-mono">{t}</span>} size="lg" />
-          <Badge tone={acc.first_half ? 'info' : 'warning'} size="sm">{acc.first_half ? '전반전' : '후반전'}</Badge>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 font-mono">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">진행도</p>
+          <p className="text-[32px] md:text-[38px] font-semibold tracking-tight tabular-nums leading-tight text-slate-900 dark:text-white">{prog.toFixed(1)}%</p>
+          <p className="text-[13px] text-slate-500 dark:text-slate-400 tabular-nums">{t.toFixed(3)}T / {acc.splits}</p>
         </div>
-        <div className="mt-2 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden relative">
-          <div className="h-full bg-brand" style={{ width: `${pct}%` }} />
-          <div className="absolute top-0 bottom-0 left-1/2 w-px bg-slate-400/60" />
-        </div>
-        <p className="text-[10.5px] text-slate-400 mt-1 font-mono">{t} / {acc.splits}</p>
+        <Badge tone={acc.first_half ? 'info' : 'warning'} size="sm">{acc.first_half ? '전반전' : '후반전'}</Badge>
+      </div>
+      <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+        <div className="h-full bg-brand" style={{ width: `${Math.min(100, Math.max(0, prog))}%` }} />
+      </div>
+      <div className="relative h-1 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden" title="T / 분할수 (중간선 = 전반/후반 경계)">
+        <div className="h-full bg-slate-400/70" style={{ width: `${pct}%` }} />
+        <div className="absolute top-0 bottom-0 left-1/2 w-px bg-slate-500/60" />
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-3 font-mono">
-        <Metric label="별% (star)" value={acc.star_pct != null ? `${acc.star_pct}%` : '-'} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[
+          ['기본 정보', [['시드', usd(acc.principal_usd)], ['사용한 시드', usd(acc.used_seed_usd)], ['1회 투자금', usd(acc.unit_usd)]]],
+          ['매입 정보', [['평단가', usd(acc.avg_price)], ['보유 수량', acc.qty], ['매입 금액', usd(acc.invested_usd)]]],
+          ['무매 공식', [['T', t.toFixed(3)], ['목표 수익률', acc.target_pct != null ? `${acc.target_pct}%` : '-'], ['Star 값', acc.star_pct != null ? `${Number(acc.star_pct).toFixed(2)}%` : '-']]],
+        ].map(([title, rows]) => (
+          <Panel key={title} level="inset" padding="sm" radius="lg" className="min-w-0">
+            <p className="text-[12px] font-semibold text-slate-900 dark:text-white mb-2">{title}</p>
+            <dl className="space-y-1.5">
+              {rows.map(([k, v]) => (
+                <div key={k} className="flex items-baseline justify-between gap-2 text-[12px]">
+                  <dt className="text-slate-500 dark:text-slate-400 shrink-0">{k}</dt>
+                  <dd className="font-mono tabular-nums text-slate-900 dark:text-slate-100 text-right truncate">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </Panel>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-3 gap-x-3 gap-y-3 font-mono">
         <Metric label="별지점가" value={usd(acc.star_price)} />
-        <Metric label="목표 매도%" value={acc.target_pct != null ? `${acc.target_pct}%` : '-'} />
-        <Metric label="평단" value={usd(acc.avg_price)} />
-        <Metric label="수량" value={acc.qty} />
         <Metric label="잔금" value={usd(acc.cash_usd)} />
-        <Metric label="1회매수액" value={usd(acc.unit_usd)} />
-        <Metric label="투입금" value={usd(acc.invested_usd)} />
         <Metric
           label="종가 / 별지점 대비"
           value={usd(acc.prev_close)}
@@ -245,6 +284,11 @@ function CycleCard({ acc, api, onTrade, onEdit, onDelete, onBacksolve }) {
           sub={dist == null ? undefined : `${dist >= 0 ? '+' : ''}${dist.toFixed(2)}%`}
         />
       </div>
+
+      <label className="flex items-center gap-2 text-[12.5px] text-slate-700 dark:text-slate-300 cursor-pointer">
+        <input type="checkbox" role="switch" checked={!!acc.auto_order} disabled={autoBusy} onChange={toggleAuto} />
+        자동매매 (매일 17:01 LOC 주문)
+      </label>
 
       <div className="min-w-0">
         <Tabs variant="static" value={tab} onChange={setTab} items={[{ key: 'orders', label: '오늘의 주문표' }, { key: 'trades', label: '체결내역' }]} className="mb-3" />
@@ -550,7 +594,7 @@ export default function InfiniteBuy() {
             {live.length ? (
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
                 {live.map((c) => (
-                  <CycleCard key={c.id} acc={c} api={api} onTrade={onTrade}
+                  <CycleCard key={c.id} acc={c} api={api} onTrade={onTrade} onSaved={upsert}
                     onEdit={(x) => setEditor({ open: true, editing: x })}
                     onDelete={remove}
                     onBacksolve={(x) => setSolver({ open: true, target: x })} />
