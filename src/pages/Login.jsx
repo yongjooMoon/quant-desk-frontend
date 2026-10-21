@@ -5,19 +5,22 @@ import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useRenderApi } from '../hooks/useRenderApi';
 import { useAuth } from '../auth';
+import bedImg from '../assets/room-bed.png';   // Kenney Furniture Kit (CC0, kenney.nl): bedSingle + cabinetBed, rendered to a transparent isometric PNG
 
 const CSS = `
-.lr { --fh: 22vh; --lw: min(360px, 38vw, 44vh); --lb: calc(var(--fh) - 6vh - var(--lw) * .087); --lt: 9vh; position: fixed; inset: 0; z-index: 60; overflow: hidden auto; color: #eef2f7; background: radial-gradient(ellipse at 28% 35%, #0d0f16 0%, #06070b 70%); display: grid; grid-template-columns: 1fr 1fr; align-items: center; }
+.lr { --lx: calc(100vw - 3vw - 380px - 12vw); --bw: min(27vw, 470px); --fh: 22vh; --lw: min(360px, 38vw, 44vh); --lb: calc(var(--fh) - 6vh - var(--lw) * .087); --lt: 9vh; position: fixed; inset: 0; z-index: 60; overflow: hidden auto; color: #eef2f7; background: radial-gradient(ellipse at 28% 35%, #0d0f16 0%, #06070b 70%); display: grid; grid-template-columns: 1fr; align-items: center; align-content: center; }
 .lr::before { content: ""; position: fixed; inset: 0; background: radial-gradient(ellipse 60% 70% at 28% 40%, rgba(255,190,90,.22), transparent 70%); opacity: 0; transition: opacity .6s ease; pointer-events: none; }
 .lr.on::before { opacity: 1; }
 .lr-wall { position: fixed; left: 0; right: 0; bottom: var(--fh); height: 2.6vh; background: linear-gradient(#0b0d13, #10131b); border-top: 1px solid rgba(255,255,255,.05); pointer-events: none; }
 .lr-floor { position: fixed; left: 0; right: 0; bottom: 0; height: var(--fh); background: repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 1px, transparent 1px 120px), linear-gradient(#0e1017, #050507); border-top: 1px solid rgba(255,255,255,.06); pointer-events: none; }
-.lr-pool { position: absolute; left: 50%; bottom: calc(var(--fh) - 9vh); width: calc(var(--lw) * 1.7); height: 11vh; transform: translateX(-50%); background: radial-gradient(ellipse at 50% 50%, rgba(255,200,110,.55), rgba(255,170,70,.16) 55%, transparent 72%); opacity: 0; transition: opacity .6s; filter: blur(4px); pointer-events: none; }
+.lr-floor::before { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(120,72,38,.26), rgba(50,28,14,.1)); opacity: 0; transition: opacity .8s; }
+.lr.on .lr-floor::before { opacity: 1; }
+.lr-pool { position: absolute; left: var(--lx); bottom: calc(var(--fh) - 9vh); width: calc(var(--lw) * 1.7); height: 11vh; transform: translateX(-50%); background: radial-gradient(ellipse at 50% 50%, rgba(255,200,110,.55), rgba(255,170,70,.16) 55%, transparent 72%); opacity: 0; transition: opacity .6s; filter: blur(4px); pointer-events: none; }
 .lr.on .lr-pool { opacity: 1; }
-.lr-lampwrap { position: relative; height: 100vh; display: flex; justify-content: center; }
-.lr-lamp { position: absolute; bottom: var(--lb); width: var(--lw); left: 50%; transform: translateX(-50%); }
+.lr-lampwrap { position: absolute; inset: 0; }
+.lr-lamp { position: absolute; bottom: var(--lb); width: var(--lw); left: var(--lx); transform: translateX(-50%); }
 .lr-lamp svg { width: 100%; height: auto; overflow: visible; display: block; }
-.lr-cone { position: absolute; top: calc(100vh - var(--lb) - var(--lw) * 1.867 + var(--lw) * .49); bottom: calc(var(--fh) - 7vh); left: 50%; width: calc(var(--lw) * 2.1); transform: translateX(-50%); clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%); background: linear-gradient(rgba(255,205,120,.5), rgba(255,190,90,.08) 70%, transparent); opacity: 0; transition: opacity .5s ease; filter: blur(6px); pointer-events: none; }
+.lr-cone { position: absolute; top: calc(100vh - var(--lb) - var(--lw) * 1.867 + var(--lw) * .49); bottom: calc(var(--fh) - 7vh); left: var(--lx); width: calc(var(--lw) * 2.1); transform: translateX(-50%); clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%); background: linear-gradient(rgba(255,205,120,.5), rgba(255,190,90,.08) 70%, transparent); opacity: 0; transition: opacity .5s ease; filter: blur(6px); pointer-events: none; }
 .lr.on .lr-cone { opacity: 1; }
 .lr-bulb { transition: opacity .4s, filter .4s; opacity: .15; }
 .lr.on .lr-bulb { opacity: 1; filter: drop-shadow(0 0 14px #ffd27a) drop-shadow(0 0 34px #ff9d3c); }
@@ -28,10 +31,17 @@ const CSS = `
 .lr:not(.on) .lr-bead { animation: lr-bead 2.4s ease-in-out infinite; }
 .lr-cord:hover .lr-bead { animation: none; filter: drop-shadow(0 0 10px #ffcf70); }
 @keyframes lr-bead { 50% { filter: drop-shadow(0 0 9px rgba(255,207,112,.85)); } }
-.lr-hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--fh) * .32); font-size: 12px; letter-spacing: .18em; color: #8b94a6; transition: opacity .4s; white-space: nowrap; animation: lr-hint 2.4s ease-in-out infinite; }
+.lr-scene > * { position: absolute; opacity: 0; transition: opacity .9s ease .15s; pointer-events: none; }
+.lr.on .lr-scene > * { opacity: 1; }
+.lr-win { left: calc(var(--lx) - var(--lw) * .35 - 1.5vw - var(--bw) * .98); bottom: calc(var(--fh) - 6vh + var(--bw) * .66); width: calc(var(--bw) * .46); aspect-ratio: 200 / 280; height: auto; }
+.lr-bed { left: calc(var(--lx) - var(--lw) * .35 - 1.5vw - var(--bw)); bottom: calc(var(--fh) - 8vh); width: var(--bw); filter: drop-shadow(0 0 26px rgba(255,160,70,.16)); }
+.lr-rug { left: var(--lx); bottom: calc(var(--fh) - 10vh); width: calc(var(--lw) * 2.3); height: 12vh; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(ellipse, rgba(176,92,52,.5), rgba(128,64,38,.32) 60%, transparent 72%); border: 1px solid rgba(240,170,110,.14); }
+.lr-star { animation: lr-star 3.2s ease-in-out infinite; animation-delay: var(--sd); }
+@keyframes lr-star { 50% { opacity: .25; } }
+.lr-hint { position: absolute; left: var(--lx); transform: translateX(-50%); bottom: calc(var(--fh) * .32); font-size: 12px; letter-spacing: .18em; color: #8b94a6; transition: opacity .4s; white-space: nowrap; animation: lr-hint 2.4s ease-in-out infinite; }
 .lr.on .lr-hint { opacity: 0; animation: none; }
 @keyframes lr-hint { 50% { color: #ffd98a; } }
-.lr-panel { position: relative; z-index: 2; padding: 4vh 8vw 4vh 2vw; display: flex; justify-content: flex-start; }
+.lr-panel { position: relative; z-index: 2; pointer-events: none; padding: 4vh 3vw 4vh 2vw; display: flex; justify-content: flex-end; }
 .lr-card { width: min(380px, 100%); padding: 38px 34px 30px; border-radius: 22px; background: rgba(18,20,28,.55); border: 1px solid rgba(255,255,255,.06); backdrop-filter: blur(14px); box-shadow: 0 30px 70px rgba(0,0,0,.55); transition: opacity .6s ease, filter .6s ease, box-shadow .6s ease, border-color .6s; opacity: .18; filter: blur(3px); pointer-events: none; }
 .lr.on .lr-card { opacity: 1; filter: none; pointer-events: auto; border-color: rgba(255,205,120,.22); box-shadow: 0 30px 70px rgba(0,0,0,.55), 0 0 80px rgba(255,170,70,.12); }
 .lr-card fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
@@ -47,17 +57,20 @@ const CSS = `
 .lr-back { position: fixed; top: 16px; left: 16px; z-index: 5; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #8b94a6; text-decoration: none; }
 .lr-back:hover { color: #fff; }
 @media (max-width: 820px) {
-  .lr { --lw: min(190px, 48vw); --lt: 5vh; --fh: 0px; grid-template-columns: 1fr; grid-template-rows: auto auto; align-items: start; }
-  .lr-lampwrap { height: 46vh; }
+  .lr { --lx: 50vw; --lw: min(190px, 48vw); --lt: 5vh; --fh: 0px; grid-template-columns: 1fr; grid-template-rows: auto auto; align-items: start; align-content: start; }
+  .lr-lampwrap { position: relative; inset: auto; height: 46vh; }
+  .lr-scene { display: none; }
   .lr-lamp { bottom: auto; top: var(--lt); }
   .lr-cone { top: calc(var(--lt) + var(--lw) * .49); bottom: auto; height: 60vh; width: 92vw; }
   .lr-pool, .lr-wall { display: none; }
+  .lr-panel { justify-content: center; }
   .lr-panel { padding: 0 18px 40px; justify-content: center; }
   .lr-card { padding: 26px 22px 22px; }
   .lr-hint { bottom: 6px; }
   .lr-floor { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .lr-ff, .lr:not(.on) .lr-bead, .lr-hint { animation: none; } }
+@media (max-width: 1100px) and (min-width: 821px) { .lr-scene { display: none; } .lr { --lx: 38vw; } }
+@media (prefers-reduced-motion: reduce) { .lr-star, .lr-ff, .lr:not(.on) .lr-bead, .lr-hint { animation: none; } }
 `;
 
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -84,8 +97,8 @@ export default function Login() {
   const onRef = useRef(false);
   onRef.current = on;
 
-  const flies = useMemo(() => Array.from({ length: 18 }, () => {
-    const s = rnd(3, 7);
+  const flies = useMemo(() => Array.from({ length: 21 }, () => {
+    const s = rnd(4, 9);
     const v = { width: s, height: s, '--d': `${rnd(35, 65)}s`, '--delay': `-${rnd(0, 40)}s` };
     for (let n = 1; n <= 4; n++) { v[`--x${n}`] = `${rnd(0, 100)}vw`; v[`--y${n}`] = `${rnd(0, 100)}vh`; }
     return v;
@@ -167,6 +180,26 @@ export default function Login() {
       <div className="lr-floor" />
       {flies.map((s, i) => <span key={i} className="lr-ff" style={s} aria-hidden="true" />)}
 
+      <div className="lr-scene" aria-hidden="true">
+        <div className="lr-rug" />
+        <svg className="lr-win" viewBox="0 0 200 280">
+          <defs>
+            <linearGradient id="lr-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#070d22" /><stop offset=".6" stopColor="#14254f" /><stop offset="1" stopColor="#25407a" /></linearGradient>
+            <radialGradient id="lr-moonglow"><stop offset="0" stopColor="#fff6cf" stopOpacity=".55" /><stop offset="1" stopColor="#fff6cf" stopOpacity="0" /></radialGradient>
+          </defs>
+          <rect x="14" y="10" width="172" height="236" fill="url(#lr-sky)" />
+          <circle className="lr-star" style={{ "--sd": "0.0s" }} cx="22" cy="30" r="1.7" fill="#fff" /><circle className="lr-star" style={{ "--sd": "0.7s" }} cx="50" cy="70" r="1.1" fill="#fff" /><circle className="lr-star" style={{ "--sd": "1.4s" }} cx="78" cy="24" r="1.1" fill="#fff" /><circle className="lr-star" style={{ "--sd": "2.1s" }} cx="30" cy="118" r="1.7" fill="#fff" /><circle className="lr-star" style={{ "--sd": "2.8s" }} cx="92" cy="96" r="1.1" fill="#fff" /><circle className="lr-star" style={{ "--sd": "0.5s" }} cx="66" cy="140" r="1.1" fill="#fff" /><circle className="lr-star" style={{ "--sd": "1.2s" }} cx="118" cy="34" r="1.7" fill="#fff" /><circle className="lr-star" style={{ "--sd": "1.9s" }} cx="160" cy="80" r="1.1" fill="#fff" /><circle className="lr-star" style={{ "--sd": "2.6s" }} cx="176" cy="128" r="1.1" fill="#fff" /><circle className="lr-star" style={{ "--sd": "0.3s" }} cx="144" cy="150" r="1.7" fill="#fff" /><circle className="lr-star" style={{ "--sd": "1.0s" }} cx="40" cy="170" r="1.1" fill="#fff" /><circle className="lr-star" style={{ "--sd": "1.7s" }} cx="104" cy="176" r="1.1" fill="#fff" />
+          <circle cx="138" cy="62" r="46" fill="url(#lr-moonglow)" />
+          <circle cx="138" cy="62" r="19" fill="#fff6cf" /><circle cx="147" cy="55" r="17" fill="#17295a" />
+          <path d="M14 214 Q56 176 98 204 T186 190 V246 H14 Z" fill="#050914" />
+          <path d="M14 232 Q70 208 120 226 T186 218 V246 H14 Z" fill="#0b1226" />
+          <rect x="10" y="6" width="180" height="244" fill="none" stroke="#8a5632" strokeWidth="9" rx="3" />
+          <rect x="96" y="10" width="8" height="236" fill="#8a5632" /><rect x="14" y="120" width="172" height="8" fill="#8a5632" />
+          <rect x="2" y="248" width="196" height="12" rx="3" fill="#a8693a" />
+          <path d="M14 10 Q40 90 22 246 H14 Z" fill="#f0a35e" opacity=".92" /><path d="M186 10 Q160 90 178 246 H186 Z" fill="#f0a35e" opacity=".92" />
+        </svg>
+        <img className="lr-bed" src={bedImg} alt="" draggable="false" />
+      </div>
       <div className="lr-lampwrap">
         <div className="lr-cone" />
         <div className="lr-pool" />
