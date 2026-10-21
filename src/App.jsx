@@ -20,8 +20,7 @@ const Admin = lazy(() => import('./pages/Admin'));
 // Calendar, infinite buying and admin are private: without a login the visitor is sent to /login and returns afterwards.
 function RequireAuth({ children }) {
   const { user } = useAuth();
-  const { pathname } = useLocation();
-  return user ? children : <Navigate to="/login" state={{ from: pathname }} replace />;
+  return user ? children : <Navigate to="/login" replace />;
 }
 
 // 메뉴(경로) 전환 시 스크롤을 맨 위로 리셋하는 컴포넌트.
@@ -126,8 +125,8 @@ function Shell() {
     ...(user ? [] : [{ path: '/login', icon: LogIn, label: '로그인' }]),
   ];
 
-  return (
-    <BrowserRouter>
+  const frame = (
+    <>
       {/* 경로가 바뀔 때마다 <main> 스크롤을 맨 위로 리셋 — BrowserRouter 자식 위치에 있어야 useLocation 사용 가능 */}
       <ScrollToTop containerRef={mainRef} />
 
@@ -286,7 +285,6 @@ function Shell() {
                   <Route path="/calendar" element={<RequireAuth><HousingCalendar /></RequireAuth>} />
                   <Route path="/infinite" element={<RequireAuth><InfiniteBuy /></RequireAuth>} />
                   <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
-                  <Route path="/login" element={<Login />} />
                   {/* <Route path="/realestate" element={<RealEstate />} /> */}
                   <Route path="/search" element={<StockSearch />} />
                 </Routes>
@@ -298,6 +296,16 @@ function Shell() {
         </main>
 
       </div>
+    </>
+  );
+
+  // The login page is rendered on its own (no sidebar, no page transition), so entering it does not flash the app behind it.
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Suspense fallback={null}><Login /></Suspense>} />
+        <Route path="*" element={frame} />
+      </Routes>
     </BrowserRouter>
   );
 }

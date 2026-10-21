@@ -1,6 +1,6 @@
 // src/pages/Login.jsx - login / account request page (aurora glass style and yeti mascot of the old Streamlit dashboard). Backend: quant-desk-backend/auth_api.py
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
+import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useRenderApi } from '../hooks/useRenderApi';
 import { useAuth } from '../auth';
@@ -50,7 +50,6 @@ export default function Login() {
   const { callApi, ServerWakeupOverlay } = useRenderApi();
   const { user, login } = useAuth();
   const navigate = useNavigate();
-  const from = useLocation().state?.from || '/infinite';
   const [mode, setMode] = useState('login');
   const [f, setF] = useState({ username: '', password: '', name: '', phone: '' });
   const [focus, setFocus] = useState('');
@@ -61,7 +60,7 @@ export default function Login() {
   const peekTimer = useRef(null);
   useEffect(() => () => clearTimeout(peekTimer.current), []);
 
-  if (user) return <Navigate to={from} replace />;
+  if (user) return <Navigate to="/news" replace />;
 
   const set = (k) => (e) => {
     const v = e.target.value;
@@ -78,8 +77,9 @@ export default function Login() {
     e.preventDefault();
     if (!/^[A-Za-z0-9_]{3,20}$/.test(f.username)) return setMsg({ tone: 'err', text: '아이디는 영문/숫자/밑줄 3~20자입니다.' });
     if (mode === 'signup') {
-      if (f.password.length < 8) return setMsg({ tone: 'err', text: '비밀번호는 8자 이상이어야 합니다.' });
-      if (!f.name.trim() || !/^[0-9+\- ]{9,20}$/.test(f.phone)) return setMsg({ tone: 'err', text: '이름과 연락처(숫자)를 입력하세요.' });
+      if (f.password.length < 8) return setMsg({ tone: 'err', text: `비밀번호(PASSWORD 칸)는 8자 이상이어야 합니다. 지금 ${f.password.length}자입니다.` });
+      if (!f.name.trim()) return setMsg({ tone: 'err', text: '이름을 입력하세요.' });
+      if (!/^[0-9+\- ]{8,20}$/.test(f.phone.trim())) return setMsg({ tone: 'err', text: '연락처는 숫자(-, 공백, + 가능) 8자 이상으로 입력하세요.' });
     } else if (!f.password) return setMsg({ tone: 'err', text: '비밀번호를 입력하세요.' });
     setBusy(true); setMsg({ tone: '', text: '' });
     try {
@@ -90,7 +90,7 @@ export default function Login() {
       } else {
         const r = await callApi('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: f.username, password: f.password }) });
         login(r.token, r.user);
-        navigate(from, { replace: true });
+        navigate('/news', { replace: true });
       }
     } catch (err) {
       const c = code(err);

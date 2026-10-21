@@ -47,10 +47,10 @@ export default function Admin() {
               <Badge tone={TONE[r.status]}>{r.role === 'admin' ? '관리자' : LABEL[r.status]}</Badge>
             </div>
             <p className="text-[12.5px] text-slate-500 dark:text-slate-400 tabular-nums">{r.phone} · 신청 {String(r.created_at || '').slice(0, 10)}</p>
-            {r.role !== 'admin' && (
+            {r.status === 'pending' && (
               <div className="flex gap-2 pt-1">
-                <Button size="sm" variant="primary" disabled={busy === r.username || r.status === 'approved'} onClick={() => decide(r.username, 'approve')}>승인</Button>
-                <Button size="sm" disabled={busy === r.username || r.status === 'rejected'} onClick={() => decide(r.username, 'reject')}>거부</Button>
+                <Button size="sm" variant="primary" disabled={busy === r.username} onClick={() => decide(r.username, 'approve')}>승인</Button>
+                <Button size="sm" disabled={busy === r.username} onClick={() => decide(r.username, 'reject')}>거부</Button>
               </div>
             )}
           </Card>
