@@ -1,14 +1,14 @@
 // src/pages/InfiniteBuy.jsx - "무한매수" manager (Laor Infinite Buying V2.2 / V4.0). Backend: quant-desk-backend/infinite_api.py
-// Cycle based: every request carries X-Infinite-Password (kept in localStorage). No create endpoint: cycles come from a local setup script or the automatic next cycle. All figures come from the API; nothing is computed here
+// Cycle based and per account: the logged-in user (src/auth.jsx, route guard in App.jsx) sees only his own cycles; every request carries the login token. All figures come from the API; nothing is computed here
 // except display helpers (distance to the star price, order amounts).
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { Infinity as InfinityIcon, Lock, KeyRound, ChevronDown, ChevronLeft, ChevronRight, ArrowLeft, Plus, RotateCw, Pencil, Trash2, Copy, Check, Calculator, RefreshCcw } from 'lucide-react';
+import { Infinity as InfinityIcon, ChevronDown, ChevronLeft, ChevronRight, ArrowLeft, Plus, RotateCw, Pencil, Trash2, Copy, Check, Calculator, RefreshCcw } from 'lucide-react';
 import { useRenderApi } from '../hooks/useRenderApi';
+import { useAuth } from '../auth';
 import { Card, Panel, Button, Badge, Metric, Table, Modal, Tabs } from '../components';
 
-const PW_KEY = 'infinite_password';
 const VERSIONS = { 'V2.2': [10, 20, 30, 40], 'V4.0': [20, 40] };
 const TICKERS = ['TQQQ', 'SOXL'];
 const MODE_LABEL = { normal: '일반', reverse: '리버스', quarter_stop: '쿼터손절' };
@@ -34,7 +34,7 @@ const errMsg = (e) => {
   const m = /API Error: ([0-9]+)/.exec(e?.message || '');
   const c = m ? Number(m[1]) : 0;
   if (c === 429) return '시도 횟수 초과: 10분 후 다시 시도하세요 (too many attempts, wait 10 minutes).';
-  if (c === 401) return '비밀번호가 올바르지 않습니다 (401).';
+  if (c === 401) return '로그인이 만료되었습니다. 다시 로그인하세요 (401).';
   if (c === 409) return '충돌: 이미 존재하거나 종료된 사이클입니다 (409).';
   if (c === 422) return '입력값이 올바르지 않습니다 (422).';
   return e?.message || '요청 실패';
@@ -60,21 +60,6 @@ function Select({ value, onChange, options, disabled }) {
 
 const opts = (arr) => arr.map((v) => ({ v, l: String(v) }));
 const optsMap = (m) => Object.entries(m).map(([v, l]) => ({ v, l }));
-
-// ── Unlock form ───────────────────────────────────────────────
-function Unlock({ onUnlock, message }) {
-  const [v, setV] = useState('');
-  return (
-    <Card className="max-w-sm mx-auto">
-      <form onSubmit={(e) => { e.preventDefault(); if (v.trim()) onUnlock(v.trim()); }} className="space-y-3">
-        <div className="flex items-center gap-2 text-[14px] font-semibold text-slate-900 dark:text-white"><Lock size={15} />비밀번호</div>
-        <input type="password" autoComplete="off" className={INPUT} value={v} onChange={(e) => setV(e.target.value)} placeholder="password" />
-        {message && <p className="text-[12px] text-negative">{message}</p>}
-        <Button type="submit" variant="primary" className="w-full">열기</Button>
-      </form>
-    </Card>
-  );
-}
 
 // ── Order helpers (shared by the detail order sheet, the card back and the guide sheet) ──
 const isLadder = (o) => o.tag === 'ladder_x';
@@ -718,41 +703,6 @@ function BacksolveModal({ open, onClose, api, target, onApplied }) {
   );
 }
 
-// ── Change password ───────────────────────────────────────────
-function PasswordModal({ open, onClose, api, cycleId, onChanged }) {
-  const [a, setA] = useState('');
-  const [b, setB] = useState('');
-  const [err, setErr] = useState('');
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) { setA(''); setB(''); setErr(''); } }, [open]);
-  const submit = async (e) => {
-    e.preventDefault();
-    if (a.length < 8) { setErr('새 비밀번호는 8자 이상이어야 합니다.'); return; }
-    if (a !== b) { setErr('비밀번호 확인이 일치하지 않습니다.'); return; }
-    setBusy(true); setErr('');
-    try { await api(`/cycles/${cycleId}/password`, 'POST', { new_password: a }); onChanged(a); onClose(); }
-    catch (e2) { setErr(errMsg(e2)); }
-    setBusy(false);
-  };
-  return (
-    <Modal open={open} onClose={onClose} size="sm">
-      <form onSubmit={submit}>
-        <Modal.Header><h3 className="text-[16px] font-semibold text-slate-900 dark:text-white">비밀번호 변경</h3></Modal.Header>
-        <Modal.Body className="px-5 py-4 space-y-3">
-          <p className="text-[11.5px] text-slate-500 dark:text-slate-400">같은 비밀번호를 쓰는 모든 사이클에 적용됩니다.</p>
-          <Field label="새 비밀번호 (8자 이상)"><input type="password" autoComplete="new-password" className={INPUT} value={a} onChange={(e) => setA(e.target.value)} /></Field>
-          <Field label="확인"><input type="password" autoComplete="new-password" className={INPUT} value={b} onChange={(e) => setB(e.target.value)} /></Field>
-          {err && <p className="text-[12px] text-negative">{err}</p>}
-        </Modal.Body>
-        <Modal.Footer>
-          <Button type="button" variant="ghost" onClick={onClose}>취소</Button>
-          <Button type="submit" variant="primary" disabled={busy}>변경</Button>
-        </Modal.Footer>
-      </form>
-    </Modal>
-  );
-}
-
 // ── Finished cycle row (collapsed list, expands to trades) ────
 function PastCycle({ c, api, onDelete }) {
   const [open, setOpen] = useState(false);
@@ -782,43 +732,31 @@ export default function InfiniteBuy() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const [pw, setPw] = useState(() => { try { return localStorage.getItem(PW_KEY) || ''; } catch { return ''; } });
-  const [authMsg, setAuthMsg] = useState('');
+  const { token, headers, logout } = useAuth();
   const [list, setList] = useState({ loading: false, error: '', data: [] });
   const [notice, setNotice] = useState('');
   const [editor, setEditor] = useState({ open: false, editing: null });
   const [solver, setSolver] = useState({ open: false, target: null });
-  const [pwOpen, setPwOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
-  const lock = useCallback((msg = '') => {
-    try { localStorage.removeItem(PW_KEY); } catch { /* storage unavailable */ }
-    setPw(''); setAuthMsg(msg); setList({ loading: false, error: '', data: [] });
-  }, []);
-  const store = (p) => {
-    try { localStorage.setItem(PW_KEY, p); } catch { /* storage unavailable: password lives in memory only */ }
-    setPw(p);
-  };
-  const unlock = (p) => { setAuthMsg(''); store(p); };
-
-  // Every call sends the password; a 401 clears it and returns to the unlock form, a 429 shows the wait message.
+  // Every call sends the login token; a 401 (expired token) logs out, which sends the visitor to /login.
   const api = useCallback(async (path, method = 'GET', body) => {
     try {
-      return await callApi(`/api/infinite${path}`, { method, headers: { 'X-Infinite-Password': pw }, body: body ? JSON.stringify(body) : undefined });
+      return await callApi(`/api/infinite${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
     } catch (e) {
-      if (/API Error: 401/.test(e.message)) lock(errMsg(e));
+      if (/API Error: 401/.test(e.message)) logout();
       throw e;
     }
-  }, [callApi, pw, lock]);
+  }, [callApi, headers, logout]);
 
   const load = useCallback(() => {
-    if (!pw) return;
+    if (!token) return;
     setList((l) => ({ ...l, loading: true, error: '' }));
     api('/cycles')
       .then((r) => setList({ loading: false, error: '', data: r.data || [] }))
       .catch((e) => { if (!/API Error: 401/.test(e.message)) setList({ loading: false, error: errMsg(e), data: [] }); });
-  }, [api, pw]);
+  }, [api, token]);
   useEffect(load, [load]);
 
   const upsert = (c) => setList((l) => ({ ...l, data: l.data.map((a) => (a.id === c.id ? c : a)) }));
@@ -843,21 +781,17 @@ export default function InfiniteBuy() {
 
   const live = list.data.filter((c) => c.status !== 'done');
   const past = list.data.filter((c) => c.status === 'done');
-  const ready = pw && !list.error && !(list.loading && !list.data.length);
+  const ready = token && !list.error && !(list.loading && !list.data.length);
 
   return (
     <div className="space-y-4 min-w-0">
       <ServerWakeupOverlay />
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-[20px] font-semibold text-slate-900 dark:text-white flex items-center gap-2"><InfinityIcon size={20} />무한매수 매니저</h2>
-        {pw && (
-          <div className="flex gap-2 flex-wrap">
-            <Button size="sm" onClick={() => setSolver({ open: true, target: null })}><Calculator size={13} />현재 위치 역산</Button>
-            <Button size="sm" disabled={!list.data.length} onClick={() => setPwOpen(true)}><KeyRound size={13} />비밀번호 변경</Button>
-            <Button size="sm" variant="ghost" onClick={load} aria-label="새로고침"><RefreshCcw size={13} /></Button>
-            <Button size="sm" variant="ghost" onClick={() => lock()}><Lock size={13} />잠금</Button>
-          </div>
-        )}
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" onClick={() => setSolver({ open: true, target: null })}><Calculator size={13} />현재 위치 역산</Button>
+          <Button size="sm" variant="ghost" onClick={load} aria-label="새로고침"><RefreshCcw size={13} /></Button>
+        </div>
       </div>
 
       {notice && (
@@ -867,8 +801,7 @@ export default function InfiniteBuy() {
         </Panel>
       )}
 
-      {!pw ? <Unlock onUnlock={unlock} message={authMsg} />
-        : list.loading && !list.data.length ? <p className="text-[13px] text-slate-500 py-8 text-center">불러오는 중...</p>
+      {list.loading && !list.data.length ? <p className="text-[13px] text-slate-500 py-8 text-center">불러오는 중...</p>
         : list.error ? (
           <Card className="text-center text-[13.5px] text-slate-500 dark:text-slate-400">
             <p className="mb-3">사이클을 불러오지 못했습니다. ({list.error})</p>
@@ -909,7 +842,6 @@ export default function InfiniteBuy() {
 
       <EditModal open={editor.open} onClose={() => setEditor((e) => ({ ...e, open: false }))} api={api} editing={editor.editing} onSaved={upsert} />
       <BacksolveModal open={solver.open} onClose={() => setSolver((s) => ({ ...s, open: false }))} api={api} target={solver.target} onApplied={upsert} />
-      <PasswordModal open={pwOpen} onClose={() => setPwOpen(false)} api={api} cycleId={list.data[0]?.id} onChanged={store} />
       <GuideModal open={guideOpen} onClose={() => setGuideOpen(false)} live={live} />
       <CreateModal open={createOpen} onClose={() => setCreateOpen(false)} api={api} onCreated={() => load()} />
     </div>

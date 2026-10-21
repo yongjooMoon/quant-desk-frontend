@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Newspaper, TrendingUp, FileText, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays, ArrowUp, ChartCandlestick, Infinity as InfinityIcon } from 'lucide-react';
+import { Newspaper, TrendingUp, FileText, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays, ArrowUp, ChartCandlestick, Infinity as InfinityIcon, LogIn, LogOut, ShieldCheck } from 'lucide-react';
+import { AuthProvider, useAuth } from './auth';
 
 // 라우트별 코드 스플리팅 — 첫 진입 시 방문한 페이지의 번들만 내려받는다.
 // (예: /news 진입 시 QuantDesk의 recharts 포함 번들은 받지 않음)
@@ -13,6 +14,15 @@ const Reports = lazy(() => import('./pages/Reports'));
 const StockSearch = lazy(() => import('./pages/StockSearch'));
 const StockMarket = lazy(() => import('./pages/StockMarket'));
 const InfiniteBuy = lazy(() => import('./pages/InfiniteBuy'));
+const Login = lazy(() => import('./pages/Login'));
+const Admin = lazy(() => import('./pages/Admin'));
+
+// Calendar, infinite buying and admin are private: without a login the visitor is sent to /login and returns afterwards.
+function RequireAuth({ children }) {
+  const { user } = useAuth();
+  const { pathname } = useLocation();
+  return user ? children : <Navigate to="/login" state={{ from: pathname }} replace />;
+}
 
 // 메뉴(경로) 전환 시 스크롤을 맨 위로 리셋하는 컴포넌트.
 //    이 앱은 window가 아니라 <main>(overflow-y-auto)이 실제 스크롤 컨테이너이므로
@@ -84,7 +94,9 @@ function PageSuspenseFallback() {
   );
 }
 
-function App() {
+function Shell() {
+  const { user, logout } = useAuth();
+  const doLogout = () => { if (window.confirm('로그아웃 할까요?')) logout(); };
   // 기본 모드를 다크 모드로 설정 (true)
   const [isDarkMode, setIsDarkMode] = useState(true);
 
@@ -107,10 +119,11 @@ function App() {
     { path: '/quant', icon: TrendingUp, label: '퀀트투자' },
     { path: '/market', icon: ChartCandlestick, label: '증시' },
     { path: '/reports', icon: FileText, label: '리포트' },
-    { path: '/calendar', icon: CalendarDays, label: '캘린더' },
-    { path: '/infinite', icon: InfinityIcon, label: '무한매수' },
+    ...(user ? [{ path: '/calendar', icon: CalendarDays, label: '캘린더' }, { path: '/infinite', icon: InfinityIcon, label: '무한매수' }] : []),
     // { path: '/realestate', icon: Building2, label: '부동산' },  // disabled (also drop Building2 from the lucide import to re-enable)
     { path: '/search', icon: Search, label: '종목검색' },
+    ...(user?.role === 'admin' ? [{ path: '/admin', icon: ShieldCheck, label: '계정관리' }] : []),
+    ...(user ? [] : [{ path: '/login', icon: LogIn, label: '로그인' }]),
   ];
 
   return (
@@ -202,6 +215,14 @@ function App() {
           {}
           {/* 하단 테마 변경 토글 */}
           <div className="w-full px-3 mt-auto">
+            {user && (
+              <button onClick={doLogout} className={`group relative w-full flex items-center ${isSidebarOpen ? 'justify-start pl-3 pr-3 py-2.5' : 'justify-center p-2.5'} text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-md`}>
+                <LogOut size={17} className="shrink-0" strokeWidth={1.75} />
+                {isSidebarOpen ? <span className="ml-3 font-medium text-[13px] whitespace-nowrap">로그아웃 ({user.username})</span> : (
+                  <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-800 dark:bg-slate-700 text-white text-[12.5px] font-medium rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity whitespace-nowrap z-50 shadow-lg pointer-events-none">로그아웃 ({user.username})</div>
+                )}
+              </button>
+            )}
             <button
               onClick={toggleTheme}
               className={`group relative w-full flex items-center ${isSidebarOpen ? 'justify-start pl-3 pr-3 py-2.5' : 'justify-center p-2.5'} text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-md`}
@@ -225,9 +246,9 @@ function App() {
 
         {}
         {/* 모바일 하단 탭. DO NOT change h-dvh / safe-area padding / viewport-fit / theme-color / html background: they remove the white strip under this bar (DESIGN_GUIDELINES.md "Mobile bottom strip"). */}
-        <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/80 dark:bg-[#111827]/80 backdrop-blur-xl border-t border-slate-200/70 dark:border-slate-800/60 flex justify-around items-center h-[calc(4rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] z-50">
+        <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/80 dark:bg-[#111827]/80 backdrop-blur-xl border-t border-slate-200/70 dark:border-slate-800/60 flex items-stretch overflow-x-auto overscroll-x-contain hide-scrollbar h-[calc(4rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] z-50">
             {navItems.map((item) => (
-              <NavLink key={item.path} to={item.path} className={({isActive}) => `flex flex-col items-center justify-center w-full h-full transition-colors ${isActive ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}`}>
+              <NavLink key={item.path} to={item.path} className={({isActive}) => `flex flex-col items-center justify-center flex-1 min-w-[68px] shrink-0 h-full transition-colors ${isActive ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}`}>
                 {({ isActive }) => (
                   <>
                     <item.icon size={19} strokeWidth={isActive ? 2.25 : 1.75} className="mb-1" />
@@ -236,6 +257,12 @@ function App() {
                 )}
               </NavLink>
             ))}
+            {user && (
+              <button onClick={doLogout} className="flex flex-col items-center justify-center flex-1 min-w-[68px] shrink-0 h-full text-slate-400 dark:text-slate-500 transition-colors cursor-pointer">
+                <LogOut size={19} strokeWidth={1.75} className="mb-1" />
+                <span className="text-[10.5px] font-medium tracking-tight">로그아웃</span>
+              </button>
+            )}
         </nav>
 
         {}
@@ -256,8 +283,10 @@ function App() {
                   <Route path="/quant" element={<QuantDesk />} />
                   <Route path="/market" element={<StockMarket />} />
                   <Route path="/reports" element={<Reports />} />
-                  <Route path="/calendar" element={<HousingCalendar />} />
-                  <Route path="/infinite" element={<InfiniteBuy />} />
+                  <Route path="/calendar" element={<RequireAuth><HousingCalendar /></RequireAuth>} />
+                  <Route path="/infinite" element={<RequireAuth><InfiniteBuy /></RequireAuth>} />
+                  <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
+                  <Route path="/login" element={<Login />} />
                   {/* <Route path="/realestate" element={<RealEstate />} /> */}
                   <Route path="/search" element={<StockSearch />} />
                 </Routes>
@@ -271,6 +300,10 @@ function App() {
       </div>
     </BrowserRouter>
   );
+}
+
+function App() {
+  return <AuthProvider><Shell /></AuthProvider>;
 }
 
 export default App;
