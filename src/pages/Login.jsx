@@ -7,16 +7,40 @@ import { useAuth } from '../auth';
 import YetiSvg from '../components/YetiSvg';
 
 const CSS = `
-@keyframes qd-float { 0% { transform: translate(0,0) scale(1) rotate(0deg); } 33% { transform: translate(5vw,-5vh) scale(1.1) rotate(10deg); } 66% { transform: translate(-5vw,5vh) scale(.9) rotate(-10deg); } 100% { transform: translate(0,0) scale(1) rotate(0deg); } }
-.qd-orb { position: absolute; border-radius: 50%; filter: blur(100px); opacity: .35; animation: qd-float 20s infinite ease-in-out alternate; }
 #yeti-wrap .armL, #yeti-wrap .armR { transition: transform .45s cubic-bezier(.25,.46,.45,.94); transform-box: fill-box; }
 #yeti-wrap .armL { transform-origin: top left; transform: translate(-93px,180px) rotate(105deg); }
 #yeti-wrap .armR { transform-origin: top right; transform: translate(-93px,180px) rotate(-105deg); }
 #yeti-wrap.yeti-hide .armL { transform: translate(-93px,10px) rotate(0deg); }
 #yeti-wrap.yeti-hide .armR { transform: translate(-93px,10px) rotate(0deg); transition-delay: .05s; }
 #yeti-wrap .twoFingers { transform-origin: bottom left; transform-box: fill-box; transition: transform .3s ease-in-out; }
-#yeti-wrap.yeti-peek .twoFingers { transform: translate(-9px,-2px) rotate(30deg); }
+#yeti-wrap.yeti-peek .twoFingers { transform: translate(-16px,-12px) rotate(42deg); }
 `;
+// Falling snow on a canvas (fits the yeti): ~110 flakes with their own size, speed and sway; static when the visitor prefers reduced motion.
+function Snow() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const cv = ref.current;
+    const ctx = cv.getContext('2d');
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    let w = 0, h = 0, raf = 0;
+    const flakes = Array.from({ length: 110 }, () => ({ x: Math.random(), y: Math.random(), r: 1 + Math.random() * 3.2, v: 0.25 + Math.random() * 0.9, p: Math.random() * 6.28, s: 0.4 + Math.random() * 0.8 }));
+    const size = () => { const d = window.devicePixelRatio || 1; w = cv.clientWidth; h = cv.clientHeight; cv.width = w * d; cv.height = h * d; ctx.setTransform(d, 0, 0, d, 0, 0); };
+    const draw = (t) => {
+      ctx.clearRect(0, 0, w, h);
+      for (const f of flakes) {
+        if (!still) { f.y += (f.v * 0.0016) * (f.r / 2 + 0.6); if (f.y > 1.02) { f.y = -0.02; f.x = Math.random(); } }
+        const x = f.x * w + Math.sin(t / 1000 * f.s + f.p) * 18 * f.s;
+        ctx.beginPath(); ctx.arc(x, f.y * h, f.r, 0, 6.283);
+        ctx.fillStyle = `rgba(255,255,255,${0.55 + f.r / 8})`; ctx.shadowColor = 'rgba(120,170,220,.55)'; ctx.shadowBlur = 4; ctx.fill();
+      }
+      if (!still) raf = requestAnimationFrame(draw);
+    };
+    size(); window.addEventListener('resize', size); raf = requestAnimationFrame(draw);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', size); };
+  }, []);
+  return <canvas ref={ref} className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true" />;
+}
+
 const FIELD = 'w-full rounded-xl px-4 py-3 text-[14px] text-slate-900 dark:text-white bg-white/80 dark:bg-black/25 border border-slate-300 dark:border-white/10 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-[#20C997] transition-colors';
 const LABEL = 'block text-[11px] font-bold tracking-[2px] uppercase text-slate-500 dark:text-slate-400 mb-1.5';
 
@@ -47,7 +71,7 @@ export default function Login() {
     setF((s) => ({ ...s, [k]: v }));
   };
   const tracked = focus === 'username' ? f.username : focus === 'password' && showPw ? f.password : '';
-  const eyesX = (Math.min(tracked.length, 25) / 25) * 12 - 6 || 0;
+  const eyesX = (Math.min(tracked.length, 25) / 25) * 18 - 9 || 0;
   const hide = focus === 'password' && !showPw;
 
   const submit = async (e) => {
@@ -76,18 +100,20 @@ export default function Login() {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-auto bg-slate-50 dark:bg-[#0B1120] flex items-center justify-center p-4 transition-colors duration-300">
+    <div className="fixed inset-0 z-[60] overflow-y-auto overflow-x-hidden bg-gradient-to-b from-[#c9e2f3] to-[#eef7fd] dark:from-[#06101f] dark:to-[#17324f] flex items-center justify-center p-4 transition-colors duration-300">
       <style>{CSS}</style>
       <ServerWakeupOverlay />
       <Link to="/news" className="absolute top-4 left-4 z-20 flex items-center gap-1.5 text-[13px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"><ArrowLeft size={15} />돌아가기</Link>
-      <div className="qd-orb" style={{ width: '50%', aspectRatio: '1', background: '#20C997', top: '-20%', left: '-10%' }} />
-      <div className="qd-orb" style={{ width: '40%', aspectRatio: '1', background: '#3B82F6', bottom: '-20%', right: '-10%', animationDelay: '-5s' }} />
-      <div className="qd-orb" style={{ width: '40%', aspectRatio: '1', background: '#8B5CF6', top: '30%', left: '40%', animationDelay: '-10s' }} />
+      <Snow />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <div className="absolute -bottom-24 -left-16 w-[70%] h-48 rounded-[50%] bg-[#eaf3fa] blur-[2px]" />
+        <div className="absolute -bottom-28 -right-20 w-[75%] h-52 rounded-[50%] bg-[#f6fbff] blur-[2px]" />
+      </div>
 
       <form onSubmit={submit} className="relative z-10 w-[360px] max-w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-white/70 dark:bg-slate-900/40 backdrop-blur-2xl px-7 sm:px-10 pt-8 pb-7 shadow-[0_30px_60px_rgba(15,23,42,.15)] dark:shadow-[0_30px_60px_rgba(0,0,0,.5)]">
         <div id="yeti-wrap" className={`text-center mb-6 ${hide ? 'yeti-hide' : ''} ${peek ? 'yeti-peek' : ''}`}>
           <div className="flex justify-center"><YetiSvg eyesX={eyesX} /></div>
-          <h2 className="mt-4 mb-1 text-[28px] font-black tracking-[5px] text-slate-900 dark:text-white">QUANT DESK</h2>
+          <h2 className="mt-5 mb-1 text-[28px] font-black tracking-[5px] text-slate-900 dark:text-white">QUANT DESK</h2>
           <p className="text-[11px] font-bold tracking-[4px] text-[#20C997]">{mode === 'login' ? 'SECURE INVESTMENT PLATFORM' : 'REQUEST AN ACCOUNT'}</p>
         </div>
 
