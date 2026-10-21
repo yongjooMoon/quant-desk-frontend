@@ -14,10 +14,6 @@ const CSS = `
 .lr-floor { position: fixed; left: 0; right: 0; bottom: 0; height: var(--fh); background: repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 1px, transparent 1px 120px), linear-gradient(#0e1017, #050507); border-top: 1px solid rgba(255,255,255,.06); pointer-events: none; }
 .lr-pool { position: absolute; left: 50%; bottom: calc(var(--fh) - 9vh); width: calc(var(--lw) * 1.7); height: 11vh; transform: translateX(-50%); background: radial-gradient(ellipse at 50% 50%, rgba(255,200,110,.55), rgba(255,170,70,.16) 55%, transparent 72%); opacity: 0; transition: opacity .6s; filter: blur(4px); pointer-events: none; }
 .lr.on .lr-pool { opacity: 1; }
-.lr-window { position: fixed; right: 7vw; top: 6vh; width: min(150px, 12vw); height: 15vh; border: 2px solid rgba(140,170,230,.12); border-radius: 4px; background: linear-gradient(160deg, rgba(110,150,230,.12), rgba(40,60,110,.04)); pointer-events: none; }
-.lr-window::before, .lr-window::after { content: ""; position: absolute; background: rgba(140,170,230,.12); }
-.lr-window::before { left: 50%; top: 0; bottom: 0; width: 2px; }
-.lr-window::after { top: 50%; left: 0; right: 0; height: 2px; }
 .lr-lampwrap { position: relative; height: 100vh; display: flex; justify-content: center; }
 .lr-lamp { position: absolute; bottom: var(--lb); width: var(--lw); left: 50%; transform: translateX(-50%); }
 .lr-lamp svg { width: 100%; height: auto; overflow: visible; display: block; }
@@ -55,7 +51,7 @@ const CSS = `
   .lr-lampwrap { height: 46vh; }
   .lr-lamp { bottom: auto; top: var(--lt); }
   .lr-cone { top: calc(var(--lt) + var(--lw) * .49); bottom: auto; height: 60vh; width: 92vw; }
-  .lr-pool, .lr-wall, .lr-window { display: none; }
+  .lr-pool, .lr-wall { display: none; }
   .lr-panel { padding: 0 18px 40px; justify-content: center; }
   .lr-card { padding: 26px 22px 22px; }
   .lr-hint { bottom: 6px; }
@@ -169,7 +165,6 @@ export default function Login() {
       <Link to="/news" className="lr-back"><ArrowLeft size={15} />돌아가기</Link>
       <div className="lr-wall" />
       <div className="lr-floor" />
-      <div className="lr-window" />
       {flies.map((s, i) => <span key={i} className="lr-ff" style={s} aria-hidden="true" />)}
 
       <div className="lr-lampwrap">
