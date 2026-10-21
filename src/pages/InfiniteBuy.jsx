@@ -1,8 +1,10 @@
 // src/pages/InfiniteBuy.jsx - "무한매수" manager (Laor Infinite Buying V2.2 / V4.0). Backend: quant-desk-backend/infinite_api.py
 // Cycle based: every request carries X-Infinite-Password (kept in localStorage). No create endpoint: cycles come from a local setup script or the automatic next cycle. All figures come from the API; nothing is computed here
 // except display helpers (distance to the star price, order amounts).
-import { useState, useEffect, useCallback } from 'react';
-import { Infinity as InfinityIcon, Lock, KeyRound, ChevronDown, Pencil, Trash2, Copy, Check, Calculator, RefreshCcw } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { Infinity as InfinityIcon, Lock, KeyRound, ChevronDown, ChevronLeft, ChevronRight, ArrowLeft, Plus, RotateCw, Pencil, Trash2, Copy, Check, Calculator, RefreshCcw } from 'lucide-react';
 import { useRenderApi } from '../hooks/useRenderApi';
 import { Card, Panel, Button, Badge, Metric, Table, Modal, Tabs } from '../components';
 
@@ -18,6 +20,7 @@ const TAG_LABEL = {
   star_buy: '별지점매수',
   quarter_sell: '쿼터매도',
   target_sell: '전량 지정가매도',
+  ladder_x: '폭락장 대비 추가 매수',
 };
 const INPUT = 'w-full min-w-0 px-2.5 py-2 rounded-md text-[13px] tabular-nums bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand';
 
@@ -32,7 +35,7 @@ const errMsg = (e) => {
   const c = m ? Number(m[1]) : 0;
   if (c === 429) return '시도 횟수 초과: 10분 후 다시 시도하세요 (too many attempts, wait 10 minutes).';
   if (c === 401) return '비밀번호가 올바르지 않습니다 (401).';
-  if (c === 409) return '이미 종료된 사이클입니다 (409).';
+  if (c === 409) return '충돌: 이미 존재하거나 종료된 사이클입니다 (409).';
   if (c === 422) return '입력값이 올바르지 않습니다 (422).';
   return e?.message || '요청 실패';
 };
@@ -73,46 +76,121 @@ function Unlock({ onUnlock, message }) {
   );
 }
 
-// ── Order sheet ───────────────────────────────────────────────
-function OrderSheet({ acc }) {
+// ── Order helpers (shared by the detail order sheet, the card back and the guide sheet) ──
+const isLadder = (o) => o.tag === 'ladder_x';
+const typeLabel = (t) => (t === 'LIMIT' ? '지정가' : t);
+// Percent shown next to an order: target sell = cycle target %, first buy = none, else price vs average price.
+function orderPct(acc, o) {
+  if (o.tag === 'target_sell' && acc.target_pct != null) return `${acc.target_pct}%`;
+  const avg = Number(acc.avg_price);
+  if (o.tag === 'first_buy' || !o.price || !(avg > 0)) return '';
+  const v = (o.price / avg - 1) * 100;
+  return `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+}
+const orderLine = (acc, o) => `${o.side === 'buy' ? '매수' : '매도'} ${[typeLabel(o.type), orderPct(acc, o), o.price != null ? usd(o.price) : ''].filter(Boolean).join(' ')} × ${o.qty}주 (${tagLabel(o.tag)})`;
+const sheetText = (acc) => `[${acc.name}] ${acc.version} ${acc.ticker} T=${acc.t_value}\n${(acc.orders || []).map((o) => orderLine(acc, o)).join('\n')}`;
+
+function useCopy() {
   const [copied, setCopied] = useState(false);
-  const orders = acc.orders || [];
-  const line = (o) => `${o.side === 'buy' ? '매수' : '매도'} ${acc.ticker} ${o.type} ${o.qty}주${o.price != null ? ` @ ${usd(o.price)}` : ''} (${tagLabel(o.tag)})`;
-  const copy = async () => {
+  const copy = async (text) => {
     try {
-      await navigator.clipboard.writeText(`[${acc.name}] ${acc.version} ${acc.ticker} T=${acc.t_value}\n${orders.map(line).join('\n')}`);
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (e) {
       console.error('clipboard failed', e);
     }
   };
+  return [copied, copy];
+}
+
+function CopyButton({ text, label = '주문표 복사', ...rest }) {
+  const [copied, copy] = useCopy();
+  return <Button size="sm" onClick={(e) => { e.stopPropagation(); copy(text); }} {...rest}>{copied ? <Check size={13} /> : <Copy size={13} />}{copied ? '복사됨' : label}</Button>;
+}
+
+// Guide layout like the owner's app: 매수 (red) with the ladder sub-list, 매도 (blue).
+function GuideRow({ acc, o }) {
+  const pct = orderPct(acc, o);
+  return (
+    <div className="flex items-baseline justify-between gap-2 text-[13px] py-1">
+      <span className="text-slate-600 dark:text-slate-300 shrink-0">{typeLabel(o.type)}{pct && <span className="ml-2 tabular-nums">{pct}</span>}</span>
+      <span className="font-mono tabular-nums text-slate-900 dark:text-white text-right">{o.price != null ? `${usd(o.price)} ` : ''}× {o.qty}주</span>
+    </div>
+  );
+}
+
+function GuideBody({ acc }) {
+  const orders = acc.orders || [];
+  const buys = orders.filter((o) => o.side === 'buy' && !isLadder(o));
+  const ladder = orders.filter(isLadder);
+  const sells = orders.filter((o) => o.side === 'sell');
+  if (!orders.length) return <p className="text-[12.5px] text-slate-500 py-3">오늘 주문이 없습니다.</p>;
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-[12px] font-semibold text-positive mb-1">매수</p>
+        {buys.map((o, i) => <GuideRow key={i} acc={acc} o={o} />)}
+        {!buys.length && <p className="text-[12px] text-slate-400">없음</p>}
+        {ladder.length > 0 && (
+          <div className="mt-2 pl-3 border-l border-slate-200 dark:border-slate-700">
+            <p className="text-[11.5px] text-slate-500 dark:text-slate-400 mb-0.5">+@ 폭락장 대비 추가 매수</p>
+            {ladder.map((o, i) => <GuideRow key={i} acc={acc} o={o} />)}
+          </div>
+        )}
+      </div>
+      <div>
+        <p className="text-[12px] font-semibold text-negative mb-1">매도</p>
+        {sells.map((o, i) => <GuideRow key={i} acc={acc} o={o} />)}
+        {!sells.length && <p className="text-[12px] text-slate-400">없음</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── Order sheet (detail view) ─────────────────────────────────
+function OrderTable({ acc, rows }) {
+  return (
+    <Table>
+      <Table.Head>
+        <Table.HeadCell>구분</Table.HeadCell>
+        <Table.HeadCell>유형</Table.HeadCell>
+        <Table.HeadCell align="right">수량</Table.HeadCell>
+        <Table.HeadCell align="right">가격</Table.HeadCell>
+        <Table.HeadCell align="right">예상금액</Table.HeadCell>
+        <Table.HeadCell className="pl-3">태그</Table.HeadCell>
+      </Table.Head>
+      <Table.Body>
+        {rows.map((o, i) => (
+          <Table.Row key={i}>
+            <Table.Cell className={`font-medium ${o.side === 'buy' ? 'text-positive' : 'text-negative'}`}>{o.side === 'buy' ? '매수' : '매도'}</Table.Cell>
+            <Table.Cell>{o.type}</Table.Cell>
+            <Table.Cell align="right" numeric className="font-mono">{o.qty}</Table.Cell>
+            <Table.Cell align="right" numeric className="font-mono">{o.price != null ? usd(o.price) : '-'}</Table.Cell>
+            <Table.Cell align="right" numeric className="font-mono">{o.price != null ? usd(o.qty * o.price) : '-'}</Table.Cell>
+            <Table.Cell className="pl-3 whitespace-nowrap">{tagLabel(o.tag)} {orderPct(acc, o)}</Table.Cell>
+          </Table.Row>
+        ))}
+      </Table.Body>
+    </Table>
+  );
+}
+
+function OrderSheet({ acc }) {
+  const orders = acc.orders || [];
+  const main = orders.filter((o) => !isLadder(o));
+  const ladder = orders.filter(isLadder);
   if (!orders.length) return <p className="text-[12.5px] text-slate-500 py-4">오늘 주문이 없습니다 (종가 또는 보유 정보 없음).</p>;
   return (
-    <div>
-      <Table>
-        <Table.Head>
-          <Table.HeadCell>구분</Table.HeadCell>
-          <Table.HeadCell>유형</Table.HeadCell>
-          <Table.HeadCell align="right">수량</Table.HeadCell>
-          <Table.HeadCell align="right">가격</Table.HeadCell>
-          <Table.HeadCell align="right">예상금액</Table.HeadCell>
-          <Table.HeadCell className="pl-3">태그</Table.HeadCell>
-        </Table.Head>
-        <Table.Body>
-          {orders.map((o, i) => (
-            <Table.Row key={i}>
-              <Table.Cell className={`font-medium ${o.side === 'buy' ? 'text-positive' : 'text-negative'}`}>{o.side === 'buy' ? '매수' : '매도'}</Table.Cell>
-              <Table.Cell>{o.type}</Table.Cell>
-              <Table.Cell align="right" numeric className="font-mono">{o.qty}</Table.Cell>
-              <Table.Cell align="right" numeric className="font-mono">{o.price != null ? usd(o.price) : '-'}</Table.Cell>
-              <Table.Cell align="right" numeric className="font-mono">{o.price != null ? usd(o.qty * o.price) : '-'}</Table.Cell>
-              <Table.Cell className="pl-3 whitespace-nowrap">{tagLabel(o.tag)}</Table.Cell>
-            </Table.Row>
-          ))}
-        </Table.Body>
-      </Table>
-      <Button size="sm" className="mt-3" onClick={copy}>{copied ? <Check size={13} /> : <Copy size={13} />}{copied ? '복사됨' : '주문표 복사'}</Button>
+    <div className="space-y-3">
+      <OrderTable acc={acc} rows={main} />
+      {ladder.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-[12.5px] text-slate-600 dark:text-slate-300 select-none">폭락장 대비 추가 매수 ({ladder.length})</summary>
+          <div className="mt-2"><OrderTable acc={acc} rows={ladder} /></div>
+        </details>
+      )}
+      <CopyButton text={sheetText(acc)} />
     </div>
   );
 }
@@ -199,24 +277,16 @@ function Trades({ acc, api, onTrade, readOnly }) {
   );
 }
 
-// ── Account card ──────────────────────────────────────────────
-function CycleCard({ acc, api, onTrade, onEdit, onDelete, onBacksolve, onSaved }) {
+// ── Detail view (one cycle) ──────────────────────────────────────────────
+function CycleDetail({ acc, api, onTrade, onBack, onEdit, onDelete, onBacksolve }) {
   const [tab, setTab] = useState('orders');
-  const [autoBusy, setAutoBusy] = useState(false);
-  const toggleAuto = async () => {
-    const on = !acc.auto_order;
-    if (on && !window.confirm('실계좌로 매일 17:01에 LOC 매수·매도 주문이 자동 전송됩니다. 켜시겠습니까?')) return;
-    setAutoBusy(true);
-    try { onSaved((await api(`/cycles/${acc.id}`, 'PUT', { auto_order: on })).data); }
-    catch (e) { window.alert(`변경 실패: ${errMsg(e)}`); }
-    setAutoBusy(false);
-  };
   const t = Number(acc.t_value) || 0;
   const pct = Math.min(100, Math.max(0, (t / acc.splits) * 100));
   const prog = Number(acc.progress_pct) || 0;
   const dist = acc.prev_close && acc.star_price ? (Number(acc.prev_close) / acc.star_price - 1) * 100 : null;
   return (
     <Card className="min-w-0 space-y-4">
+      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-[13px] text-slate-500 dark:text-slate-400 hover:text-brand cursor-pointer"><ArrowLeft size={14} />목록</button>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-[16px] font-semibold text-slate-900 dark:text-white truncate">{acc.name}{acc.start_date && <span className="ml-2 text-[12px] font-normal text-slate-400 font-mono">{ymd(acc.start_date).replace(/-/g, '. ')} ~</span>}</h3>
@@ -233,7 +303,7 @@ function CycleCard({ acc, api, onTrade, onEdit, onDelete, onBacksolve, onSaved }
         </div>
         <div className="flex gap-1 shrink-0">
           <Button variant="ghost" size="sm" onClick={() => onBacksolve(acc)} title="현재 위치 역산" aria-label="역산"><Calculator size={14} /></Button>
-          <Button variant="ghost" size="sm" onClick={() => onEdit(acc)} title="수정" aria-label="수정"><Pencil size={14} /></Button>
+          <Button variant="ghost" size="sm" onClick={() => onEdit(acc)} title="수정" aria-label="수정"><Pencil size={14} /><span className="hidden sm:inline">수정</span></Button>
           <Button variant="ghost" size="sm" onClick={() => onDelete(acc)} title="삭제" aria-label="삭제"><Trash2 size={14} /></Button>
         </div>
       </div>
@@ -285,16 +355,218 @@ function CycleCard({ acc, api, onTrade, onEdit, onDelete, onBacksolve, onSaved }
         />
       </div>
 
-      <label className="flex items-center gap-2 text-[12.5px] text-slate-700 dark:text-slate-300 cursor-pointer">
-        <input type="checkbox" role="switch" checked={!!acc.auto_order} disabled={autoBusy} onChange={toggleAuto} />
-        자동매매 (매일 17:01 LOC 주문)
-      </label>
-
       <div className="min-w-0">
         <Tabs variant="static" value={tab} onChange={setTab} items={[{ key: 'orders', label: '오늘의 주문표' }, { key: 'trades', label: '체결내역' }]} className="mb-3" />
         {tab === 'orders' ? <OrderSheet acc={acc} /> : <Trades acc={acc} api={api} onTrade={onTrade} />}
       </div>
     </Card>
+  );
+}
+
+// ── List view: carousel, overall card, flip cards, guide sheet, create modal, FAB ──
+const CARD = 'relative h-full rounded-[24px] border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#111827] p-5 flex flex-col overflow-hidden shadow-[0_2px_4px_rgba(15,23,42,0.06),0_16px_32px_-12px_rgba(15,23,42,0.18)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3),0_20px_40px_-12px_rgba(0,0,0,0.65)]';
+
+function ProgressBar({ pct }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex-1 h-2 rounded-full bg-slate-200 dark:bg-slate-700/60 overflow-hidden"><div className="h-full bg-brand" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} /></div>
+      <span className="text-[13px] font-mono tabular-nums text-slate-900 dark:text-white">{pct.toFixed(1)}%</span>
+    </div>
+  );
+}
+
+function InfoRows({ rows }) {
+  return (
+    <dl className="space-y-1.5">
+      {rows.map(([k, v]) => (
+        <div key={k} className="flex items-baseline justify-between gap-3 text-[13px]">
+          <dt className="text-slate-500 dark:text-slate-400">{k}</dt>
+          <dd className="font-mono tabular-nums text-slate-900 dark:text-white text-right">{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function OverallCard({ live, onGuide }) {
+  const act = live.filter((c) => c.status === 'active');
+  const sum = (k) => act.reduce((a, c) => a + (Number(c[k]) || 0), 0);
+  const seed = sum('principal_usd');
+  const used = sum('used_seed_usd');
+  return (
+    <div className={`${CARD} bg-gradient-to-br from-brand/15 via-white to-white dark:from-brand/15 dark:via-[#111827] dark:to-[#111827]`}>
+      <h3 className="text-[20px] font-semibold text-slate-900 dark:text-white">전체 진행 상황</h3>
+      <div className="mt-auto space-y-3">
+        <div className="ml-auto w-[88%] rounded-2xl border border-slate-300/60 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] p-4">
+          <p className="text-[12px] font-semibold text-slate-500 dark:text-slate-300 mb-2">USD</p>
+          <InfoRows rows={[['전체 시드', usd(seed)], ['매입 금액', usd(used)], ['1회 투자금', usd(sum('unit_usd'))], ['포트폴리오 수', act.length]]} />
+        </div>
+        <ProgressBar pct={seed > 0 ? (used / seed) * 100 : 0} />
+        <div className="flex justify-center pt-2">
+          <Button variant="pill" size="md" onClick={onGuide}>간편 매매 가이드</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CardHead({ acc, right }) {
+  return (
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Badge tone="info" variant="solid" size="sm" className="rounded-full">Ver {acc.version.replace('V', '')}</Badge>
+          <Badge size="sm" tone={acc.auto_order ? 'warning' : 'neutral'}>{acc.auto_order ? '자동 ON' : '자동 OFF'}</Badge>
+        </div>
+        <p className="text-[32px] font-bold tracking-tight leading-tight text-slate-900 dark:text-white mt-1.5">{acc.ticker}</p>
+        <p className="text-[12.5px] text-slate-500 dark:text-slate-400 truncate">{acc.name}</p>
+      </div>
+      <div className="flex gap-1.5 shrink-0">{right}</div>
+    </div>
+  );
+}
+
+const roundBtn = 'w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300 hover:text-brand hover:border-brand/40 transition-colors cursor-pointer';
+
+// Front: summary, tap opens the detail view. Back: order guide. 3D flip via CSS transform (instant under prefers-reduced-motion).
+function CycleFlipCard({ acc, onOpen, onEdit }) {
+  const [flipped, setFlipped] = useState(false);
+  const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+  const prog = Number(acc.progress_pct) || 0;
+  const face = 'absolute inset-0 [backface-visibility:hidden]';
+  return (
+    <div className="[perspective:1400px] h-full">
+      <div className={`relative w-full h-full [transform-style:preserve-3d] transition-transform duration-500 ease-out motion-reduce:transition-none ${flipped ? '[transform:rotateY(180deg)]' : ''}`}>
+        <div role="button" tabIndex={flipped ? -1 : 0} onClick={onOpen} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
+          className={`${face} ${CARD} cursor-pointer ${flipped ? 'pointer-events-none' : ''}`}>
+          <CardHead acc={acc} right={<button className={roundBtn} onClick={stop(onEdit)} aria-label="수정"><Pencil size={15} /></button>} />
+          <div className="mt-auto space-y-3">
+            <div className="ml-auto w-[88%] rounded-2xl border border-slate-300/60 dark:border-white/15 p-4">
+              <InfoRows rows={[['평단가', usd(acc.avg_price)], ['보유 수량', `${acc.qty}주`], ['매입 금액', usd(acc.invested_usd)]]} />
+            </div>
+            <ProgressBar pct={prog} />
+            <button onClick={stop(() => setFlipped(true))} className="mx-auto flex items-center gap-1.5 text-[12.5px] text-slate-500 dark:text-slate-400 hover:text-brand cursor-pointer pt-1"><RotateCw size={13} />주문 가이드 보기</button>
+          </div>
+        </div>
+        <div className={`${face} ${CARD} [transform:rotateY(180deg)] ${flipped ? '' : 'pointer-events-none'}`} aria-hidden={!flipped}>
+          <CardHead acc={acc} right={<>
+            <button className={roundBtn} onClick={stop(() => setFlipped(false))} aria-label="뒤집기"><RotateCw size={15} /></button>
+            <button className={roundBtn} onClick={stop(onEdit)} aria-label="수정"><Pencil size={15} /></button>
+          </>} />
+          <div className="flex-1 min-h-0 overflow-y-auto mt-3 pr-1"><GuideBody acc={acc} /></div>
+          <div className="flex gap-2 pt-3">
+            <Button size="sm" onClick={onOpen}>상세 보기</Button>
+            <CopyButton text={sheetText(acc)} label="복사" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Horizontal scroll-snap track + arrows, dots and keyboard arrows.
+function Carousel({ items }) {
+  const ref = useRef(null);
+  const [idx, setIdx] = useState(0);
+  const step = () => { const el = ref.current; return el && el.children[0] ? el.children[0].offsetWidth + 16 : 1; };
+  const go = (i) => ref.current?.scrollTo({ left: Math.max(0, Math.min(items.length - 1, i)) * step(), behavior: 'smooth' });
+  const onScroll = () => setIdx(Math.round(ref.current.scrollLeft / step()));
+  return (
+    <div className="md:max-w-[792px] md:mx-auto min-w-0">
+      <div ref={ref} tabIndex={0} onScroll={onScroll} aria-label="사이클 카드"
+        onKeyDown={(e) => { if (e.key === 'ArrowRight') go(idx + 1); else if (e.key === 'ArrowLeft') go(idx - 1); }}
+        className="flex gap-4 overflow-x-auto snap-x snap-mandatory hide-scrollbar focus:outline-none py-3">
+        {items.map((it, i) => <div key={i} className="shrink-0 snap-start w-[85%] md:w-[380px] h-[60dvh] min-h-[460px]">{it}</div>)}
+      </div>
+      <div className="flex items-center justify-center gap-3 mt-1">
+        <button className={`${roundBtn} hidden md:flex`} onClick={() => go(idx - 1)} aria-label="이전"><ChevronLeft size={16} /></button>
+        <div className="flex gap-1.5">{items.map((_, i) => <button key={i} onClick={() => go(i)} aria-label={`${i + 1}번째 카드`} className={`w-1.5 h-1.5 rounded-full ${i === idx ? 'bg-brand' : 'bg-slate-300 dark:bg-slate-600'}`} />)}</div>
+        <button className={`${roundBtn} hidden md:flex`} onClick={() => go(idx + 1)} aria-label="다음"><ChevronRight size={16} /></button>
+      </div>
+    </div>
+  );
+}
+
+function GuideModal({ open, onClose, live }) {
+  const act = live.filter((c) => c.status === 'active');
+  return (
+    <Modal open={open} onClose={onClose} size="md">
+      <Modal.Header><h3 className="text-[16px] font-semibold text-slate-900 dark:text-white">간편 매매 가이드</h3></Modal.Header>
+      <Modal.Body className="px-5 md:px-8 py-4 space-y-5">
+        {!act.length && <p className="text-[13px] text-slate-500">진행 중인 사이클이 없습니다.</p>}
+        {act.map((c) => (
+          <div key={c.id}>
+            <p className="text-[14px] font-semibold text-slate-900 dark:text-white">{c.ticker} <span className="text-[12px] font-normal text-slate-500">{c.name} · {c.version}</span></p>
+            <GuideBody acc={c} />
+          </div>
+        ))}
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="ghost" onClick={onClose}>닫기</Button>
+        <CopyButton text={act.map(sheetText).join('\n\n')} label="전체 복사" />
+      </Modal.Footer>
+    </Modal>
+  );
+}
+
+function CreateModal({ open, onClose, api, onCreated }) {
+  const blank = { name: '', version: 'V4.0', ticker: 'TQQQ', splits: 20, principal_usd: '', compounding: true, start_date: today(), t_value: '0', cash_usd: '', qty: '0', avg_price: '0' };
+  const [f, setF] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => { if (open) { setF(blank); setErr(''); } // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  const set = (k) => (v) => setF((s) => ({ ...s, [k]: v }));
+  const setVersion = (v) => setF((s) => ({ ...s, version: v, splits: VERSIONS[v].includes(Number(s.splits)) ? s.splits : VERSIONS[v][0] }));
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!VERSIONS[f.version].includes(Number(f.splits))) { setErr(`${f.version} 분할수는 ${VERSIONS[f.version].join('/')} 중 하나여야 합니다.`); return; }
+    setBusy(true); setErr('');
+    const body = { name: f.name, version: f.version, ticker: f.ticker, splits: Number(f.splits), principal_usd: Number(f.principal_usd), compounding: !!f.compounding, start_date: f.start_date || null, t_value: Number(f.t_value), qty: Number(f.qty), avg_price: Number(f.avg_price) };
+    if (f.cash_usd !== '') body.cash_usd = Number(f.cash_usd);
+    try { const r = await api('/cycles', 'POST', body); onCreated(r.data); onClose(); }
+    catch (e2) { setErr(errMsg(e2)); }
+    setBusy(false);
+  };
+  return (
+    <Modal open={open} onClose={onClose} size="lg">
+      <form onSubmit={submit} className="flex flex-col min-h-0">
+        <Modal.Header><h3 className="text-[16px] font-semibold text-slate-900 dark:text-white">새 사이클</h3></Modal.Header>
+        <Modal.Body className="px-5 md:px-8 py-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Field label="사이클 이름 / 메모"><input className={INPUT} required maxLength={60} value={f.name} onChange={(e) => set('name')(e.target.value)} /></Field></div>
+            <Field label="버전"><Select value={f.version} onChange={setVersion} options={opts(Object.keys(VERSIONS))} /></Field>
+            <Field label="종목"><Select value={f.ticker} onChange={set('ticker')} options={opts(TICKERS)} /></Field>
+            <Field label="분할수" hint={`${f.version}: ${VERSIONS[f.version].join(' / ')}`}><Select value={String(f.splits)} onChange={set('splits')} options={opts(VERSIONS[f.version])} /></Field>
+            <Field label="시드 ($)"><input type="number" min="0" step="0.01" required className={INPUT} value={f.principal_usd} onChange={(e) => set('principal_usd')(e.target.value)} /></Field>
+            <Field label="시작일"><input type="date" className={INPUT} value={f.start_date} onChange={(e) => set('start_date')(e.target.value)} /></Field>
+            <label className="flex items-center gap-2 text-[12.5px] text-slate-600 dark:text-slate-300 self-end pb-2"><input type="checkbox" checked={f.compounding} onChange={(e) => set('compounding')(e.target.checked)} />복리 (원금 재투자)</label>
+            <Field label="현재 T"><input type="number" min="0" step="0.01" className={INPUT} value={f.t_value} onChange={(e) => set('t_value')(e.target.value)} /></Field>
+            <Field label="잔금 ($, 선택)"><input type="number" min="0" step="0.01" className={INPUT} value={f.cash_usd} onChange={(e) => set('cash_usd')(e.target.value)} /></Field>
+            <Field label="수량"><input type="number" min="0" step="1" className={INPUT} value={f.qty} onChange={(e) => set('qty')(e.target.value)} /></Field>
+            <Field label="평단 ($)"><input type="number" min="0" step="0.01" className={INPUT} value={f.avg_price} onChange={(e) => set('avg_price')(e.target.value)} /></Field>
+          </div>
+          <p className="text-[11px] text-slate-400">증권사 API 키 연결은 추후 지원 - 지금은 수동 입력</p>
+          {err && <p className="text-[12px] text-negative break-words">{err}</p>}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button type="button" variant="ghost" onClick={onClose}>취소</Button>
+          <Button type="submit" variant="primary" disabled={busy}>{busy ? '만드는 중...' : '만들기'}</Button>
+        </Modal.Footer>
+      </form>
+    </Modal>
+  );
+}
+
+// Portal to body: the page wrapper animates with transform, which would otherwise turn position:fixed into position:absolute.
+// Sits above the existing back-to-top button (App.jsx: bottom-20 on phones, bottom-6 on desktop) and the mobile nav (4rem + safe area).
+function Fab({ onClick }) {
+  return createPortal(
+    <button onClick={onClick} aria-label="새 사이클" title="새 사이클"
+      className="fixed z-40 right-4 md:right-6 bottom-[calc(8.5rem+env(safe-area-inset-bottom))] md:bottom-20 w-12 h-12 rounded-full bg-brand text-white dark:text-slate-900 shadow-lg flex items-center justify-center cursor-pointer hover:opacity-90">
+      <Plus size={22} />
+    </button>,
+    document.body
   );
 }
 
@@ -334,14 +606,14 @@ function EditModal({ open, onClose, api, editing, onSaved }) {
         <Modal.Header><h3 className="text-[16px] font-semibold text-slate-900 dark:text-white">사이클 수정{editing ? ` · ${editing.cycle_key}` : ''}</h3></Modal.Header>
         <Modal.Body className="px-5 md:px-8 py-4 space-y-5">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="이름"><input className={INPUT} required maxLength={60} value={f.name ?? ''} onChange={(e) => set('name')(e.target.value)} /></Field>
+            <Field label="이름 / 메모"><input className={INPUT} required maxLength={60} value={f.name ?? ''} onChange={(e) => set('name')(e.target.value)} /></Field>
             <Field label="원금 ($)"><input type="number" min="0" step="0.01" required className={INPUT} value={f.principal_usd ?? ''} onChange={(e) => set('principal_usd')(e.target.value)} /></Field>
             <Field label="시작일"><input type="date" className={INPUT} value={f.start_date ?? ''} onChange={(e) => set('start_date')(e.target.value)} /></Field>
             <div />
             <Field label="모드"><Select value={f.mode || 'normal'} onChange={set('mode')} options={optsMap(MODE_LABEL)} /></Field>
             <Field label="상태"><Select value={f.status || 'active'} onChange={set('status')} options={optsMap(STATUS_LABEL)} /></Field>
             <label className="flex items-center gap-2 text-[12.5px] text-slate-600 dark:text-slate-300"><input type="checkbox" checked={!!f.compounding} onChange={(e) => set('compounding')(e.target.checked)} />복리 (원금 재투자)</label>
-            <label className="flex items-center gap-2 text-[12.5px] text-slate-600 dark:text-slate-300"><input type="checkbox" checked={!!f.auto_order} onChange={(e) => set('auto_order')(e.target.checked)} />자동주문</label>
+            <label className="col-span-2 flex items-center gap-2 text-[12.5px] text-slate-700 dark:text-slate-200"><input type="checkbox" role="switch" checked={!!f.auto_order} onChange={(e) => { if (e.target.checked && !window.confirm('실계좌로 매일 17:01에 LOC 매수·매도 주문이 자동 전송됩니다. 켜시겠습니까?')) return; set('auto_order')(e.target.checked); }} />자동매매 (매일 17:01 LOC 주문)</label>
           </div>
           <Panel level="inset" padding="sm" radius="lg" className="space-y-3">
             <div>
@@ -507,6 +779,9 @@ function PastCycle({ c, api, onDelete }) {
 // ── Page ──────────────────────────────────────────────────────
 export default function InfiniteBuy() {
   const { callApi, ServerWakeupOverlay } = useRenderApi();
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [pw, setPw] = useState(() => { try { return localStorage.getItem(PW_KEY) || ''; } catch { return ''; } });
   const [authMsg, setAuthMsg] = useState('');
   const [list, setList] = useState({ loading: false, error: '', data: [] });
@@ -514,6 +789,8 @@ export default function InfiniteBuy() {
   const [editor, setEditor] = useState({ open: false, editing: null });
   const [solver, setSolver] = useState({ open: false, target: null });
   const [pwOpen, setPwOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const lock = useCallback((msg = '') => {
     try { localStorage.removeItem(PW_KEY); } catch { /* storage unavailable */ }
@@ -551,12 +828,22 @@ export default function InfiniteBuy() {
   };
   const remove = async (c) => {
     if (!window.confirm(`"${c.cycle_key}" 사이클을 삭제할까요? (체결내역 포함)`)) return;
-    try { await api(`/cycles/${c.id}`, 'DELETE'); setList((l) => ({ ...l, data: l.data.filter((a) => a.id !== c.id) })); }
-    catch (e) { window.alert(`삭제 실패: ${errMsg(e)}`); }
+    try {
+      await api(`/cycles/${c.id}`, 'DELETE');
+      setList((l) => ({ ...l, data: l.data.filter((a) => a.id !== c.id) }));
+      if (params.get('c') === c.id) setParams({}, { replace: true });
+    } catch (e) { window.alert(`삭제 실패: ${errMsg(e)}`); }
   };
+
+  // Detail view is selected by ?c=<id>, so the browser back button returns to the list.
+  const detailId = params.get('c');
+  const detail = detailId ? list.data.find((c) => c.id === detailId) : null;
+  const openDetail = (c) => setParams({ c: c.id }, { state: { fromList: true } });
+  const back = () => (location.state?.fromList ? navigate(-1) : setParams({}, { replace: true }));
 
   const live = list.data.filter((c) => c.status !== 'done');
   const past = list.data.filter((c) => c.status === 'done');
+  const ready = pw && !list.error && !(list.loading && !list.data.length);
 
   return (
     <div className="space-y-4 min-w-0">
@@ -588,19 +875,25 @@ export default function InfiniteBuy() {
             <Button onClick={load}><RefreshCcw size={13} />다시 시도</Button>
           </Card>
         )
-        : !list.data.length ? <Card className="text-center text-[13.5px] text-slate-500 dark:text-slate-400">이 비밀번호의 사이클이 없습니다. 사이클은 로컬 설정 스크립트로 만듭니다.</Card>
-        : (
+        : detailId ? (
+          detail ? (
+            <CycleDetail acc={detail} api={api} onTrade={onTrade} onBack={back}
+              onEdit={(x) => setEditor({ open: true, editing: x })} onDelete={remove}
+              onBacksolve={(x) => setSolver({ open: true, target: x })} />
+          ) : (
+            <Card className="text-center text-[13.5px] text-slate-500 dark:text-slate-400">
+              <p className="mb-3">사이클을 찾을 수 없습니다.</p>
+              <Button onClick={back}><ArrowLeft size={13} />목록</Button>
+            </Card>
+          )
+        ) : (
           <>
             {live.length ? (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-                {live.map((c) => (
-                  <CycleCard key={c.id} acc={c} api={api} onTrade={onTrade} onSaved={upsert}
-                    onEdit={(x) => setEditor({ open: true, editing: x })}
-                    onDelete={remove}
-                    onBacksolve={(x) => setSolver({ open: true, target: x })} />
-                ))}
-              </div>
-            ) : <Card className="text-center text-[13.5px] text-slate-500 dark:text-slate-400">진행 중인 사이클이 없습니다.</Card>}
+              <Carousel items={[
+                <OverallCard key="all" live={live} onGuide={() => setGuideOpen(true)} />,
+                ...live.map((c) => <CycleFlipCard key={c.id} acc={c} onOpen={() => openDetail(c)} onEdit={() => setEditor({ open: true, editing: c })} />),
+              ]} />
+            ) : <Card className="text-center text-[13.5px] text-slate-500 dark:text-slate-400">진행 중인 사이클이 없습니다. 오른쪽 아래 + 버튼으로 새 사이클을 만드세요.</Card>}
             {past.length > 0 && (
               <details>
                 <summary className="cursor-pointer text-[13.5px] font-medium text-slate-700 dark:text-slate-300 py-2 select-none">지난 사이클 ({past.length})</summary>
@@ -612,9 +905,13 @@ export default function InfiniteBuy() {
           </>
         )}
 
+      {ready && !detailId && <Fab onClick={() => setCreateOpen(true)} />}
+
       <EditModal open={editor.open} onClose={() => setEditor((e) => ({ ...e, open: false }))} api={api} editing={editor.editing} onSaved={upsert} />
       <BacksolveModal open={solver.open} onClose={() => setSolver((s) => ({ ...s, open: false }))} api={api} target={solver.target} onApplied={upsert} />
       <PasswordModal open={pwOpen} onClose={() => setPwOpen(false)} api={api} cycleId={list.data[0]?.id} onChanged={store} />
+      <GuideModal open={guideOpen} onClose={() => setGuideOpen(false)} live={live} />
+      <CreateModal open={createOpen} onClose={() => setCreateOpen(false)} api={api} onCreated={() => load()} />
     </div>
   );
 }
