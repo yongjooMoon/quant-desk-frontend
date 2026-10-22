@@ -528,10 +528,10 @@ function CreateModal({ open, onClose, api, onCreated }) {
             <Field label="시드 ($)"><input type="number" min="0" step="0.01" required className={INPUT} value={f.principal_usd} onChange={(e) => set('principal_usd')(e.target.value)} /></Field>
             <Field label="시작일"><input type="date" className={INPUT} value={f.start_date} onChange={(e) => set('start_date')(e.target.value)} /></Field>
             <label className="flex items-center gap-2 text-[12.5px] text-slate-600 dark:text-slate-300 self-end pb-2"><input type="checkbox" checked={f.compounding} onChange={(e) => set('compounding')(e.target.checked)} />복리 (원금 재투자)</label>
-            <Field label="현재 T"><input type="number" min="0" step="0.01" className={INPUT} value={f.t_value} onChange={(e) => set('t_value')(e.target.value)} /></Field>
-            <Field label="잔금 ($, 선택)"><input type="number" min="0" step="0.01" className={INPUT} value={f.cash_usd} onChange={(e) => set('cash_usd')(e.target.value)} /></Field>
+            <Field label="현재 T"><input type="number" min="0" step="any" className={INPUT} value={f.t_value} onChange={(e) => set('t_value')(e.target.value)} /></Field>
+            <Field label="잔금 ($, 선택)"><input type="number" min="0" step="any" className={INPUT} value={f.cash_usd} onChange={(e) => set('cash_usd')(e.target.value)} /></Field>
             <Field label="수량"><input type="number" min="0" step="1" className={INPUT} value={f.qty} onChange={(e) => set('qty')(e.target.value)} /></Field>
-            <Field label="평단 ($)"><input type="number" min="0" step="0.01" className={INPUT} value={f.avg_price} onChange={(e) => set('avg_price')(e.target.value)} /></Field>
+            <Field label="평단 ($)"><input type="number" min="0" step="any" className={INPUT} value={f.avg_price} onChange={(e) => set('avg_price')(e.target.value)} /></Field>
           </div>
           <p className="text-[11px] text-slate-400">증권사 API 키 연결은 추후 지원 - 지금은 수동 입력</p>
           {err && <p className="text-[12px] text-negative break-words">{err}</p>}
@@ -609,10 +609,10 @@ function EditModal({ open, onClose, api, editing, onSaved }) {
               <p className="text-[11px] text-slate-500 dark:text-slate-400">현재 상태를 직접 입력합니다. 잔금을 비우면 변경하지 않습니다.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="T"><input type="number" min="0" step="0.01" className={INPUT} value={f.t_value ?? ''} onChange={(e) => set('t_value')(e.target.value)} /></Field>
-              <Field label="잔금 ($)"><input type="number" min="0" step="0.01" className={INPUT} value={f.cash_usd ?? ''} onChange={(e) => set('cash_usd')(e.target.value)} /></Field>
+              <Field label="T"><input type="number" min="0" step="any" className={INPUT} value={f.t_value ?? ''} onChange={(e) => set('t_value')(e.target.value)} /></Field>
+              <Field label="잔금 ($)"><input type="number" min="0" step="any" className={INPUT} value={f.cash_usd ?? ''} onChange={(e) => set('cash_usd')(e.target.value)} /></Field>
               <Field label="수량"><input type="number" min="0" step="1" className={INPUT} value={f.qty ?? ''} onChange={(e) => set('qty')(e.target.value)} /></Field>
-              <Field label="평단 ($)"><input type="number" min="0" step="0.01" className={INPUT} value={f.avg_price ?? ''} onChange={(e) => set('avg_price')(e.target.value)} /></Field>
+              <Field label="평단 ($)"><input type="number" min="0" step="any" className={INPUT} value={f.avg_price ?? ''} onChange={(e) => set('avg_price')(e.target.value)} /></Field>
             </div>
           </Panel>
           {err && <p className="text-[12px] text-negative break-words">{err}</p>}
@@ -673,9 +673,9 @@ function BacksolveModal({ open, onClose, api, target, onApplied }) {
           <Field label="분할수"><Select value={String(f.splits ?? 20)} onChange={set('splits')} options={opts(VERSIONS[f.version || 'V4.0'])} /></Field>
           <Field label="원금 ($)"><input type="number" min="0" step="0.01" required className={INPUT} value={f.principal_usd ?? ''} onChange={(e) => set('principal_usd')(e.target.value)} /></Field>
           <Field label="수량"><input type="number" min="0" step="1" required className={INPUT} value={f.qty ?? ''} onChange={(e) => set('qty')(e.target.value)} /></Field>
-          <Field label="평단 ($)"><input type="number" min="0" step="0.01" required className={INPUT} value={f.avg_price ?? ''} onChange={(e) => set('avg_price')(e.target.value)} /></Field>
-          <Field label="투입금 ($, 선택)" hint="비우면 수량 x 평단"><input type="number" min="0" step="0.01" className={INPUT} value={f.invested_usd ?? ''} onChange={(e) => set('invested_usd')(e.target.value)} /></Field>
-          <Field label="잔금 ($, 선택)"><input type="number" min="0" step="0.01" className={INPUT} value={f.cash_usd ?? ''} onChange={(e) => set('cash_usd')(e.target.value)} /></Field>
+          <Field label="평단 ($)"><input type="number" min="0" step="any" required className={INPUT} value={f.avg_price ?? ''} onChange={(e) => set('avg_price')(e.target.value)} /></Field>
+          <Field label="투입금 ($, 선택)" hint="비우면 수량 x 평단"><input type="number" min="0" step="any" className={INPUT} value={f.invested_usd ?? ''} onChange={(e) => set('invested_usd')(e.target.value)} /></Field>
+          <Field label="잔금 ($, 선택)"><input type="number" min="0" step="any" className={INPUT} value={f.cash_usd ?? ''} onChange={(e) => set('cash_usd')(e.target.value)} /></Field>
           <div className="col-span-2"><Field label="쿼터매도 LOC 주문 가격 ($, 선택)" hint="V4.0에서 T를 정확히 구하려면 필요"><input type="number" min="0" step="0.01" className={INPUT} value={f.quarter_sell_price ?? ''} onChange={(e) => set('quarter_sell_price')(e.target.value)} /></Field></div>
           <div className="col-span-2"><Button type="submit" variant="secondary" disabled={busy}><Calculator size={14} />역산</Button></div>
         </form>
