@@ -159,9 +159,12 @@ function Donut({ counts, total }) {
   );
 }
 function TargetPanel({ state, price }) {
+  const [pg, setPg] = useState(0);
+  useEffect(() => { setPg(0); }, [state.reports]);
   if (state.loading) return <div className={`${PANEL} p-5 text-[13px] text-slate-500`}>목표가 불러오는 중…</div>;
   if (state.error || state.status !== 'success') return <div className={`${PANEL} p-5`}><SectionTitle title="목표가" sub="애널리스트 컨센서스" /><p className="text-[13px] text-slate-500">{state.message || '애널리스트 목표가 데이터가 없습니다.'}</p></div>;
   const reps = state.reports || [];
+  const PER = 5, pages = Math.max(1, Math.ceil(reps.length / PER)), cur = Math.min(pg, pages - 1), shown = reps.slice(cur * PER, cur * PER + PER);
   const counts = { 매수: 0, 중립: 0, 매도: 0 };
   reps.forEach(r => { if (counts[r.opinion] != null) counts[r.opinion] += 1; });
   const total = counts.매수 + counts.중립 + counts.매도;
@@ -209,7 +212,7 @@ function TargetPanel({ state, price }) {
       )}
       <div className="text-[14px] font-semibold text-slate-900 dark:text-white mb-1">최근 평가</div>
       <div className="divide-y divide-slate-100 dark:divide-[#2C323A]">
-        {reps.map((r, i) => {
+        {shown.map((r, i) => {
           const o = OPN[r.opinion] || { c: '#94A3B8', bg: 'rgba(148,163,184,0.18)' }, u = r.goal && price ? (r.goal / price - 1) * 100 : null;
           return (
             <div key={i} className="py-3 flex items-center justify-between gap-3">
@@ -228,7 +231,14 @@ function TargetPanel({ state, price }) {
           );
         })}
       </div>
-      <p className="mt-3 text-[11px] text-slate-400">출처 네이버 증권{state.consensus?.asof ? ` · 컨센서스 ${state.consensus.asof} 기준` : ''}. 리포트는 최근 5건만 제공되며, 컨센서스 평균은 더 많은 증권사를 반영해 다를 수 있습니다.</p>
+      {pages > 1 && (
+        <div className="flex items-center justify-center gap-3 mt-3">
+          <button type="button" disabled={cur === 0} onClick={() => setPg(cur - 1)} className="p-1.5 rounded-lg border border-slate-200 dark:border-[#2C323A] text-slate-600 dark:text-slate-300 disabled:opacity-30"><ChevronLeft size={16} /></button>
+          <span className="text-[12.5px] tabular-nums text-slate-500 dark:text-slate-400">{cur + 1} / {pages}</span>
+          <button type="button" disabled={cur >= pages - 1} onClick={() => setPg(cur + 1)} className="p-1.5 rounded-lg border border-slate-200 dark:border-[#2C323A] text-slate-600 dark:text-slate-300 disabled:opacity-30"><ChevronRight size={16} /></button>
+        </div>
+      )}
+      <p className="mt-3 text-[11px] text-slate-400">{state.source === 'kis' ? `출처 한국투자증권 Open API · 증권사별 최신 의견 (최근 180일${state.consensus?.asof ? `, 최신 ${state.consensus.asof}` : ''})` : `출처 네이버 증권${state.consensus?.asof ? ` · 컨센서스 ${state.consensus.asof} 기준` : ''}. 리포트는 최근 5건만 제공되며, 컨센서스 평균은 더 많은 증권사를 반영해 다를 수 있습니다.`}</p>
     </div>
   );
 }
