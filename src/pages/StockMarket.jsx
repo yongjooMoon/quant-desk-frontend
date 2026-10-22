@@ -407,7 +407,7 @@ export default function StockMarket() {
 
   useEffect(() => {      // deep link: /market?s=000660&n=SK하이닉스
     const q = new URLSearchParams(window.location.search), s0 = q.get('s');
-    if (s0 && /^\d{6}$/.test(s0)) setSel({ symbol: s0, name: q.get('n') || s0, market: q.get('m') || '' });
+    if (s0 && /^[0-9A-Z]{6}$/.test(s0)) setSel({ symbol: s0, name: q.get('n') || s0, market: q.get('m') || '' });
   }, []);
 
   useEffect(() => {
