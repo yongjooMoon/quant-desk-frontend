@@ -7,6 +7,18 @@ import { useRenderApi } from '../hooks/useRenderApi';
 import { useAuth } from '../auth';
 import bedImg from '../assets/room-bed.png';   // Kenney Furniture Kit (CC0, kenney.nl): bedSingle + cabinetBed, rendered to a transparent isometric PNG
 
+// "아이디 저장": only the username is kept, in a browser cookie (1 year). The password is never stored.
+const SAVED_ID_COOKIE = 'qd_saved_id';
+const readSavedId = () => {
+  try {
+    const m = document.cookie.split('; ').find((c) => c.startsWith(SAVED_ID_COOKIE + '='));
+    const v = m ? decodeURIComponent(m.slice(SAVED_ID_COOKIE.length + 1)) : '';
+    return /^[A-Za-z0-9_]{3,20}$/.test(v) ? v : '';
+  } catch { return ''; }
+};
+const writeSavedId = (id) => { try { document.cookie = `${SAVED_ID_COOKIE}=${encodeURIComponent(id)}; max-age=31536000; path=/; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`; } catch { /* cookies blocked: login still works */ } };
+const clearSavedId = () => { try { document.cookie = `${SAVED_ID_COOKIE}=; max-age=0; path=/; SameSite=Lax`; } catch { /* ignore */ } };
+
 const CSS = `
 .lr { --pr: 8vw; --lx: calc(100vw - var(--pr) - 380px - 12vw); --bw: min(27vw, 470px); --fh: 22vh; --lw: min(360px, 38vw, 44vh); --lb: calc(var(--fh) - 6vh - var(--lw) * .087); --lt: 9vh; position: fixed; inset: 0; z-index: 60; overflow: hidden auto; color: #eef2f7; background: radial-gradient(ellipse at 28% 35%, #0d0f16 0%, #06070b 70%); display: grid; grid-template-columns: 1fr; align-items: center; align-content: center; }
 .lr::before { content: ""; position: fixed; inset: 0; background: radial-gradient(ellipse 60% 70% at 28% 40%, rgba(255,190,90,.22), transparent 70%); opacity: 0; transition: opacity .6s ease; pointer-events: none; }
@@ -48,6 +60,8 @@ const CSS = `
 .lr-label { display: block; font-size: 11px; letter-spacing: .2em; color: #8b94a6; font-weight: 700; margin: 16px 0 6px; text-transform: uppercase; }
 .lr-input { width: 100%; padding: 13px 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,.1); background: rgba(0,0,0,.35); color: #fff; font-size: 14px; outline: 0; transition: border-color .2s, box-shadow .2s; }
 .lr-input:focus { border-color: #ffcf70; box-shadow: 0 0 0 3px rgba(255,205,120,.14); }
+.lr-check { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 12.5px; color: #8b94a6; cursor: pointer; user-select: none; }
+.lr-check input { width: 15px; height: 15px; margin: 0; accent-color: #ffcf70; cursor: pointer; }
 .lr-go { margin-top: 26px; width: 100%; padding: 13px; border: 0; border-radius: 12px; font-weight: 800; letter-spacing: .25em; font-size: 13px; color: #1b1206; background: linear-gradient(135deg, #ffd98a, #ff9d3c); box-shadow: 0 10px 26px rgba(255,157,60,.3); cursor: pointer; }
 .lr-go:disabled { opacity: .6; cursor: default; }
 .lr-ff { position: fixed; left: 0; top: 0; border-radius: 50%; background: radial-gradient(circle, #fff6c9 0, #ffd36a 40%, transparent 70%); opacity: .35; transition: opacity .6s; pointer-events: none; animation: lr-ffmove var(--d) linear var(--delay) infinite, lr-twinkle 3s ease-in-out infinite; }
@@ -85,11 +99,13 @@ export default function Login() {
   const navigate = useNavigate();
   const [on, setOn] = useState(false);
   const [mode, setMode] = useState('login');
-  const [f, setF] = useState({ username: '', password: '', name: '', phone: '' });
+  const [f, setF] = useState(() => ({ username: readSavedId(), password: '', name: '', phone: '' }));
+  const [saveId, setSaveId] = useState(() => !!readSavedId());
   const [showPw, setShowPw] = useState(false);
   const [msg, setMsg] = useState({ tone: '', text: '' });
   const [busy, setBusy] = useState(false);
   const idRef = useRef(null);
+  const pwRef = useRef(null);
   const svgRef = useRef(null);
   const cordRef = useRef(null);
   const beadRef = useRef(null);
@@ -123,7 +139,7 @@ export default function Login() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  useEffect(() => { if (on) { const t = setTimeout(() => idRef.current?.focus(), 450); return () => clearTimeout(t); } }, [on]);
+  useEffect(() => { if (on) { const t = setTimeout(() => (readSavedId() ? pwRef : idRef).current?.focus(), 450); return () => clearTimeout(t); } }, [on]);   // a remembered id: start on the password
 
   if (user) return <Navigate to="/news" replace />;
 
@@ -161,6 +177,7 @@ export default function Login() {
         setMsg({ tone: 'ok', text: '계정 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.' });
       } else {
         const r = await callApi('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: f.username, password: f.password }) });
+        if (saveId) writeSavedId(f.username); else clearSavedId();
         login(r.token, r.user);
         navigate('/news', { replace: true });
       }
@@ -235,11 +252,17 @@ export default function Login() {
             <input id="lg-id" ref={idRef} className="lr-input" autoComplete="username" autoCapitalize="none" value={f.username} onChange={set('username')} />
             <label className="lr-label" htmlFor="lg-pw">Password</label>
             <div style={{ position: 'relative' }}>
-              <input id="lg-pw" className="lr-input" style={{ paddingRight: 44 }} type={showPw ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={f.password} onChange={set('password')} />
+              <input id="lg-pw" ref={pwRef} className="lr-input" style={{ paddingRight: 44 }} type={showPw ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={f.password} onChange={set('password')} />
               <button type="button" tabIndex={-1} aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'} onClick={() => setShowPw((v) => !v)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 0, color: '#8b94a6', cursor: 'pointer' }}>
                 {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
             </div>
+            {mode === 'login' && (
+              <label className="lr-check" htmlFor="lg-save">
+                <input id="lg-save" type="checkbox" checked={saveId} onChange={(e) => { setSaveId(e.target.checked); if (!e.target.checked) clearSavedId(); }} />
+                아이디 저장
+              </label>
+            )}
             {mode === 'signup' && (
               <>
                 <label className="lr-label" htmlFor="lg-name">Name</label>

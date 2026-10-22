@@ -283,6 +283,7 @@ function CycleDetail({ acc, api, onTrade, onBack, onEdit, onDelete, onBacksolve 
             <Badge size="sm" tone={acc.mode === 'normal' ? 'neutral' : 'warning'}>{MODE_LABEL[acc.mode] || acc.mode}</Badge>
             <Badge size="sm" tone={STATUS_TONE[acc.status] || 'neutral'} dot>{STATUS_LABEL[acc.status] || acc.status}</Badge>
             <Badge size="sm" tone={acc.auto_order ? 'warning' : 'neutral'}>{acc.auto_order ? '자동 ON' : '자동 OFF'}</Badge>
+            {acc.extras?.ladder && <Badge size="sm" tone="warning">사다리 ON</Badge>}
           </div>
           <p className="text-[11px] text-slate-400 font-mono mt-1 truncate">{acc.cycle_key}</p>
         </div>
@@ -402,6 +403,7 @@ function CardHead({ acc, right }) {
         <div className="flex items-center gap-1.5 flex-wrap">
           <Badge tone="info" variant="solid" size="sm" className="rounded-full">Ver {acc.version.replace('V', '')}</Badge>
           <Badge size="sm" tone={acc.auto_order ? 'warning' : 'neutral'}>{acc.auto_order ? '자동 ON' : '자동 OFF'}</Badge>
+            {acc.extras?.ladder && <Badge size="sm" tone="warning">사다리 ON</Badge>}
         </div>
         <p className="text-[32px] font-bold tracking-tight leading-tight text-slate-900 dark:text-white mt-1.5">{acc.ticker}</p>
         <p className="text-[12.5px] text-slate-500 dark:text-slate-400 truncate">{acc.name}</p>
@@ -556,7 +558,7 @@ function Fab({ onClick }) {
 }
 
 // ── Edit modal (no create: cycles come from the setup script / automatic next cycle) ──
-const EDIT_KEYS = ['name', 'principal_usd', 'compounding', 'mode', 'status', 'auto_order', 't_value', 'cash_usd', 'qty', 'avg_price'];
+const EDIT_KEYS = ['name', 'principal_usd', 'compounding', 'mode', 'status', 'auto_order', 'ladder', 't_value', 'cash_usd', 'qty', 'avg_price'];
 
 function EditModal({ open, onClose, api, editing, onSaved }) {
   const [f, setF] = useState({});
@@ -566,7 +568,7 @@ function EditModal({ open, onClose, api, editing, onSaved }) {
   useEffect(() => {
     if (!open || !editing) return;
     setErr('');
-    setF({ ...Object.fromEntries(EDIT_KEYS.map((k) => [k, editing[k] ?? ''])), start_date: ymd(editing.start_date) === '-' ? '' : ymd(editing.start_date) });
+    setF({ ...Object.fromEntries(EDIT_KEYS.map((k) => [k, k === 'ladder' ? !!editing.extras?.ladder : editing[k] ?? ''])), start_date: ymd(editing.start_date) === '-' ? '' : ymd(editing.start_date) });
   }, [open, editing]);
 
   const set = (k) => (v) => setF((s) => ({ ...s, [k]: v }));
@@ -574,7 +576,7 @@ function EditModal({ open, onClose, api, editing, onSaved }) {
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true); setErr('');
-    const body = { name: f.name, principal_usd: Number(f.principal_usd), compounding: !!f.compounding, mode: f.mode, status: f.status, auto_order: !!f.auto_order, t_value: Number(f.t_value), qty: Number(f.qty), avg_price: Number(f.avg_price) };
+    const body = { name: f.name, principal_usd: Number(f.principal_usd), compounding: !!f.compounding, mode: f.mode, status: f.status, auto_order: !!f.auto_order, extras: { ...(editing.extras || {}), ladder: !!f.ladder }, t_value: Number(f.t_value), qty: Number(f.qty), avg_price: Number(f.avg_price) };
     if (f.start_date) body.start_date = f.start_date;
     if (f.cash_usd !== '' && f.cash_usd != null) body.cash_usd = Number(f.cash_usd);
     try {
@@ -599,6 +601,7 @@ function EditModal({ open, onClose, api, editing, onSaved }) {
             <Field label="상태"><Select value={f.status || 'active'} onChange={set('status')} options={optsMap(STATUS_LABEL)} /></Field>
             <label className="flex items-center gap-2 text-[12.5px] text-slate-600 dark:text-slate-300"><input type="checkbox" checked={!!f.compounding} onChange={(e) => set('compounding')(e.target.checked)} />복리 (원금 재투자)</label>
             <label className="col-span-2 flex items-center gap-2 text-[12.5px] text-slate-700 dark:text-slate-200"><input type="checkbox" role="switch" checked={!!f.auto_order} onChange={(e) => { if (e.target.checked && !window.confirm('실계좌로 매일 17:01에 LOC 매수·매도 주문이 자동 전송됩니다. 켜시겠습니까?')) return; set('auto_order')(e.target.checked); }} />자동매매 (매일 17:01 LOC 주문)</label>
+            <label className="col-span-2 flex items-center gap-2 text-[12.5px] text-slate-700 dark:text-slate-200"><input type="checkbox" role="switch" checked={!!f.ladder} onChange={(e) => { if (e.target.checked && !window.confirm('폭락장 대비 추가 매수(1주 LOC 6건)가 매일 함께 전송됩니다. 켜시겠습니까?')) return; set('ladder')(e.target.checked); }} />사다리 (폭락장 대비 추가 매수 6건)</label>
           </div>
           <Panel level="inset" padding="sm" radius="lg" className="space-y-3">
             <div>
