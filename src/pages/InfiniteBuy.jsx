@@ -20,7 +20,7 @@ const TAG_LABEL = {
   star_buy: '별지점매수',
   quarter_sell: '쿼터매도',
   target_sell: '전량 지정가매도',
-  ladder_x: '폭락장 대비 추가 매수',
+  ladder_x: '추가 매수',
 };
 const INPUT = 'w-full min-w-0 px-2.5 py-2 rounded-md text-[13px] tabular-nums bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand';
 
@@ -138,9 +138,9 @@ function OrderTable({ acc, rows }) {
   return (
     <Table>
       <Table.Head>
-        <Table.HeadCell>구분</Table.HeadCell>
-        <Table.HeadCell>유형</Table.HeadCell>
-        <Table.HeadCell align="right">수량</Table.HeadCell>
+        <Table.HeadCell className="whitespace-nowrap">구분</Table.HeadCell>
+        <Table.HeadCell className="whitespace-nowrap">유형</Table.HeadCell>
+        <Table.HeadCell align="right" className="whitespace-nowrap">수량</Table.HeadCell>
         <Table.HeadCell align="right">가격</Table.HeadCell>
         <Table.HeadCell align="right">예상금액</Table.HeadCell>
         <Table.HeadCell className="pl-3">태그</Table.HeadCell>
@@ -148,8 +148,8 @@ function OrderTable({ acc, rows }) {
       <Table.Body>
         {rows.map((o, i) => (
           <Table.Row key={i}>
-            <Table.Cell className={`font-medium ${o.side === 'buy' ? 'text-positive' : 'text-negative'}`}>{o.side === 'buy' ? '매수' : '매도'}</Table.Cell>
-            <Table.Cell>{o.type}</Table.Cell>
+            <Table.Cell className={`font-medium whitespace-nowrap ${o.side === 'buy' ? 'text-positive' : 'text-negative'}`}>{o.side === 'buy' ? '매수' : '매도'}</Table.Cell>
+            <Table.Cell className="whitespace-nowrap">{o.type}</Table.Cell>
             <Table.Cell align="right" numeric className="font-mono">{o.qty}</Table.Cell>
             <Table.Cell align="right" numeric className="font-mono">{o.price != null ? usd(o.price) : '-'}</Table.Cell>
             <Table.Cell align="right" numeric className="font-mono">{o.price != null ? usd(o.qty * o.price) : '-'}</Table.Cell>
