@@ -286,7 +286,7 @@ function FinancialPanel({ state }) {
   );
 }
 
-// ── 관련 뉴스: market_news 중 제목/관련 자산에 종목명이 들어간 기사 + 업종명 키워드가 들어간 기사(via='sector'). 5건씩 페이지, 클릭하면 뉴스탭과 같은 팝업
+// ── 관련 뉴스: market_news 중 제목/관련 자산에 종목명이 들어간 기사 + 종목 태그와 겹치는 기사(via='tag', #반도체 같은 칩) + 업종명 키워드가 들어간 기사(via='sector'). 5건씩 페이지, 클릭하면 뉴스탭과 같은 팝업
 const NEWS_PAGE = 5;
 const sentimentInfo = (score) => {
   if (score <= 2) return { text: 'Bearish', label: '부정적', cls: 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20', bar: '#EF4444' };
@@ -363,6 +363,7 @@ function NewsPanel({ state, name }) {
               <div className="flex items-center gap-1.5 min-w-0">
                 {n.major && <span className="px-1.5 py-0.5 rounded font-semibold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-500/15">주요</span>}
                 {n.via === 'sector' && <span className="px-1.5 py-0.5 rounded font-medium text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">업종</span>}
+                {n.via === 'tag' && (n.matched || []).slice(0, 3).map(t => <span key={t} className="px-1.5 py-0.5 rounded font-medium text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20">#{t}</span>)}
                 {n.region && <span className="px-1.5 py-0.5 rounded font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/60 truncate">{n.region}</span>}
               </div>
               <span className="text-slate-400 tabular-nums shrink-0">{n.time}</span>
