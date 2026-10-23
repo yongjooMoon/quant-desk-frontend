@@ -157,7 +157,7 @@ export function useRenderApi() {
   const timerRef = useRef(null);
 
   // [2026-09-17] 이 훅을 쓰는 컴포넌트가 언마운트된 뒤(예: 라우트 이동) 콜드스타트 타이머가
-  // 아직 안 끝난 상태로 남아있으면, 4초 뒤 이미 사라진 컴포넌트의 setFunMode/setIsSleeping을
+  // 아직 안 끝난 상태로 남아있으면, 5초 뒤 이미 사라진 컴포넌트의 setFunMode/setIsSleeping을
   // 호출하게 된다(크래시는 안 하지만 불필요한 상태 업데이트). 언마운트 시 명시적으로 정리.
   useEffect(() => {
     return () => {
@@ -173,7 +173,7 @@ export function useRenderApi() {
     
     let isResolved = false;
     
-    // 💡 1. 콜드 스타트 판별 타이머 (4초)
+    // 💡 1. 콜드 스타트 판별 타이머 (5초: 가장 느린 쿼리가 약 3초라 4초에서 올림, 2026-10-23)
     // 🌟 [추가] options.background가 true면 백그라운드 폴링이므로 오버레이 팝업을 띄우지 않습니다.
     if (!options.background) {
       timerRef.current = setTimeout(() => {
@@ -181,7 +181,7 @@ export function useRenderApi() {
           setFunMode(Math.random() < 0.5 ? 'candle' : 'card');
           setIsSleeping(true);
         }
-      }, 4000);
+      }, 5000);
     }
 
     const url = `${BASE_URL}${endpoint}`;
