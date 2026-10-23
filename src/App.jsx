@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Newspaper, TrendingUp, FileText, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays, ArrowUp, ChartCandlestick, Infinity as InfinityIcon, LogIn, LogOut, ShieldCheck } from 'lucide-react';
+import { Newspaper, TrendingUp, FileText, Search, Sun, Moon, ChevronsLeft, ChevronsRight, CalendarDays, ArrowUp, ChartCandlestick, Infinity as InfinityIcon, LogIn, LogOut, ShieldCheck, User } from 'lucide-react';
 import { AuthProvider, useAuth } from './auth';
 
 // 라우트별 코드 스플리팅 — 첫 진입 시 방문한 페이지의 번들만 내려받는다.
@@ -16,6 +16,7 @@ const StockMarket = lazy(() => import('./pages/StockMarket'));
 const InfiniteBuy = lazy(() => import('./pages/InfiniteBuy'));
 const Login = lazy(() => import('./pages/Login'));
 const Admin = lazy(() => import('./pages/Admin'));
+const Account = lazy(() => import('./pages/Account'));
 
 // Calendar, infinite buying and admin are private: without a login the visitor is sent to /login and returns afterwards.
 function RequireAuth({ children }) {
@@ -121,7 +122,7 @@ function Shell() {
     ...(user ? [{ path: '/calendar', icon: CalendarDays, label: '캘린더' }, { path: '/infinite', icon: InfinityIcon, label: '무한매수' }] : []),
     // { path: '/realestate', icon: Building2, label: '부동산' },  // disabled (also drop Building2 from the lucide import to re-enable)
     { path: '/search', icon: Search, label: '종목검색' },
-    ...(user?.role === 'admin' ? [{ path: '/admin', icon: ShieldCheck, label: '계정관리' }] : []),
+    ...(user?.role === 'admin' ? [{ path: '/admin', icon: ShieldCheck, label: '계정관리' }] : user ? [{ path: '/account', icon: User, label: '내 계정' }] : []),
     ...(user ? [] : [{ path: '/login', icon: LogIn, label: '로그인' }]),
   ];
 
@@ -285,6 +286,7 @@ function Shell() {
                   <Route path="/calendar" element={<RequireAuth><HousingCalendar /></RequireAuth>} />
                   <Route path="/infinite" element={<RequireAuth><InfiniteBuy /></RequireAuth>} />
                   <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
+                  <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
                   {/* <Route path="/realestate" element={<RealEstate />} /> */}
                   <Route path="/search" element={<StockSearch />} />
                 </Routes>
