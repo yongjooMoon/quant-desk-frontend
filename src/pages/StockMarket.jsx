@@ -320,6 +320,9 @@ function NewsModal({ item, idx, total, onClose, onMove }) {
               <h4 className="text-slate-500 dark:text-slate-400 font-medium mb-3 text-[13px] md:text-[14.5px]">AI 핵심 요약</h4>
               <p className="text-slate-700 dark:text-slate-300 leading-relaxed md:leading-loose whitespace-pre-line text-[15.5px] md:text-[17px]">{body}</p>
             </div>
+            {/^https?:\/\//.test(item.url || '') && (
+              <a href={item.url} target="_blank" rel="noopener noreferrer" className="inline-block mt-6 text-[13.5px] md:text-[14.5px] font-medium text-sky-700 dark:text-sky-300 hover:underline">원문 보기 &rarr;</a>
+            )}
           </div>
           <div className="lg:w-[260px] shrink-0">
             <div className="rounded-lg border border-slate-200 dark:border-[#2C323A] bg-slate-50 dark:bg-[#16233A] p-5 lg:sticky lg:top-0">

@@ -697,6 +697,9 @@ export default function NewsDesk() {
                           {selectedNews.summary.replace(/http[^\s]+/g, '').replace(/<br><br>/g, '\n\n').trim()}
                       </p>
                   </div>
+                  {/^https?:\/\//.test(selectedNews.source_url || '') && (
+                    <a href={selectedNews.source_url} target="_blank" rel="noopener noreferrer" className="inline-block mt-6 text-[13.5px] md:text-[14.5px] font-medium text-sky-700 dark:text-sky-300 hover:underline">원문 보기 &rarr;</a>
+                  )}
                 </div>
 
                 {/* 메타 사이드 패널 — 큰 화면에서 데이터가 여백으로 흩어지지 않도록 별도 elevated panel로 분리 */}
