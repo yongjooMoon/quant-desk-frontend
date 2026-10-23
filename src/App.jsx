@@ -16,7 +16,7 @@ const StockMarket = lazy(() => import('./pages/StockMarket'));
 const InfiniteBuy = lazy(() => import('./pages/InfiniteBuy'));
 const Login = lazy(() => import('./pages/Login'));
 const Admin = lazy(() => import('./pages/Admin'));
-const Account = lazy(() => import('./pages/Account'));
+import AccountModal from './pages/AccountModal';
 
 // Calendar, infinite buying and admin are private: without a login the visitor is sent to /login and returns afterwards.
 function RequireAuth({ children }) {
@@ -96,6 +96,7 @@ function PageSuspenseFallback() {
 
 function Shell() {
   const { user, logout } = useAuth();
+  const [accountOpen, setAccountOpen] = useState(false);      // "my account" popup, opened over whatever page is showing
   const doLogout = () => { if (window.confirm('로그아웃 할까요?')) logout(); };
   // 기본 모드를 다크 모드로 설정 (true)
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -122,7 +123,7 @@ function Shell() {
     ...(user ? [{ path: '/calendar', icon: CalendarDays, label: '캘린더' }, { path: '/infinite', icon: InfinityIcon, label: '무한매수' }] : []),
     // { path: '/realestate', icon: Building2, label: '부동산' },  // disabled (also drop Building2 from the lucide import to re-enable)
     { path: '/search', icon: Search, label: '종목검색' },
-    ...(user?.role === 'admin' ? [{ path: '/admin', icon: ShieldCheck, label: '계정관리' }] : user ? [{ path: '/account', icon: User, label: '내 계정' }] : []),
+    ...(user?.role === 'admin' ? [{ path: '/admin', icon: ShieldCheck, label: '계정관리' }] : []),
     ...(user ? [] : [{ path: '/login', icon: LogIn, label: '로그인' }]),
   ];
 
@@ -130,6 +131,7 @@ function Shell() {
     <>
       {/* 경로가 바뀔 때마다 <main> 스크롤을 맨 위로 리셋 — BrowserRouter 자식 위치에 있어야 useLocation 사용 가능 */}
       <ScrollToTop containerRef={mainRef} />
+      {user && <AccountModal open={accountOpen} onClose={() => setAccountOpen(false)} />}
 
       {/* Vite 기본 index.css의 찌그러짐 속성 무력화 + 다크모드 색상 보정 */}
       <style>{`
@@ -216,6 +218,14 @@ function Shell() {
           {/* 하단 테마 변경 토글 */}
           <div className="w-full px-3 mt-auto">
             {user && (
+              <button onClick={() => setAccountOpen(true)} className={`group relative w-full flex items-center ${isSidebarOpen ? 'justify-start pl-3 pr-3 py-2.5' : 'justify-center p-2.5'} text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-md`}>
+                <User size={17} className="shrink-0" strokeWidth={1.75} />
+                {isSidebarOpen ? <span className="ml-3 font-medium text-[13px] whitespace-nowrap">내 계정</span> : (
+                  <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-800 dark:bg-slate-700 text-white text-[12.5px] font-medium rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity whitespace-nowrap z-50 shadow-lg pointer-events-none">내 계정</div>
+                )}
+              </button>
+            )}
+            {user && (
               <button onClick={doLogout} className={`group relative w-full flex items-center ${isSidebarOpen ? 'justify-start pl-3 pr-3 py-2.5' : 'justify-center p-2.5'} text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-md`}>
                 <LogOut size={17} className="shrink-0" strokeWidth={1.75} />
                 {isSidebarOpen ? <span className="ml-3 font-medium text-[13px] whitespace-nowrap">로그아웃 ({user.username})</span> : (
@@ -258,6 +268,12 @@ function Shell() {
               </NavLink>
             ))}
             {user && (
+              <button onClick={() => setAccountOpen(true)} className="flex flex-col items-center justify-center flex-1 min-w-[68px] shrink-0 h-full text-slate-400 dark:text-slate-500 transition-colors cursor-pointer">
+                <User size={19} strokeWidth={1.75} className="mb-1" />
+                <span className="text-[10.5px] font-medium tracking-tight">내 계정</span>
+              </button>
+            )}
+            {user && (
               <button onClick={doLogout} className="flex flex-col items-center justify-center flex-1 min-w-[68px] shrink-0 h-full text-slate-400 dark:text-slate-500 transition-colors cursor-pointer">
                 <LogOut size={19} strokeWidth={1.75} className="mb-1" />
                 <span className="text-[10.5px] font-medium tracking-tight">로그아웃</span>
@@ -286,7 +302,6 @@ function Shell() {
                   <Route path="/calendar" element={<RequireAuth><HousingCalendar /></RequireAuth>} />
                   <Route path="/infinite" element={<RequireAuth><InfiniteBuy /></RequireAuth>} />
                   <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
-                  <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
                   {/* <Route path="/realestate" element={<RealEstate />} /> */}
                   <Route path="/search" element={<StockSearch />} />
                 </Routes>

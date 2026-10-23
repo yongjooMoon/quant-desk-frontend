@@ -12,7 +12,7 @@ function Field({ label, children, hint, tone }) {
     <label className="block min-w-0">
       <span className="block text-[11.5px] text-slate-500 dark:text-slate-400 mb-1">{label}</span>
       {children}
-      {hint && <span className={`block text-[11.5px] mt-1 ${tone === 'ok' ? 'text-positive' : tone === 'bad' ? 'text-negative' : 'text-slate-400'}`}>{hint}</span>}
+      {hint && <span className={`block text-[11.5px] mt-1 ${tone === 'ok' ? 'text-negative' : tone === 'bad' ? 'text-positive' : 'text-slate-400'}`}>{hint}</span>}
     </label>
   );
 }
@@ -102,7 +102,7 @@ export default function AccountModal({ open, onClose }) {
           <Field label="전화번호"><input className={INPUT} required maxLength={20} inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" /></Field>
           <div className="flex items-center gap-3">
             <Button type="submit" size="sm" variant="primary" disabled={busy === 'profile'}>{busy === 'profile' ? '저장 중…' : '정보 저장'}</Button>
-            {profileMsg.text && <span className={`text-[12px] ${profileMsg.tone === 'ok' ? 'text-positive' : 'text-negative'}`}>{profileMsg.text}</span>}
+            {profileMsg.text && <span className={`text-[12px] ${profileMsg.tone === 'ok' ? 'text-negative' : 'text-positive'}`}>{profileMsg.text}</span>}
           </div>
         </form>
 
@@ -120,7 +120,7 @@ export default function AccountModal({ open, onClose }) {
           </Field>
           <div className="flex items-center gap-3">
             <Button type="submit" size="sm" variant="primary" disabled={!canChange}>{busy === 'pw' ? '변경 중…' : '비밀번호 변경'}</Button>
-            {pwMsg.text && <span className={`text-[12px] ${pwMsg.tone === 'ok' ? 'text-positive' : 'text-negative'}`}>{pwMsg.text}</span>}
+            {pwMsg.text && <span className={`text-[12px] ${pwMsg.tone === 'ok' ? 'text-negative' : 'text-positive'}`}>{pwMsg.text}</span>}
           </div>
         </form>
       </Modal.Body>

@@ -4,7 +4,6 @@ import { RefreshCcw } from 'lucide-react';
 import { useRenderApi } from '../hooks/useRenderApi';
 import { useAuth } from '../auth';
 import { Card, Button, Badge } from '../components';
-import AccountModal from './AccountModal';
 
 const TONE = { pending: 'warning', approved: 'success', rejected: 'negative' };
 const LABEL = { pending: '승인 대기', approved: '승인됨', rejected: '거절됨' };
@@ -16,7 +15,6 @@ export default function Admin() {
   const [rows, setRows] = useState([]);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
-  const [myOpen, setMyOpen] = useState(false);
 
   const load = useCallback(() => {
     callApi('/api/auth/admin/users', { headers })
@@ -46,12 +44,8 @@ export default function Admin() {
       <ServerWakeupOverlay />
       <div className="flex items-center justify-between">
         <h2 className="text-[20px] font-semibold text-slate-900 dark:text-white">계정 관리</h2>
-        <div className="flex items-center gap-2">
-          <Button size="sm" onClick={() => setMyOpen(true)}>내 계정</Button>
-          <Button size="sm" variant="ghost" onClick={load} aria-label="새로고침"><RefreshCcw size={13} /></Button>
-        </div>
+        <Button size="sm" variant="ghost" onClick={load} aria-label="새로고침"><RefreshCcw size={13} /></Button>
       </div>
-      <AccountModal open={myOpen} onClose={() => setMyOpen(false)} />
       {err && <p className="text-[12.5px] text-negative">{err}</p>}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {rows.map((r) => (
