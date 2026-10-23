@@ -399,6 +399,7 @@ export default function StockMarket() {
   const [maOn, setMaOn] = useState({ ma20: true, ma60: true, ma120: false });
   const [chart, setChart] = useState({ loading: false, candles: [], last: null, error: null });
   const [daily, setDaily] = useState([]);
+  const [chartDone, setChartDone] = useState(null);       // symbol whose chart request has settled
   const [target, setTarget] = useState({ loading: false });
   const [fin, setFin] = useState({ loading: false });
   const [news, setNews] = useState({ loading: false, data: [] });
@@ -418,8 +419,16 @@ export default function StockMarket() {
     }).catch(() => setList({ loading: false, rows: [], asof: null, error: '목록을 불러오지 못했습니다.' }));
   }, [market, sort, callApi]);
 
-  useEffect(() => {
-    callApi('/api/krx-list').then(r => { if (r.status === 'success') setOptions(r.data); }).catch(() => {});
+  const optionsLoadedRef = useRef(false);
+  const loadOptions = useCallback(() => {      // search list: fetched on the first use of the search box, not on every page visit
+    if (optionsLoadedRef.current) return;
+    optionsLoadedRef.current = true;
+    const key = `sm_krx_${new Date().toISOString().slice(0, 10)}`;
+    try { const c = window.sessionStorage.getItem(key); if (c) { setOptions(JSON.parse(c)); return; } } catch (e) { /* no cache */ }
+    callApi('/api/krx-list').then(r => {
+      if (r.status === 'success') { setOptions(r.data); try { window.sessionStorage.setItem(key, JSON.stringify(r.data)); } catch (e) { /* quota */ } }
+      else optionsLoadedRef.current = false;
+    }).catch(() => { optionsLoadedRef.current = false; });
   }, [callApi]);
 
   useEffect(() => {
@@ -436,7 +445,8 @@ export default function StockMarket() {
       if (symRef.current !== symbol) return;
       if (r.status === 'success') { setChart({ loading: false, candles: r.candles, last: r.last, error: null }); if (tfv === 'D') setDaily(r.candles); }
       else setChart({ loading: false, candles: [], last: null, error: r.message || '차트를 불러오지 못했습니다.' });
-    }).catch(() => setChart({ loading: false, candles: [], last: null, error: '차트를 불러오지 못했습니다.' }));
+      setChartDone(symbol);
+    }).catch(() => { setChart({ loading: false, candles: [], last: null, error: '차트를 불러오지 못했습니다.' }); if (symRef.current === symbol) setChartDone(symbol); });
   }, [callApi]);
 
   useEffect(() => { if (sel) loadChart(sel.symbol, tf); }, [sel, tf, loadChart]);
@@ -444,15 +454,20 @@ export default function StockMarket() {
     if (!sel || tf === 'D') return;
     callApi(`/api/market/chart/${sel.symbol}?tf=D`).then(r => { if (r.status === 'success') setDaily(r.candles); }).catch(() => {});
   }, [sel, callApi]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {      // 목표가 / 재무 / 뉴스: 종목을 열 때 한 번 (목표가는 서버가 24시간 캐시)
-    if (!sel) return;
-    let alive = true;      // a slow answer of the previous symbol must not overwrite the current symbol's panels
+  useEffect(() => {      // reset the side panels when a stock is opened; the fallback timer releases them if the chart is slow
+    if (!sel) return undefined;
     setTarget({ loading: true }); setFin({ loading: true }); setNews({ loading: true, data: [] });
+    const t = setTimeout(() => setChartDone(sel.symbol), 2500);
+    return () => clearTimeout(t);
+  }, [sel]);
+  useEffect(() => {      // 목표가 / 재무 / 뉴스: after the chart settled (4 requests at once made the host answer [Errno 11]); 목표가는 서버가 24시간 캐시
+    if (!sel || chartDone !== sel.symbol) return undefined;
+    let alive = true;      // a slow answer of the previous symbol must not overwrite the current symbol's panels
     callApi(`/api/market/targets/${sel.symbol}`).then(r => { if (alive) setTarget({ loading: false, ...r }); }).catch(() => { if (alive) setTarget({ loading: false, error: true }); });
     callApi(`/api/market/financials/${sel.symbol}`).then(r => { if (alive) setFin({ loading: false, ...r }); }).catch(() => { if (alive) setFin({ loading: false, message: '재무를 불러오지 못했습니다.' }); });
     callApi(`/api/market/news/${sel.symbol}?name=${encodeURIComponent(sel.name)}`).then(r => { if (alive) setNews({ loading: false, data: r.data || [] }); }).catch(() => { if (alive) setNews({ loading: false, data: [] }); });
     return () => { alive = false; };
-  }, [sel, callApi]);
+  }, [sel, chartDone, callApi]);
 
   const clearDetail = () => { symRef.current = null; setChart({ loading: false, candles: [], last: null, error: null }); setDaily([]); setTarget({ loading: false }); setFin({ loading: false }); setNews({ loading: false, data: [] }); };
 
@@ -464,7 +479,7 @@ export default function StockMarket() {
   const searchBox = (
     <div ref={boxRef} className="relative w-full md:w-[340px]">
       <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-      <input value={term} onChange={e => { setTerm(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="종목명 또는 코드 검색"
+      <input value={term} onChange={e => { setTerm(e.target.value); setOpen(true); loadOptions(); }} onFocus={() => { setOpen(true); loadOptions(); }} placeholder="종목명 또는 코드 검색"
         className="w-full pl-9 pr-3 py-2 text-[13.5px] rounded-md border border-slate-200 dark:border-[#2C323A] bg-white dark:bg-[#1E2329] text-slate-900 dark:text-slate-100 outline-none focus:border-slate-400" />
       {open && matches.length > 0 && (
         <div className="absolute z-30 mt-1 w-full rounded-md border border-slate-200 dark:border-[#2C323A] bg-white dark:bg-[#1E2329] shadow-lg overflow-hidden">

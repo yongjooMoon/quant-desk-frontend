@@ -220,7 +220,10 @@ const MICRO_INTERACTION_STYLES = `
 // =========================================================================
 // [2026-09-18] v3 -> v4: 12y 백테스트 payload에 capital(투자원금 원화 환산) 블록이 추가돼서,
 // 기존 캐시(capital 없음)를 들고 있는 브라우저가 새 카드를 못 보는 문제를 막기 위해 키 버전업.
-const QUANT_CACHE_KEY = 'qd_quant_macro_cache_v4';
+const QUANT_CACHE_KEY = 'qd_quant_macro_cache_v5';   // dashboard + macro + kospi only; the big payloads below have their own keys (v4 held everything, ~3 MB in one blob)
+const OLD_CACHE_KEYS = ['qd_quant_macro_cache_v4'];
+const SCREENER_CACHE_KEY = 'qd_screener_v5';
+const BACKTEST_CACHE_KEY = 'qd_backtest_v5';
 const CACHE_EXPIRE_HOUR = 15;
 const CACHE_EXPIRE_MINUTE = 10;
 
@@ -236,6 +239,7 @@ function getNextExpireAt() {
 
 function readQuantMacroCache() {
   try {
+    OLD_CACHE_KEYS.forEach(k => window.localStorage.removeItem(k));   // frees the old ~3 MB blob
     const raw = window.localStorage.getItem(QUANT_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
@@ -249,6 +253,23 @@ function readQuantMacroCache() {
   } catch (e) {
     return null;
   }
+}
+
+// per-payload cache for the lazily loaded tabs (same 15:10 expiry as the main cache)
+function readLazyCache(key) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.expireAt || !parsed.data) return null;
+    return new Date().getTime() < new Date(parsed.expireAt).getTime() ? parsed.data : null;
+  } catch (e) { return null; }
+}
+function writeLazyCache(key, data) {
+  try { window.localStorage.setItem(key, JSON.stringify({ data, expireAt: getNextExpireAt() })); } catch (e) { /* quota / private mode: work without the cache */ }
+}
+function clearLazyCaches() {
+  try { [SCREENER_CACHE_KEY, BACKTEST_CACHE_KEY].forEach(k => window.localStorage.removeItem(k)); } catch (e) { /* ignore */ }
 }
 
 function writeQuantMacroCache(payload) {
@@ -293,6 +314,8 @@ export default function QuantDesk() {
   // (5개씩, 옆으로 넘겨보는 용도 — 탭 전체를 스크롤하던 예전 방식 대체)
   const [watchPage, setWatchPage] = useState(0);
   const [data, setData] = useState(EMPTY_QUANT_DATA);
+  const [lazyState, setLazyState] = useState({ screener: 'idle', backtest12y: 'idle' });   // idle | loading | ok | error
+  const lazyRef = useRef({});
   const [kospiData, setKospiData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -404,53 +427,45 @@ export default function QuantDesk() {
   }, [callApi]);
 
   // forceRefresh = true 인 경우(새로고침 버튼)는 캐시를 무시하고 항상 API를 호출합니다.
+  // [2026-10-23 perf] Startup loads only what the first screen needs (dashboard, KS11, macro). Screener (2.1 MB raw) and the 12y backtest
+  // (346 KB raw) are fetched when their tab opens (loadLazy below), each with its own cache key.
   const fetchQuantData = (forceRefresh = false) => {
     setLoading(true);
 
-    if (!forceRefresh) {
+    if (forceRefresh) {
+      clearLazyCaches();
+      lazyRef.current = {};
+      setLazyState({ screener: 'idle', backtest12y: 'idle' });
+      setData(p => ({ ...p, screener: [], backtest12y: null }));
+      if (activeTab === 'Screener') loadLazy('screener', '/api/screener', SCREENER_CACHE_KEY, true);
+      if (activeTab === 'Backtest') loadLazy('backtest12y', '/api/backtesting/12y-result', BACKTEST_CACHE_KEY, true);
+    } else {
       const cached = readQuantMacroCache();
       if (cached) {
-        setData({ ...EMPTY_QUANT_DATA, ...cached });
+        setData(p => ({ ...p, ...cached }));
         setKospiData(cached.kospiData || []);
         setLoading(false);
         return;
       }
     }
 
-    // /api/backtesting/result(250일치) 대신 /api/backtesting/12y-result(12년치)를 호출
-    // 5개 전부 실패 시 최대 2회 추가 재조회(callApiWithRetry) — 콜드스타트 직후 일시적으로
-    // 몇 개만 실패하는 경우를 자체 복구한다.
+    // 3 requests; a failed one is retried up to 2 times (callApiWithRetry) - right after a cold start only some of them fail.
     Promise.allSettled([
       callApiWithRetry(callApi, "/api/quant-dashboard"),
       callApiWithRetry(callApi, "/api/search/KS11"),
       callApiWithRetry(callApi, "/api/macro"),
-      callApiWithRetry(callApi, "/api/screener"),
-      callApiWithRetry(callApi, "/api/backtesting/12y-result"),
     ])
     .then((results) => {
       const quantResult = results[0].status === 'fulfilled' ? results[0].value : null;
       const kospiResult = results[1].status === 'fulfilled' ? results[1].value : null;
       const macroResult = results[2].status === 'fulfilled' ? results[2].value : null;
-      const screenerResult = results[3].status === 'fulfilled' ? results[3].value : null;
-      const backtest12yResult = results[4].status === 'fulfilled' ? results[4].value : null;
 
-      // macro/screener/backtest12y 중 하나만 재조회까지 다 실패해도 캐시에 빈 값으로
-      // 저장되면 다음 방문 때도 재시도 없이 그 빈 값을 계속 재사용하게 된다
-      // (최대 다음날 15:10까지). 실패한 항목은 [] 로 덮어쓰지 말고 직전 캐시 값을 유지하고,
-      // 이번에도 직전 캐시도 없어서 진짜로 못 채운 필드가 있으면 아예 캐시 저장 자체를
-      // 건너뛴다(healthy 플래그) — 그래야 다음 로드 때 캐시 대신 다시 네트워크로 시도한다.
+      // A failed macro must not be cached as an empty value (it would stay until 15:10 the next day): keep the previous cache value and skip
+      // the cache write when there is neither a fresh nor a previous value (cacheSafe).
       const prevCache = readQuantMacroCache();
-
       const macroOk = !!(macroResult && macroResult.status === "success" && macroResult.data);
-      const screenerOk = !!(screenerResult && screenerResult.status === "success" && screenerResult.data);
-      const backtest12yOk = !!(backtest12yResult && backtest12yResult.status === "success" && backtest12yResult.data);
       const macroHealthy = macroOk || !!(prevCache?.macro?.length);
-      const screenerHealthy = screenerOk || !!(prevCache?.screener?.length);
-      const backtest12yHealthy = backtest12yOk || !!prevCache?.backtest12y;
-
       if (!macroOk) console.warn('[QuantDesk] /api/macro 최종 실패 — 매크로 탭 데이터 없음 가능성', macroResult);
-      if (!screenerOk) console.warn('[QuantDesk] /api/screener 최종 실패', screenerResult);
-      if (!backtest12yOk) console.warn('[QuantDesk] /api/backtesting/12y-result 최종 실패', backtest12yResult);
 
       let mergedDataForCache = null;
       let cacheSafe = false;
@@ -458,14 +473,11 @@ export default function QuantDesk() {
 
       if (quantResult && quantResult.status === "success" && quantResult.data) {
         const mergedData = { ...quantResult.data };
-
         mergedData.macro = macroOk ? macroResult.data : (prevCache?.macro || []);
-        mergedData.screener = screenerOk ? screenerResult.data : (prevCache?.screener || []);
-        mergedData.backtest12y = backtest12yOk ? backtest12yResult.data : (prevCache?.backtest12y || null);
-
-        setData(mergedData);
+        delete mergedData.screener; delete mergedData.backtest12y;     // owned by the lazy loaders
+        setData(p => ({ ...p, ...mergedData }));
         mergedDataForCache = mergedData;
-        cacheSafe = macroHealthy && screenerHealthy && backtest12yHealthy;
+        cacheSafe = macroHealthy;
       }
 
       if (kospiResult && kospiResult.status === "success" && kospiResult.data && Array.isArray(kospiResult.data.chart_data)) {
@@ -498,6 +510,39 @@ export default function QuantDesk() {
       setLoading(false);
     });
   };
+
+  // Lazy payloads (screener / 12y backtest): fetched when the tab opens, cached per key, never cached when failed.
+  const loadLazy = (key, endpoint, cacheKey, force = false) => {
+    if (!force && (lazyRef.current[key] === 'loading' || lazyRef.current[key] === 'ok')) return;
+    const cached = force ? null : readLazyCache(cacheKey);
+    if (cached) {
+      lazyRef.current[key] = 'ok';
+      setData(p => ({ ...p, [key]: cached }));
+      setLazyState(st => ({ ...st, [key]: 'ok' }));
+      return;
+    }
+    lazyRef.current[key] = 'loading';
+    setLazyState(st => ({ ...st, [key]: 'loading' }));
+    callApiWithRetry(callApi, endpoint).then(res => {
+      if (res && res.status === 'success' && res.data) {
+        writeLazyCache(cacheKey, res.data);
+        lazyRef.current[key] = 'ok';
+        setData(p => ({ ...p, [key]: res.data }));
+        setLazyState(st => ({ ...st, [key]: 'ok' }));
+      } else {
+        lazyRef.current[key] = 'idle';
+        setLazyState(st => ({ ...st, [key]: res && res.status === 'success' ? 'ok' : 'error' }));   // success without data (backtest not generated yet) is an empty state, not an error
+      }
+    }).catch(() => {
+      lazyRef.current[key] = 'idle';
+      setLazyState(st => ({ ...st, [key]: 'error' }));
+    });
+  };
+
+  useEffect(() => {
+    if (activeTab === 'Screener') loadLazy('screener', '/api/screener', SCREENER_CACHE_KEY);
+    if (activeTab === 'Backtest') loadLazy('backtest12y', '/api/backtesting/12y-result', BACKTEST_CACHE_KEY);
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchQuantData(); }, []);
 
@@ -933,7 +978,7 @@ export default function QuantDesk() {
 
           {/* ===================== MACRO TAB ===================== */}
           {activeTab === "Macro" && (
-            <MacroPage macroData={data.macro} />
+            <MacroPage macroData={data.macro} fetchHistory={(ind) => callApi(`/api/macro/history/${encodeURIComponent(ind)}?days=1260`, { background: true })} />
           )}
 
           {/* ===================== PORTFOLIO TAB ===================== */}
@@ -1243,7 +1288,13 @@ export default function QuantDesk() {
 
           {/* ===================== SCREENER TAB ===================== */}
           {activeTab === "Screener" && (
-              <QuantScreener screenerData={data.screener} />
+              lazyState.screener === 'loading' ? (
+                <div className="flex justify-center p-20 w-full"><RefreshCcw className="animate-spin text-slate-400" size={28} strokeWidth={1.75} /></div>
+              ) : lazyState.screener === 'error' ? (
+                <div className="flex flex-col items-center justify-center py-24 text-slate-500"><p className="text-[14px] text-center">스크리너 데이터를 불러오지 못했습니다.<br/>다른 탭에 갔다가 다시 열거나 새로고침해 주세요.</p></div>
+              ) : (
+                <QuantScreener screenerData={data.screener} />
+              )
           )}
 
           {/* ===================== HISTORY TAB ===================== */}
@@ -1344,7 +1395,11 @@ export default function QuantDesk() {
           {/* ===================== BACKTEST TAB (12년치 검증 리포트) ===================== */}
           {activeTab === "Backtest" && (
             <div className="qd-fade-in w-full max-w-6xl mx-auto pb-10">
-              {!bt || !btTrackRecord ? (
+              {lazyState.backtest12y === 'loading' ? (
+                <div className="flex justify-center p-20 w-full"><RefreshCcw className="animate-spin text-slate-400" size={28} strokeWidth={1.75} /></div>
+              ) : lazyState.backtest12y === 'error' ? (
+                <div className="flex flex-col items-center justify-center py-24 text-slate-500"><p className="text-[14px] text-center">백테스팅 데이터를 불러오지 못했습니다.<br/>다른 탭에 갔다가 다시 열거나 새로고침해 주세요.</p></div>
+              ) : !bt || !btTrackRecord ? (
                 <div className="flex flex-col items-center justify-center py-24 text-slate-500">
                   <p className="text-[14px] text-center leading-relaxed">12년치 백테스팅 데이터가 아직 없습니다.<br/>다음 주간 배치 실행 후 다시 확인해 주세요.</p>
                 </div>

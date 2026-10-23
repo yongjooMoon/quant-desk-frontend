@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Info, X } from 'lucide-react';
 import {
   AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -553,16 +553,26 @@ const MacroSection = ({ title, items, onCardClick }) => {
 // ---------------------------------------------------------------------------
 const RANGE_TRADING_DAYS = { '1M': 20, '3M': 60, '1Y': 252, '3Y': 756, '5Y': 1260 };
 
-const MacroChartModal = ({ item, onClose }) => {
+const MacroChartModal = ({ item, onClose, fetchHistory }) => {
   const [range, setRange] = useState('1Y');
   const isPos = item.change_percent >= 0;
+  // The list response carries only the last 30 points per indicator; the full history (up to 5Y) is fetched when the modal opens.
+  const [fullHist, setFullHist] = useState(null);
+  useEffect(() => {
+    if (!fetchHistory) return undefined;
+    let alive = true;
+    setFullHist(null);
+    Promise.resolve(fetchHistory(item.indicator)).then(r => { if (alive && r && r.status === 'success' && Array.isArray(r.history) && r.history.length) setFullHist(r.history); }).catch(() => {});
+    return () => { alive = false; };
+  }, [item.indicator]); // eslint-disable-line react-hooks/exhaustive-deps
+  const baseHist = fullHist || item.history;
 
   const chartData = useMemo(() => {
-    if (!item.history || item.history.length === 0) return [];
-    const sortedHist = [...item.history].sort((a, b) => new Date(a.date) - new Date(b.date));
+    if (!baseHist || baseHist.length === 0) return [];
+    const sortedHist = [...baseHist].sort((a, b) => new Date(a.date) - new Date(b.date));
     const days = RANGE_TRADING_DAYS[range] || 252;
     return sortedHist.slice(-days);
-  }, [item.history, range]);
+  }, [baseHist, range]);
 
   return (
     <Modal open onClose={onClose} size="xl">
@@ -644,7 +654,7 @@ const ShimmerRow = ({ index }) => {
 // ---------------------------------------------------------------------------
 // 부모로부터 macroData를 Props로 받아 매핑
 // ---------------------------------------------------------------------------
-const MacroPage = ({ macroData }) => {
+const MacroPage = ({ macroData, fetchHistory }) => {
   const [selectedMacro, setSelectedMacro] = useState(null);
 
   const { byIndicator, regimeData } = useMemo(() => {
@@ -721,7 +731,7 @@ const MacroPage = ({ macroData }) => {
         return <MacroSection key={section.title} title={section.title} items={items} onCardClick={setSelectedMacro} />;
       })}
 
-      {selectedMacro && <MacroChartModal item={selectedMacro} onClose={() => setSelectedMacro(null)} />}
+      {selectedMacro && <MacroChartModal item={selectedMacro} onClose={() => setSelectedMacro(null)} fetchHistory={fetchHistory} />}
     </div>
   );
 };
