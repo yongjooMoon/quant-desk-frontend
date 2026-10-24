@@ -256,22 +256,25 @@ function Trades({ acc, api, onTrade, readOnly }) {
         : (
           <Table>
             <Table.Head>
-              <Table.HeadCell className="pr-3">일자</Table.HeadCell>
-              <Table.HeadCell className="pr-3">구분</Table.HeadCell>
-              <Table.HeadCell align="right" className="pr-3">수량</Table.HeadCell>
-              <Table.HeadCell align="right" className="pr-4">가격</Table.HeadCell>
-              <Table.HeadCell align="right" className="pl-4">T</Table.HeadCell>
-              <Table.HeadCell className="pl-4">태그</Table.HeadCell>
+              <Table.HeadCell className="pr-3 whitespace-nowrap">일자</Table.HeadCell>
+              <Table.HeadCell className="pr-3 whitespace-nowrap">구분</Table.HeadCell>
+              <Table.HeadCell align="right" className="pr-3 whitespace-nowrap">수량</Table.HeadCell>
+              <Table.HeadCell align="right" className="pr-4 whitespace-nowrap">가격</Table.HeadCell>
+              <Table.HeadCell align="right" className="pl-4 whitespace-nowrap">T</Table.HeadCell>
+              <Table.HeadCell className="pl-4 whitespace-nowrap hidden sm:table-cell">태그</Table.HeadCell>
             </Table.Head>
             <Table.Body>
               {(rawRows ? state.data.map((t) => ({ ...t, tagText: tagLabel(t.tag) })) : groupTrades(state.data)).map((t, i) => (
                 <Table.Row key={t.id ?? i}>
-                  <Table.Cell numeric className="font-mono whitespace-nowrap pr-3">{String(t.trade_date).slice(0, 10)}</Table.Cell>
+                  <Table.Cell numeric className="font-mono whitespace-nowrap pr-3">
+                    {String(t.trade_date).slice(0, 10)}
+                    <div className="sm:hidden font-sans text-[11px] text-slate-400 whitespace-normal leading-tight mt-0.5">{t.tagText}</div>
+                  </Table.Cell>
                   <Table.Cell className={`pr-3 whitespace-nowrap ${t.side === 'buy' ? 'text-positive' : 'text-negative'}`}>{t.side === 'buy' ? '매수' : '매도'}</Table.Cell>
-                  <Table.Cell align="right" numeric className="font-mono pr-3">{t.qty}</Table.Cell>
+                  <Table.Cell align="right" numeric className="font-mono pr-3 whitespace-nowrap">{t.qty}</Table.Cell>
                   <Table.Cell align="right" numeric className="font-mono pr-4 whitespace-nowrap">{usd(t.price)}</Table.Cell>
                   <Table.Cell align="right" numeric className="font-mono pl-4">{t.t_after ?? '-'}</Table.Cell>
-                  <Table.Cell className="pl-4 whitespace-nowrap">{t.tagText}{t.source && t.source !== 'manual' ? ` · ${t.source}` : ''}</Table.Cell>
+                  <Table.Cell className="pl-4 whitespace-nowrap hidden sm:table-cell">{t.tagText}{t.source && t.source !== 'manual' ? ` · ${t.source}` : ''}</Table.Cell>
                 </Table.Row>
               ))}
             </Table.Body>
