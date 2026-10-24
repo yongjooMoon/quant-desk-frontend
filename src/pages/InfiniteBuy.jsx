@@ -21,6 +21,8 @@ const TAG_LABEL = {
   quarter_sell: '쿼터매도',
   target_sell: '전량 지정가매도',
   ladder_x: '추가 매수',
+  ladder: '폭락대비 매수',
+  limit_buy: '지정가 매수',
 };
 const INPUT = 'w-full min-w-0 px-2.5 py-2 rounded-md text-[13px] tabular-nums bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand';
 
@@ -28,6 +30,21 @@ const usd = (n, d = 2) => (n == null || Number.isNaN(Number(n)) ? '-' : `$${Numb
 const num = (v) => (v === '' || v == null ? undefined : Number(v));
 const tagLabel = (t) => TAG_LABEL[t] || (t && t.startsWith('reverse_') ? `리버스 ${t.slice(8)}` : t || '-');
 const today = () => new Date().toISOString().slice(0, 10);
+// One row per day and side: shares added up, volume-weighted price, T after the day, tags with their share counts (the broker lists every 1-share crash-prep fill separately).
+function groupTrades(rows) {
+  const m = new Map();
+  for (const t of rows) {
+    const k = `${String(t.trade_date).slice(0, 10)}|${t.side}`;
+    const g = m.get(k) || { id: k, trade_date: t.trade_date, side: t.side, qty: 0, amt: 0, t_after: null, tags: {}, source: t.source };
+    g.qty += Number(t.qty);
+    g.amt += Number(t.qty) * Number(t.price);
+    if (t.t_after != null) g.t_after = g.t_after == null ? Number(t.t_after) : Math.max(g.t_after, Number(t.t_after));
+    const tg = t.tag || '-';
+    g.tags[tg] = (g.tags[tg] || 0) + Number(t.qty);
+    m.set(k, g);
+  }
+  return [...m.values()].map((g) => ({ ...g, price: g.amt / g.qty, tagText: Object.entries(g.tags).map(([tg, q]) => `${tagLabel(tg)} ${q}`).join(' + ') }));
+}
 const ymd = (d) => (d ? String(d).slice(0, 10) : '-');
 // callApi only exposes "API Error: <status> ..."; map the known statuses to Korean text.
 const errMsg = (e) => {
@@ -185,6 +202,7 @@ function Trades({ acc, api, onTrade, readOnly }) {
   const [state, setState] = useState({ loading: true, error: '', data: [] });
   const [f, setF] = useState({ trade_date: today(), side: 'buy', qty: '', price: '', tag: '', tstep: 'auto', tcustom: '' });
   const [busy, setBusy] = useState(false);
+  const [rawRows, setRawRows] = useState(false);
   const [err, setErr] = useState('');
 
   const load = useCallback(() => {
@@ -224,35 +242,36 @@ function Trades({ acc, api, onTrade, readOnly }) {
           </Field>
           {f.tstep === 'custom' && <input type="number" min="0" max="2" step="0.25" className={`${INPUT} mt-1`} value={f.tcustom} onChange={(e) => setF({ ...f, tcustom: e.target.value })} />}
         </div>
-        <p className="col-span-2 sm:col-span-6 text-[11px] text-slate-400 -mt-1">두 주문 중 하나만 체결되면 +0.5 (매도 시 T 증가는 무시됩니다)</p>
+        <p className="col-span-2 sm:col-span-6 text-[11px] text-slate-400 -mt-1">전반전: 평단·별지점 주문이 각각 체결되면 +0.5씩 / 후반전: 별지점 매수만 +1 · 폭락대비(추가) 매수는 T에 넣지 않습니다 (매도 시 T 증가는 무시됩니다)</p>
         <div className="col-span-2 sm:col-span-6 flex items-center gap-3">
           <Button type="submit" variant="primary" size="sm" disabled={busy}>수동 체결 반영</Button>
           <span className="text-[11px] text-slate-400">T/잔금/수량/평단이 규칙 엔진으로 갱신됩니다.</span>
         </div>
         {err && <p className="col-span-2 sm:col-span-6 text-[12px] text-negative">{err}</p>}
       </form>}
+      <label className="inline-flex items-center gap-2 text-[12px] text-slate-500 dark:text-slate-400 cursor-pointer"><input type="checkbox" checked={rawRows} onChange={(e) => setRawRows(e.target.checked)} />체결 낱개로 보기 (기본: 하루 한 줄로 합쳐서 표시)</label>
       {state.loading ? <p className="text-[12.5px] text-slate-500">불러오는 중...</p>
         : state.error ? <p className="text-[12.5px] text-negative">체결내역 오류: {state.error}</p>
         : !state.data.length ? <p className="text-[12.5px] text-slate-500">체결내역이 없습니다.</p>
         : (
           <Table>
             <Table.Head>
-              <Table.HeadCell>일자</Table.HeadCell>
-              <Table.HeadCell>구분</Table.HeadCell>
-              <Table.HeadCell align="right">수량</Table.HeadCell>
-              <Table.HeadCell align="right">가격</Table.HeadCell>
-              <Table.HeadCell align="right">T</Table.HeadCell>
-              <Table.HeadCell className="pl-3">태그</Table.HeadCell>
+              <Table.HeadCell className="pr-3">일자</Table.HeadCell>
+              <Table.HeadCell className="pr-3">구분</Table.HeadCell>
+              <Table.HeadCell align="right" className="pr-3">수량</Table.HeadCell>
+              <Table.HeadCell align="right" className="pr-4">가격</Table.HeadCell>
+              <Table.HeadCell align="right" className="pl-4">T</Table.HeadCell>
+              <Table.HeadCell className="pl-4">태그</Table.HeadCell>
             </Table.Head>
             <Table.Body>
-              {state.data.map((t, i) => (
+              {(rawRows ? state.data.map((t) => ({ ...t, tagText: tagLabel(t.tag) })) : groupTrades(state.data)).map((t, i) => (
                 <Table.Row key={t.id ?? i}>
-                  <Table.Cell numeric className="font-mono whitespace-nowrap">{String(t.trade_date).slice(0, 10)}</Table.Cell>
-                  <Table.Cell className={t.side === 'buy' ? 'text-positive' : 'text-negative'}>{t.side === 'buy' ? '매수' : '매도'}</Table.Cell>
-                  <Table.Cell align="right" numeric className="font-mono">{t.qty}</Table.Cell>
-                  <Table.Cell align="right" numeric className="font-mono">{usd(t.price)}</Table.Cell>
-                  <Table.Cell align="right" numeric className="font-mono">{t.t_after ?? '-'}</Table.Cell>
-                  <Table.Cell className="pl-3 whitespace-nowrap">{tagLabel(t.tag)}{t.source && t.source !== 'manual' ? ` · ${t.source}` : ''}</Table.Cell>
+                  <Table.Cell numeric className="font-mono whitespace-nowrap pr-3">{String(t.trade_date).slice(0, 10)}</Table.Cell>
+                  <Table.Cell className={`pr-3 whitespace-nowrap ${t.side === 'buy' ? 'text-positive' : 'text-negative'}`}>{t.side === 'buy' ? '매수' : '매도'}</Table.Cell>
+                  <Table.Cell align="right" numeric className="font-mono pr-3">{t.qty}</Table.Cell>
+                  <Table.Cell align="right" numeric className="font-mono pr-4 whitespace-nowrap">{usd(t.price)}</Table.Cell>
+                  <Table.Cell align="right" numeric className="font-mono pl-4">{t.t_after ?? '-'}</Table.Cell>
+                  <Table.Cell className="pl-4 whitespace-nowrap">{t.tagText}{t.source && t.source !== 'manual' ? ` · ${t.source}` : ''}</Table.Cell>
                 </Table.Row>
               ))}
             </Table.Body>
